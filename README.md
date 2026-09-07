@@ -12,7 +12,7 @@ The project began as a starter pack. Its unfinished behaviour and real defects g
 
 Refresh uses native asynchronous URLSession networking, actor-owned decoding and MainActor-owned feature state. A new screen refresh cancels its previous Task, and the feature rejects obsolete results before publication. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
 
-All 53 XCTest cases pass on macOS; the previous 35-test suite also passed on iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
+All 59 XCTest cases pass on macOS; the previous 35-test suite also passed on iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
 
 ## The architectural sentence
 
@@ -30,11 +30,11 @@ The architecture follows the principles used by [Trend](https://github.com/3Days
 
 ## Launch data
 
-The app fetches RocketLaunch.Live’s next five launches and Launch Library 2’s next 50. Both sources start concurrently and publish independently. Each source has its own in-memory cache and explicit failure state. Operator lists retain source attribution; cross-source duplicates and conflicting schedules are not silently reconciled.
+The app fetches RocketLaunch.Live’s next five launches, Launch Library 2’s next 50, and up to 50 from the community SpaceX API. The sources start concurrently and publish independently. Each source has its own in-memory cache and explicit failure state. Operator lists retain source attribution; cross-source duplicates and conflicting schedules are not silently reconciled.
 
 Estimated dates may be incomplete. The decoding model accepts unknown month, day and year values without inventing dates or rejecting an otherwise valid launch.
 
-The current app merges two sources into operator lists and a stored Next result. Its caches are in memory only; fresh results require the external APIs and a working network connection. The bundled `TestData.json` is a test fixture, not an automatic offline fallback.
+The current app merges three sources into operator lists and a stored Next result. Its caches are in memory only; fresh results require the external APIs and a working network connection. The bundled `TestData.json` is a test fixture, not an automatic offline fallback.
 
 ## Running
 
@@ -55,7 +55,7 @@ The screen retains the last launch during refresh or failure, displays a recover
 
 `RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
 
-The 53 XCTest cases cover:
+The 59 XCTest cases cover:
 
 - AppModel construction and independent application graphs.
 - Launch selection, empty responses and repository failures.
@@ -96,4 +96,10 @@ Explore the training program at [3DaysOfSwiftConcurrency.com](https://www.3dayso
 
 RocketLaunch is completely free, with no in-app purchases. Next is always the first tab. Operator tabs appear as each API response arrives and retain their order throughout the session. Each operator has a selectable launch list and detail screen. Source failures and previous cached data are visible, with independent refresh controls. Planned times appear in local time; estimates remain explicit. Additional operators are accessible through iPhone’s native More menu when needed.
 
-Launch Library refresh attempts have a five-minute cooldown within the running app. A third API is not implemented. See [MULTI_PROVIDER_DESIGN.md](MULTI_PROVIDER_DESIGN.md) for the progressive refresh behavior and current limits.
+Launch Library refresh attempts have a five-minute cooldown within the running app. The community SpaceX API is also enabled as a third source. See [MULTI_PROVIDER_DESIGN.md](MULTI_PROVIDER_DESIGN.md) for the progressive refresh behavior and current limits.
+
+## Community SpaceX source
+
+SpaceXAPI implements the documented v5 POST /launches/query endpoint and requests populated rocket/launchpad names. It is the community r-spacex project, not an official SpaceX service. It has its own memory cache, a 20-second request timeout, a 60-second refresh cooldown and independent failure state. Its status is shown on Next and the SpaceX operator screen. A failed SpaceX request does not prevent other sources publishing.
+
+Past or undated SpaceX schedule records may be browsed in its source-labelled cache but cannot become Next. A response containing only outdated records is labelled accordingly. Country is left unknown when absent from the launchpad schema; rocket-manufacturer country is not substituted. Decoding respects date precision. The archived service’s current availability and data freshness must not be inferred from successful fixture tests.

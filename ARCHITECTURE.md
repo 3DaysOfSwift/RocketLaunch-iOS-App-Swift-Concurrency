@@ -27,4 +27,10 @@ Presentation reads the model; network and selection logic do not live in Views. 
 
 ## Validation and limits
 
-53 host tests cover the model, ViewModels, decoding and networking cancellation. Both live sources loaded in Simulator. The application currently has two API integrations; a third needs verification. Launch Library fetches one page of up to 50 upcoming records; RocketLaunch.Live’s free endpoint supplies five. These are bounded source lists, not a claim of complete global coverage. Cache storage is in memory only. The detailed current behavior is recorded in MULTI_PROVIDER_DESIGN.md.
+59 host tests cover the model, ViewModels, decoding and networking cancellation. Both live sources loaded in Simulator. The application has three API integrations: RocketLaunch.Live, Launch Library and the community SpaceX API. Launch Library fetches one page of up to 50 upcoming records; RocketLaunch.Live’s free endpoint supplies five. These are bounded source lists, not a claim of complete global coverage. Cache storage is in memory only. The detailed current behavior is recorded in MULTI_PROVIDER_DESIGN.md.
+
+## Community SpaceX source
+
+SpaceXAPI implements the documented v5 POST /launches/query endpoint and requests populated rocket/launchpad names. It is the community r-spacex project, not an official SpaceX service. It has its own memory cache, a 20-second request timeout, a 60-second refresh cooldown and independent failure state. Its status is shown on Next and the SpaceX operator screen. A failed SpaceX request does not prevent other sources publishing.
+
+Past or undated SpaceX schedule records may be browsed in its source-labelled cache but cannot become Next. A response containing only outdated records is labelled accordingly. Country is left unknown when absent from the launchpad schema; rocket-manufacturer country is not substituted. Decoding respects date precision. The archived service’s current availability and data freshness must not be inferred from successful fixture tests.

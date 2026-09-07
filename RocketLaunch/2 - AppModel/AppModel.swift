@@ -13,9 +13,11 @@ struct AppModel {
         let repository = RocketLaunchAPI(session: .shared, endpoint: endpoint)
         let libraryURL = URL(string: "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?limit=50&mode=normal&hide_recent_previous=true")!
         let library = LaunchLibraryAPI(session: .shared, endpoint: libraryURL)
+        let spaceX = SpaceXAPI(session: .shared, endpoint: URL(string: "https://api.spacexdata.com/v5/launches/query")!)
         return AppModel(launchSchedule: LaunchScheduleFeature(sources: [
             .init(id: .rocketLaunchLive, repository: repository),
-            .init(id: .launchLibrary, repository: library, minimumRefreshInterval: 300)
+            .init(id: .launchLibrary, repository: library, minimumRefreshInterval: 300),
+            .init(id: .spaceX, repository: spaceX, minimumRefreshInterval: 60)
         ]))
     }
 }

@@ -40,7 +40,10 @@ final class LaunchScheduleViewModel {
     func relevantSources(for operatorID: String?) -> [LaunchSourceSnapshot] {
         guard let operatorID else { return sources }
         let knownSources = feature.operators.first(where: { $0.id == operatorID })?.sourceIDs ?? []
-        return sources.filter { $0.fetchedAt == nil || knownSources.contains($0.id) }
+        return sources.filter {
+            if $0.id == .spaceX { return operatorID == "spacex" }
+            return $0.fetchedAt == nil || knownSources.contains($0.id)
+        }
     }
     func canRetry(_ source: LaunchSourceSnapshot) -> Bool {
         source.phase != .loading && (source.nextRefreshAt.map { $0 <= Date() } ?? true)
@@ -50,6 +53,10 @@ final class LaunchScheduleViewModel {
         case .idle: return String(localized: "Waiting for data")
         case .loading: return String(localized: "Updating…")
         case .loaded:
+            if source.id == .spaceX, !source.launches.isEmpty,
+               !source.launches.contains(where: { ($0.details.sortTime ?? .distantPast) >= Date() }) {
+                return String(localized: "Downloaded schedule is outdated · Excluded from Next")
+            }
             return source.fetchedAt.map { "Updated \($0.formatted(date: .omitted, time: .shortened)) · \(source.launches.count) launches" } ?? "Updated"
         case .failed:
             return source.launches.isEmpty ? String(localized: "Refresh failed · No data available") : String(localized: "Refresh failed · Showing previous data")

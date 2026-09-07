@@ -19,8 +19,9 @@ struct AboutView: View {
                 AppCard {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Behind the schedule").font(.headline)
-                        Text("Launch information comes from RocketLaunch.Live and The Space Devs’ Launch Library. Schedules are provisional and can change; some mission details may not yet be available.")
+                        Text("Launch information comes from RocketLaunch.Live, The Space Devs’ Launch Library, and the community SpaceX API. The SpaceX API is not an official SpaceX service. Schedules are provisional and can change; some mission details may not yet be available.")
                             .foregroundStyle(.secondary)
+                        Link("Community SpaceX API", destination: URL(string: "https://github.com/r-spacex/SpaceX-API")!)
                         Link("Visit The Space Devs", destination: URL(string: "https://thespacedevs.com/llapi")!)
                         Link(destination: URL(string: "https://www.rocketlaunch.live")!) {
                             Label("Visit RocketLaunch.Live", systemImage: "arrow.up.right.square")

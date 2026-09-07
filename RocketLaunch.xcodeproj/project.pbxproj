@@ -34,6 +34,7 @@
 		5900175C78A56AE96FD7AA37 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2EA7DB1A9044D47551CE4CA; };
 		D742B6F54A5210A60DE2925C = {isa = PBXBuildFile; fileRef = ECF3AA58DF64286E918A8453; };
 		2338D39EF5D218558C7916FA = {isa = PBXBuildFile; fileRef = 6B9AA865F333AFF8BBCF1CB7; };
+		71EE6C4EB964B7D50B88E3A0 = {isa = PBXBuildFile; fileRef = 57C37ACE8DE78CB7F8AD428D; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +77,7 @@
 		D2EA7DB1A9044D47551CE4CA = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		ECF3AA58DF64286E918A8453 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorLaunchesView.swift; sourceTree = "<group>"; };
 		6B9AA865F333AFF8BBCF1CB7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchLibraryAPI.swift; sourceTree = "<group>"; };
+		57C37ACE8DE78CB7F8AD428D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceXAPI.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -222,6 +224,7 @@
 			children = (
 				7B08A9B9304E8A5A00096A29 /* Rocket Launch API */,
 				71DCC2F5E5B68050A7A30C8A /* LaunchScheduleFeature.swift */,
+				D43A9F7790FB4DB1FFCD4912,
 				6C85A65CD7956631ADE2DD3F,
 				7B08A9BA304E8A6800096A29 /* Cached Launches */,
 			);
@@ -287,6 +290,7 @@
 		AA8ACBD186B991A40F505A85 = {isa = PBXGroup; children = (D2EA7DB1A9044D47551CE4CA,); path = About; sourceTree = "<group>"; };
 		5E04A7F3004B799FE6627D22 = {isa = PBXGroup; children = (ECF3AA58DF64286E918A8453,); path = "Operators"; sourceTree = "<group>"; };
 		6C85A65CD7956631ADE2DD3F = {isa = PBXGroup; children = (6B9AA865F333AFF8BBCF1CB7,); path = "Launch Library API"; sourceTree = "<group>"; };
+		D43A9F7790FB4DB1FFCD4912 = {isa = PBXGroup; children = (57C37ACE8DE78CB7F8AD428D,); path = "SpaceX API"; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -397,6 +401,7 @@
 				4D2FA66A637E666D17D05682 /* LaunchScheduleViewModel.swift in Sources */,
 				210F0EFB74899257C00AF13A /* AppModel.swift in Sources */,
 				650D1F72675866403091D9B5 /* LaunchScheduleFeature.swift in Sources */,
+				71EE6C4EB964B7D50B88E3A0,
 				2338D39EF5D218558C7916FA,
 				D742B6F54A5210A60DE2925C,
 				5900175C78A56AE96FD7AA37,

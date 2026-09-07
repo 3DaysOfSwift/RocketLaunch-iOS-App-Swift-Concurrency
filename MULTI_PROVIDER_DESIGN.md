@@ -10,7 +10,7 @@ Each operator screen shows status and refresh controls for its known contributin
 
 ## Data and concurrency
 
-RocketLaunch.Live supplies its free next-five response. Launch Library 2 supplies up to 50 upcoming records from its production 2.3.0 endpoint. Its refresh attempts have a five-minute in-memory cooldown. A third API remains unverified and is not simulated.
+RocketLaunch.Live supplies its free next-five response. Launch Library 2 supplies up to 50 upcoming records from its production 2.3.0 endpoint. Its refresh attempts have a five-minute in-memory cooldown. The third source is the community r-spacex SpaceX API, queried for up to 50 upcoming records with populated rocket and launchpad details.
 
 LaunchScheduleFeature owns one snapshot/cache per source, containing the entire decoded list, phase, fetched timestamp and next refresh time. All commits are Main Actor isolated; network waiting and decoding happen through the API actors. Refresh-all uses a task group. Each child handles its own error and commits when ready. The caller awaits completion of the group, while the UI sees intermediate commits immediately. An individual source refresh uses the same commit path and cannot cancel another source’s work. Request IDs reject superseded responses. Cancellation restores that source’s settled state.
 
@@ -24,4 +24,10 @@ Operator lists combine source records using source-qualified identities. Records
 
 ## Verification
 
-53 host XCTest cases pass, including incremental publication before the second source completes, failure isolation, cache separation, alias identity, empty-cache replacement, remembered tabs, individual-refresh updates, stale-response rejection, cancellation, time-driven Next updates, cooldown and Launch Library date precision. Simulator live smoke confirmed both source responses (5 + 50 records). Navigation is also checked manually.
+59 host XCTest cases pass, including incremental publication before the second source completes, failure isolation, cache separation, alias identity, empty-cache replacement, remembered tabs, individual-refresh updates, stale-response rejection, cancellation, time-driven Next updates, cooldown and Launch Library date precision. Simulator live smoke confirmed both source responses (5 + 50 records). Navigation is also checked manually.
+
+## Community SpaceX source
+
+SpaceXAPI implements the documented v5 POST /launches/query endpoint and requests populated rocket/launchpad names. It is the community r-spacex project, not an official SpaceX service. It has its own memory cache, a 20-second request timeout, a 60-second refresh cooldown and independent failure state. Its status is shown on Next and the SpaceX operator screen. A failed SpaceX request does not prevent other sources publishing.
+
+Past or undated SpaceX schedule records may be browsed in its source-labelled cache but cannot become Next. A response containing only outdated records is labelled accordingly. Country is left unknown when absent from the launchpad schema; rocket-manufacturer country is not substituted. Decoding respects date precision. The archived service’s current availability and data freshness must not be inferred from successful fixture tests.

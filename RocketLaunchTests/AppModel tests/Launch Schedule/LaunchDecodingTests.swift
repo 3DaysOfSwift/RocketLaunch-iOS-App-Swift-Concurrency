@@ -108,3 +108,56 @@ final class LaunchLibraryDecodingTests: XCTestCase {
         """.utf8)
     }
 }
+
+final class SpaceXAPITests: XCTestCase {
+    private func fixture(precision: String = "hour", upcoming: Bool = true) -> Data {
+        Data("""
+        {"docs":[{"id":"mission-id","name":"Example mission","upcoming":\(upcoming),
+        "date_unix":1700000000,"date_precision":"\(precision)","details":"Deploy a satellite",
+        "rocket":{"name":"Falcon 9"},"launchpad":{"full_name":"Cape Canaveral SLC-40"}}]}
+        """.utf8)
+    }
+    func testDecodesPopulatedRocketAndPadWithoutInventingCountry() throws {
+        let launch = try XCTUnwrap(SpaceXAPI.decodeResponse(fixture()).first)
+        XCTAssertEqual(launch.id, "spaceX:mission-id")
+        XCTAssertEqual(launch.details.provider, "SpaceX")
+        XCTAssertEqual(launch.details.vehicle, "Falcon 9")
+        XCTAssertEqual(launch.details.site, "Cape Canaveral SLC-40")
+        XCTAssertNil(launch.details.country)
+        XCTAssertNil(launch.details.plannedTime)
+        XCTAssertEqual(launch.details.missionDescription, "Deploy a satellite")
+    }
+    func testMinutePrecisionMapsToAnExactTime() throws {
+        XCTAssertEqual(try SpaceXAPI.decodeResponse(fixture(precision: "minute"))[0].details.plannedTime,
+                       Date(timeIntervalSince1970: 1700000000))
+    }
+    func testPastMissionsMarkedNotUpcomingAreExcluded() throws {
+        XCTAssertTrue(try SpaceXAPI.decodeResponse(fixture(upcoming: false)).isEmpty)
+    }
+    func testRequestQueriesUpcomingLaunchesAndPopulatesDetails() throws {
+        let request = SpaceXAPI.request(endpoint: URL(string: "https://example.invalid/query")!)
+        XCTAssertEqual(request.httpMethod, "POST")
+        let body = try JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as! [String: Any]
+        XCTAssertEqual((body["query"] as? [String: Bool])?["upcoming"], true)
+        XCTAssertEqual((body["options"] as? [String: Any])?["limit"] as? Int, 50)
+    }
+    func testHTTPFailureRemainsAnError() async throws {
+        let (session, id) = StubURLProtocol.session(response: .init(data: fixture(), statusCode: 503))
+        defer { session.invalidateAndCancel(); StubURLProtocol.remove(id) }
+        let api = SpaceXAPI(session: session, endpoint: URL(string: "https://example.invalid/query")!)
+        do { _ = try await api.fetchUpcomingLaunches(); XCTFail("Expected HTTP failure") }
+        catch { XCTAssertEqual(error as? LaunchRepositoryError, .httpStatus(503)) }
+    }
+    @MainActor func testOutdatedScheduleIsCachedButCannotBecomeNext() async throws {
+        let began = expectation(description: "began")
+        let repository = ControlledLaunchRepository { _ in began.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .spaceX, repository: repository)], now: { Date(timeIntervalSince1970: 2_000_000_000) })
+        let records = try SpaceXAPI.decodeResponse(fixture(precision: "minute"))
+        let task = Task { await feature.refresh() }; await waitFor([began])
+        await repository.complete(0, with: .success(records)); await task.value
+        XCTAssertEqual(feature.sources[0].launches, records)
+        XCTAssertEqual(feature.operators.first?.name, "SpaceX")
+        XCTAssertNil(feature.nextLaunch)
+        XCTAssertEqual(feature.state, .empty)
+    }
+}

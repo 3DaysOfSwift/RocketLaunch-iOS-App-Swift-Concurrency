@@ -91,6 +91,7 @@ final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
             }
         }
         let eligible = sources.filter { if case .failed = $0.phase { return false }; return true }.flatMap(\.launches)
+            .filter { $0.source != .spaceX || ($0.details.sortTime ?? .distantPast) >= now() }
         let future = eligible.filter { ($0.details.plannedTime ?? .distantPast) >= now() }
         nextLaunch = future.min { $0.details.plannedTime! < $1.details.plannedTime! }
             ?? eligible.first(where: { $0.details.plannedTime == nil }) ?? eligible.first
@@ -141,9 +142,15 @@ enum LaunchScheduleState: Equatable, Sendable {
 }
 
 enum LaunchSourceID: String, Sendable, CaseIterable, Identifiable {
-    case rocketLaunchLive, launchLibrary
+    case rocketLaunchLive, launchLibrary, spaceX
     var id: String { rawValue }
-    var name: String { self == .rocketLaunchLive ? "RocketLaunch.Live" : "Launch Library" }
+    var name: String {
+        switch self {
+        case .rocketLaunchLive: "RocketLaunch.Live"
+        case .launchLibrary: "Launch Library"
+        case .spaceX: "SpaceX API"
+        }
+    }
 }
 
 struct LaunchSourceConfiguration: Sendable {

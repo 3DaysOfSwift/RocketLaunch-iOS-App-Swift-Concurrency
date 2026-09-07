@@ -109,3 +109,9 @@ User confirmed the app launches in the simulator, but the downloaded response fa
 ## Progressive operator tabs — 2026-09-07
 
 The latest product instruction supersedes the single-screen design. Next remains fixed; operator tabs appear as API results arrive. Two live APIs now have independent in-memory caches, source failure states and cooldown-aware refresh. A task group publishes each source independently; shared root task ownership survives tab changes. Source-qualified rows open detail snapshots. LaunchScheduleFeature stores the next candidate and updates it on source commits and clock events. See MULTI_PROVIDER_DESIGN.md for current selection policy, source limits and verification. Third source and cross-source conflict reconciliation remain unresolved; no fake integration was added.
+
+## Third source: SpaceX API — 2026-09-07
+
+Developer explicitly requested the community SpaceX API after reviewing its archived status. Added the documented query adapter, independent cache/status, source identity and attribution. Past/undated records are excluded from Next. Six additional fixture/behavior checks pass (59 host tests total), including HTTP failure and outdated schedule exclusion. No third-party endpoint reliability is claimed from those tests.
+
+Live Simulator check: RocketLaunch.Live returned 5 records and Launch Library returned 50. The SpaceX request failed and displayed “Refresh failed · No data available” with its own refresh cooldown. Next and the other sources remained usable. The iOS Simulator build succeeded.
