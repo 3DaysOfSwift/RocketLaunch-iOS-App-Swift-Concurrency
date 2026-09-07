@@ -1,9 +1,10 @@
 import SwiftUI
 
 struct RemindersView: View {
+    @Environment(ThemeManager.self) private var themeManager
     @Environment(ReminderViewModel.self) private var viewModel
     var body: some View {
-        List {
+        ThemedList {
             if viewModel.reminders.isEmpty {
                 ContentUnavailableView("Your launch reminders", systemImage: "bell",
                     description: Text("Open a launch’s details to set an alert before liftoff."))
@@ -15,7 +16,7 @@ struct RemindersView: View {
                         if reminder.status == .pending {
                             Label("Scheduling…", systemImage: "clock").font(.caption)
                         } else if let issue = reminder.issue {
-                            Label(issue, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                            Label(issue, systemImage: "exclamationmark.triangle").foregroundStyle(themeManager.selected.error)
                         } else {
                             Text(reminder.fireDate, format: .dateTime.month().day().hour().minute())
                             Text(reminder.fireDate > Date() ? "\(reminder.minutesBefore) minutes before launch" : "Reminder time passed")

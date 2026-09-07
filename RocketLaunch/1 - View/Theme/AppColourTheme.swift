@@ -59,6 +59,7 @@ enum AppColourTheme: String, CaseIterable, Identifiable {
         LinearGradient(colors: [colour(palette.heroStart), colour(palette.heroEnd)], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
     var foreground: Color { .primary }
+    var separator: Color { foreground.opacity(0.15) }
     var buttonForeground: Color { colourScheme == .dark ? .black : .white }
     var error: Color { colourScheme == .dark ? .orange : .red }
     private func colour(_ hex: UInt32) -> Color {

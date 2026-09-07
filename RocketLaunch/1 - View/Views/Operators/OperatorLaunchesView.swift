@@ -6,7 +6,7 @@ struct OperatorLaunchesView: View {
     let viewModel: LaunchScheduleViewModel
 
     var body: some View {
-        List {
+        ThemedList {
             Section {
                 SourceStatusView(viewModel: viewModel, operatorID: operatorID)
             }
@@ -111,6 +111,7 @@ struct LaunchDetailView: View {
 }
 
 struct SourceStatusView: View {
+    @Environment(ThemeManager.self) private var themeManager
     let viewModel: LaunchScheduleViewModel
     var operatorID: String? = nil
     var body: some View {
@@ -135,7 +136,7 @@ struct SourceStatusView: View {
                     }
                     if case .failed = source.phase {
                         Label(viewModel.sourceMessage(source), systemImage: "exclamationmark.triangle")
-                            .font(.caption).foregroundStyle(.red)
+                            .font(.caption).foregroundStyle(themeManager.selected.error)
                     } else {
                         Text(viewModel.sourceMessage(source)).font(.caption).foregroundStyle(.secondary)
                     }

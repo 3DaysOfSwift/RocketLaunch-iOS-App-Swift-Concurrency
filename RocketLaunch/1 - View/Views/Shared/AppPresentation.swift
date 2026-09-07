@@ -18,3 +18,20 @@ struct ThemedListBackground: ViewModifier {
         content.scrollContentBackground(.hidden).background(themeManager.selected.background)
     }
 }
+
+/// Apply row styling to the list content, not the surrounding List background.
+struct ThemedList<Content: View>: View {
+    @Environment(ThemeManager.self) private var themeManager
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        List {
+            Group { content }
+                .listRowBackground(themeManager.selected.surface)
+                .listRowSeparatorTint(themeManager.selected.separator)
+        }
+        .foregroundStyle(themeManager.selected.foreground)
+        .tint(themeManager.selected.accent)
+        .modifier(ThemedListBackground())
+    }
+}

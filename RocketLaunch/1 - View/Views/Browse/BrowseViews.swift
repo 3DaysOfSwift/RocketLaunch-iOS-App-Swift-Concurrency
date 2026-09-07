@@ -4,7 +4,7 @@ struct UpcomingView: View {
     let viewModel: LaunchScheduleViewModel
     @State private var filters = BrowseViewModel()
     var body: some View {
-        List {
+        ThemedList {
             Section {
                 Picker("Operator", selection: $filters.operatorID) {
                     Text("All operators").tag("")
@@ -42,7 +42,7 @@ struct OperatorsView: View {
     let viewModel: LaunchScheduleViewModel
     @State private var filters = BrowseViewModel()
     var body: some View {
-        List {
+        ThemedList {
             Picker("Launch country", selection: $filters.country) {
                 Text("All countries").tag("")
                 ForEach(filters.countries(in: viewModel.operators), id: \.self) { Text($0).tag($0) }
@@ -71,7 +71,7 @@ struct OperatorsView: View {
 struct UpdatesView: View {
     let viewModel: LaunchScheduleViewModel
     var body: some View {
-        List {
+        ThemedList {
             if viewModel.updates.isEmpty {
                 ContentUnavailableView("No changes detected yet", systemImage: "arrow.triangle.2.circlepath",
                     description: Text("When a refresh reveals a changed launch time or mission, it will appear here."))
