@@ -50,6 +50,10 @@ actor ControlledLaunchRepository: LaunchRepository {
 
 @MainActor @Observable
 final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
+    var sources: [LaunchSourceSnapshot] = []
+    var operators: [LaunchOperator] = []
+    func refresh(source: LaunchSourceID) async { await refresh() }
+    func updateNextLaunch() {}
     private(set) var state: LaunchScheduleState = .idle
     private(set) var refreshCount = 0
     func setState(_ state: LaunchScheduleState) { self.state = state }
@@ -58,6 +62,10 @@ final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
 
 @MainActor
 final class LifecycleFeature: LaunchScheduleFeatureAPI {
+    var sources: [LaunchSourceSnapshot] = []
+    var operators: [LaunchOperator] = []
+    func refresh(source: LaunchSourceID) async { await refresh() }
+    func updateNextLaunch() {}
     let state: LaunchScheduleState = .idle
     var pending: [CheckedContinuation<Void, Never>] = []
     var cancellations: [Int: Bool] = [:]

@@ -12,7 +12,7 @@ The project began as a starter pack. Its unfinished behaviour and real defects g
 
 Refresh uses native asynchronous URLSession networking, actor-owned decoding and MainActor-owned feature state. A new screen refresh cancels its previous Task, and the feature rejects obsolete results before publication. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
 
-All 40 XCTest cases pass on macOS; the previous 35-test suite also passed on iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
+All 53 XCTest cases pass on macOS; the previous 35-test suite also passed on iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
 
 ## The architectural sentence
 
@@ -24,17 +24,17 @@ That sentence is also the folder structure. Open `RocketLaunch.xcodeproj` in Xco
 - **2 - AppModel** contains the composition root and the launch feature: its API, manager, data types, repository contract and networking implementation.
 - **3 - App Resources** contains the app’s assets and sample JSON.
 
-`AppModel.live()` assembles the dependencies without starting a request. The ViewModel asks the narrow `LaunchScheduleFeatureAPI` to refresh. `LaunchScheduleFeature` selects the first returned launch, while the `RocketLaunchAPI` actor retrieves and decodes the response using `URLSession.data(from:)`. The ViewModel prepares values for the screen.
+`AppModel.live()` assembles the dependencies without starting a request. The ViewModel asks the narrow `LaunchScheduleFeatureAPI` to refresh. `LaunchScheduleFeature` stores each source’s list, discovers operator tabs and selects the next candidate, while the `RocketLaunchAPI` actor retrieves and decodes the response using `URLSession.data(from:)`. The ViewModel prepares values for the screen.
 
 The architecture follows the principles used by [Trend](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency). Read the [AppModel iOS Application Template](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency/blob/main/APPMODEL_IOS_APPLICATION_TEMPLATE.md) for the target architecture and [ARCHITECTURE.md](ARCHITECTURE.md) for this project’s current implementation and transitional boundaries.
 
 ## Launch data
 
-The app makes one request to the [RocketLaunch.live upcoming-launch endpoint](https://fdo.rocketlaunch.live/json/launches/next/5). It displays the first launch returned by that API, including planned time, provider, vehicle, launch-site country and mission purpose. Unpublished details are labelled explicitly.
+The app fetches RocketLaunch.Live’s next five launches and Launch Library 2’s next 50. Both sources start concurrently and publish independently. Each source has its own in-memory cache and explicit failure state. Operator lists retain source attribution; cross-source duplicates and conflicting schedules are not silently reconciled.
 
 Estimated dates may be incomplete. The decoding model accepts unknown month, day and year values without inventing dates or rejecting an otherwise valid launch.
 
-The current app has no local launch cache or multi-provider aggregation. Its live results depend on the external API and a working network connection. The bundled `TestData.json` is a test fixture, not an automatic offline fallback.
+The current app merges two sources into operator lists and a stored Next result. Its caches are in memory only; fresh results require the external APIs and a working network connection. The bundled `TestData.json` is a test fixture, not an automatic offline fallback.
 
 ## Running
 
@@ -55,7 +55,7 @@ The screen retains the last launch during refresh or failure, displays a recover
 
 `RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
 
-The 40 XCTest cases cover:
+The 53 XCTest cases cover:
 
 - AppModel construction and independent application graphs.
 - Launch selection, empty responses and repository failures.
@@ -94,4 +94,6 @@ Explore the training program at [3DaysOfSwiftConcurrency.com](https://www.3dayso
 
 ## App experience
 
-RocketLaunch is completely free, with no in-app purchases. One screen automatically loads the next launch and answers when, who, launch country and mission purpose. Planned times appear in the device’s local time; estimated dates and unpublished details stay explicit. Manual refresh and retry are available, and About opens as a sheet. Data by RocketLaunch.Live.
+RocketLaunch is completely free, with no in-app purchases. Next is always the first tab. Operator tabs appear as each API response arrives and retain their order throughout the session. Each operator has a selectable launch list and detail screen. Source failures and previous cached data are visible, with independent refresh controls. Planned times appear in local time; estimates remain explicit. Additional operators are accessible through iPhone’s native More menu when needed.
+
+Launch Library refresh attempts have a five-minute cooldown within the running app. A third API is not implemented. See [MULTI_PROVIDER_DESIGN.md](MULTI_PROVIDER_DESIGN.md) for the progressive refresh behavior and current limits.

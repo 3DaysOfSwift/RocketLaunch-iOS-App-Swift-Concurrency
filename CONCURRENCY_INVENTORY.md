@@ -16,3 +16,7 @@ The only production Task handle belongs to LaunchScheduleViewModel. It is replac
 The remaining checked continuations and locks are test fixtures, deliberately controlling operation order. No production @unchecked Sendable, callback continuation, GCD scheduling, blocking wait or detached Task remains.
 
 Build settings: iOS 17.0, SWIFT_VERSION=6.0, SWIFT_STRICT_CONCURRENCY=complete for both configurations and targets. Xcode simulator execution passed all 35 tests. The restricted shell's nested macro sandbox required a one-command compiler option for device/Release verification; this option was not saved in project settings. Normal Xcode builds/tests passed without it.
+
+## Progressive operator tabs — 2026-09-07
+
+The latest product instruction supersedes the single-screen design. Next remains fixed; operator tabs appear as API results arrive. Two live APIs now have independent in-memory caches, source failure states and cooldown-aware refresh. A task group publishes each source independently; shared root task ownership survives tab changes. Source-qualified rows open detail snapshots. LaunchScheduleFeature stores the next candidate and updates it on source commits and clock events. See MULTI_PROVIDER_DESIGN.md for current selection policy, source limits and verification. Third source and cross-source conflict reconciliation remain unresolved; no fake integration was added.

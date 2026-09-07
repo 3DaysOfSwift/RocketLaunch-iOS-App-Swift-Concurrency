@@ -52,6 +52,7 @@ actor RocketLaunchAPI: LaunchRepository {
                          details: LaunchDetails(provider: payload.provider?.name, vehicle: payload.vehicle?.name,
                             country: payload.pad?.location?.country, site: payload.pad?.location?.name,
                             plannedTime: try payload.t0.map(Self.parseLaunchTime),
+                            sortTime: payload.sortDate.flatMap(Double.init).map { Date(timeIntervalSince1970: $0) },
                             estimatedDateLabel: payload.dateLabel, missionDescription: payload.missionDescription))
         }
     }
@@ -71,10 +72,12 @@ private struct LaunchPayload: Decodable {
     let vehicle: NamedPayload?
     let pad: PadPayload?
     let t0: String?
+    let sortDate: String?
     let dateLabel: String?
     let missionDescription: String?
     enum CodingKeys: String, CodingKey {
         case id, name, missions, provider, vehicle, pad, t0
+        case sortDate = "sort_date"
         case dateLabel = "date_str"
         case missionDescription = "mission_description"
         case estimatedDate = "est_date"

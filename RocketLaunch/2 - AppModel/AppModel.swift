@@ -11,6 +11,11 @@ struct AppModel {
     static func live() -> AppModel {
         let endpoint = URL(string: "https://fdo.rocketlaunch.live/json/launches/next/5")!
         let repository = RocketLaunchAPI(session: .shared, endpoint: endpoint)
-        return AppModel(launchSchedule: LaunchScheduleFeature(repository: repository))
+        let libraryURL = URL(string: "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?limit=50&mode=normal&hide_recent_previous=true")!
+        let library = LaunchLibraryAPI(session: .shared, endpoint: libraryURL)
+        return AppModel(launchSchedule: LaunchScheduleFeature(sources: [
+            .init(id: .rocketLaunchLive, repository: repository),
+            .init(id: .launchLibrary, repository: library, minimumRefreshInterval: 300)
+        ]))
     }
 }

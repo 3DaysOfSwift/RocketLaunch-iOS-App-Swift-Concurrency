@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct LaunchScheduleView: View {
-    @State private var viewModel = LaunchScheduleViewModel()
+    let viewModel: LaunchScheduleViewModel
     @State private var showsAbout = false
     @Environment(ThemeManager.self) private var themeManager
 
@@ -49,8 +49,9 @@ struct LaunchScheduleView: View {
                 } else if viewModel.hasLaunch {
                     ProgressView("Updating schedule…").frame(maxWidth: .infinity)
                 }
-                Link("Data by RocketLaunch.Live", destination: URL(string: "https://www.rocketlaunch.live")!)
-                    .font(.footnote).frame(maxWidth: .infinity)
+                SourceStatusView(viewModel: viewModel)
+                Text("Next is based on the available sources. Schedules may disagree or change.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }.padding(20)
         }
         .background(themeManager.selected.background)
@@ -63,8 +64,7 @@ struct LaunchScheduleView: View {
             }
         }
         .sheet(isPresented: $showsAbout) { NavigationStack { AboutView() } }
-        .onAppear { viewModel.loadIfNeeded() }
-        .onDisappear { viewModel.cancelRefresh() }
+
     }
 
     private var timing: some View {
@@ -88,4 +88,4 @@ struct LaunchScheduleView: View {
     }
 }
 
-#Preview { NavigationStack { LaunchScheduleView() }.environment(ThemeManager()) }
+#Preview { NavigationStack { LaunchScheduleView(viewModel: LaunchScheduleViewModel()) }.environment(ThemeManager()) }

@@ -69,3 +69,42 @@ final class LaunchDecodingTests: XCTestCase {
         try RocketLaunchAPI.decodeResponse(LaunchFixtures.data(estimatedDate: date))
     }
 }
+
+final class LaunchLibraryDecodingTests: XCTestCase {
+    func testMapsOperatorCountryAndPreciseTime() throws {
+        let launch = try XCTUnwrap(LaunchLibraryAPI.decodeResponse(fixture(precision: "Minute")).first)
+        XCTAssertEqual(launch.source, .launchLibrary)
+        XCTAssertEqual(launch.id, "launchLibrary:abc")
+        XCTAssertEqual(launch.details.provider, "SpaceX")
+        XCTAssertEqual(launch.details.country, "United States")
+        XCTAssertNotNil(launch.details.plannedTime)
+        XCTAssertEqual(launch.primaryMissionDescription, "Deploy satellites")
+    }
+    func testMonthPrecisionDoesNotInventAnExactTime() throws {
+        let launch = try XCTUnwrap(LaunchLibraryAPI.decodeResponse(fixture(precision: "Month")).first)
+        XCTAssertNil(launch.details.plannedTime)
+        XCTAssertEqual(launch.details.estimatedDateLabel, "September 2026")
+    }
+    func testCompletedLaunchIsExcluded() throws {
+        XCTAssertTrue(try LaunchLibraryAPI.decodeResponse(fixture(precision: "Minute", status: "Success")).isEmpty)
+    }
+    func testUnknownPrecisionDoesNotInventAnExactTime() throws {
+        let launch = try LaunchLibraryAPI.decodeResponse(fixture(precision: "Unknown"))[0]
+        XCTAssertNil(launch.details.plannedTime)
+        XCTAssertNil(launch.details.estimatedDateLabel)
+    }
+    func testQuarterPreservesQuarterPrecision() throws {
+        let launch = try LaunchLibraryAPI.decodeResponse(fixture(precision: "Quarter"))[0]
+        XCTAssertNil(launch.details.plannedTime)
+        XCTAssertEqual(launch.details.estimatedDateLabel, "Q3 2026")
+    }
+    private func fixture(precision: String, status: String = "Go for Launch") -> Data {
+        Data("""
+        {"results":[{"id":"abc","name":"Falcon 9 | Mission","net":"2026-09-09T09:00:00Z",
+        "net_precision":{"name":"\(precision)"},"status":{"name":"\(status)"},
+        "launch_service_provider":{"name":"SpaceX"},"rocket":{"configuration":{"name":"Falcon 9"}},
+        "mission":{"name":"Mission","description":"Deploy satellites"},
+        "pad":{"country":{"name":"United States"},"location":{"name":"Cape Canaveral"}}}]}
+        """.utf8)
+    }
+}

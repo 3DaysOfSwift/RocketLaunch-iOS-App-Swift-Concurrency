@@ -105,3 +105,7 @@ User confirmed the app launches in the simulator, but the downloaded response fa
 - Same 22 XCTest cases passed on macOS through Tests/run-host-tests.py, with no live network and zero failures. The runner copies current production Model/ViewModel sources into an ephemeral package; it does not create a competing implementation.
 - iOS simulator execution remains unavailable to this process. The user can run the shared scheme with Cmd-U. No iOS runtime result is claimed.
 - Concurrency migration remains pending; this checkpoint supplies its regression protection. No deployment target or product behaviour change was introduced here.
+
+## Progressive operator tabs — 2026-09-07
+
+The latest product instruction supersedes the single-screen design. Next remains fixed; operator tabs appear as API results arrive. Two live APIs now have independent in-memory caches, source failure states and cooldown-aware refresh. A task group publishes each source independently; shared root task ownership survives tab changes. Source-qualified rows open detail snapshots. LaunchScheduleFeature stores the next candidate and updates it on source commits and clock events. See MULTI_PROVIDER_DESIGN.md for current selection policy, source limits and verification. Third source and cross-source conflict reconciliation remain unresolved; no fake integration was added.

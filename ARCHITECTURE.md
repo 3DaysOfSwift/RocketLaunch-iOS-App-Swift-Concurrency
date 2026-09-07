@@ -1,68 +1,30 @@
-# Rocket Launch architecture
+# RocketLaunch architecture
 
-Status: Swift Concurrency implementation ready for final manual review. iOS 17+, Swift 6, complete concurrency checking in Debug and Release.
-
-## Dependency and ownership map
+AppModel composes the shared runnable model. The free SwiftUI app displays Next followed by dynamically discovered launch-operator tabs.
 
 ```text
-1 - View
-  RocketLaunchApp → ThemeManager
-  ContentView → LaunchScheduleView (@State ViewModel)
-                        ↓ LaunchScheduleFeatureAPI
-2 - AppModel
-  AppModel.live → LaunchScheduleFeature (@MainActor, @Observable)
-                        ↓ LaunchRepository (Sendable)
-                 RocketLaunchAPI (actor)
-                        ↓ URLSession.data(from:)
-3 - App Resources
-  Asset catalog and legacy JSON fixture
+ContentView → root LaunchScheduleViewModel → LaunchScheduleFeatureAPI
+                                            LaunchScheduleFeature
+                                              ├─ RocketLaunchAPI actor
+                                              └─ LaunchLibraryAPI actor
 ```
 
-AppModel assembles the one launch feature with explicit dependencies. Construction performs no I/O. Refresh remains a user action; automatic launch loading would change the starter's behaviour and is not introduced. ContentView is a stateless root and does not need a second ViewModel.
+LaunchScheduleFeatureAPI is declared directly above the concrete MainActor Observable LaunchScheduleFeature in the same file. Each API implements the Sendable LaunchRepository contract. Private DTOs and decoding remain inside their respective API files. Immutable domain values carry source-qualified IDs and the launch information required by the screens.
 
-## Feature state and domain decisions
+## Ownership and state
 
-LaunchScheduleFeature owns one read-only observable state: idle, loading with an optional previous launch, loaded, empty, or failed with an optional previous launch. It chooses the first launch returned by the API. RocketLaunch.primaryMissionDescription represents the original first-mission rule. Missing mission descriptions are displayed as “None” by the ViewModel.
+LaunchScheduleFeature owns separate in-memory source snapshots: list, phase, successful download timestamp and next permitted refresh time. It also stores operator groups and nextLaunch. Every accepted refresh updates one source and recomputes the stored aggregate. It preserves discovered operator identity and source membership for the session, even after an empty response. Known operator aliases are normalized in the model.
 
-The ViewModel reads the feature's authoritative state through LaunchScheduleFeatureAPI, formats presentation values and error messages, and owns the screen's replaceable Task. It does not retain a second launch collection. Swift Observation tracks computed properties through the feature protocol.
+Refresh-all uses structured child tasks. Ordinary API errors are isolated per source; they do not cancel successful siblings. Results publish incrementally, while the calling refresh method awaits group completion. Source-specific request IDs reject stale completions. Cancellation restores the previous settled source snapshot. Launch Library attempts are spaced at least five minutes apart within the running app.
 
-Domain values are immutable and Sendable. API payloads and CodingKeys remain private to RocketLaunchAPI.swift; only the required payload fields are decoded. Unknown estimated month/day/year values remain nil. Invalid values for required fields still fail decoding.
+Next chooses the earliest precise future time from non-failed sources, with explicitly labelled undated/elapsed fallbacks. The root’s lifecycle-bound clock monitor requests recomputation once per minute, and foreground activation does the same. It never runs selection logic in a View getter. Cross-source records stay attributed and are not silently reconciled or deduplicated.
 
-## Refresh ordering and cancellation
+## UI
 
-1. The screen reports Refresh to its ViewModel.
-2. requestRefresh cancels the screen's previous Task and stores its replacement.
-3. The feature sets a new request identity and publishes loading while retaining any previous launch.
-4. The repository awaits native URLSession I/O, validates HTTP status and decodes on its actor.
-5. The feature checks cancellation and request identity before publishing.
-6. Success publishes the first launch or an honest empty state. Failure preserves previous content and exposes a recoverable error. Cancellation restores the last settled state and is not displayed as a failure.
+The root owns one Observable LaunchScheduleViewModel and its refresh handles, so tab changes do not cancel shared work. Each operator tab has its own NavigationStack. LaunchDetailViewModel formats a selected immutable launch snapshot and is colocated with the schedule ViewModel. Sources show explicit loading, failure and previous-cache messages; failed downloads never become successful empty lists. About is a sheet with attribution to both sources. Native iPhone tab overflow uses More.
 
-An older response cannot replace a newer result even if its I/O ignores cancellation. Independent callers share the feature's publication identity; cancelling a Task stops only work owned by that Task. Across different screens, stale publication is rejected even if older I/O continues until it finishes. No global deduplication or cross-screen task cancellation is claimed.
+Presentation reads the model; network and selection logic do not live in Views. ThemeManager owns the system/midnight palettes. The hosted test app keeps the live screen dormant.
 
-The ViewModel cancels work on disappearance and destruction. Its Task captures the feature but only weakly captures the ViewModel, allowing the screen owner to be released during a pending request. Direct refresh() is also awaitable when another caller already owns the Task lifetime.
+## Validation and limits
 
-## Execution ownership
-
-- MainActor: feature state transitions, request identity, ViewModel presentation, SwiftUI and theme selection.
-- RocketLaunchAPI actor: request coordination, response validation, JSON decoding and domain mapping.
-- URLSession: asynchronous network transport; cancellation propagates to the underlying request.
-
-There are no callback adapters, DispatchQueue hops, detached Tasks or invented task groups in production. One endpoint does not require multi-provider parallelism. No storage, audio, ticker, CPU-worker pool or optimistic persistence has been added. Off-main ownership is verified from actor isolation and Swift 6 builds; it is not a measured performance claim.
-
-## Presentation
-
-The screen has loading, empty and error states and always offers refresh/retry. Loaded content stays visible while refreshing or after a failed update. A ScrollView and semantic text styles accommodate longer missions and Dynamic Type. AppColourTheme centralises system/midnight palettes; ThemeManager is observable and UI-only. The alternative palette is a development option, not a new user settings feature.
-
-## Tests and validation
-
-RocketLaunchTests contains 40 XCTest cases grouped by ViewModel, feature, repository/decoding, AppModel and theme responsibilities. Fixtures and isolated URLSession instances avoid the real API during tests. Test-only unchecked Sendable declarations are limited to URLProtocol and a lock-protected response store; production uses actor isolation and immutable Sendable values.
-
-All 35 cases passed on macOS and in Xcode on iPhone Air, iOS 26.2. The device test bundle and Release app build passed. Live simulator smoke testing confirmed initial state, successful fetch, displayed launch/mission and refresh after success. Empty/error/retry/cancellation logic has deterministic test coverage; manual offline/recovery, large Dynamic Type, VoiceOver and physical-device profiling are not claimed complete. See MIGRATION_REVIEW.md.
-
-### API placement
-
-`2 - AppModel/Features/Launch Schedule/RocketLaunchAPI` contains the concrete RocketLaunchAPI actor and its private transport payloads. This API belongs to the Launch Schedule feature. The LaunchRepository contract sits directly in `Features/Launch Schedule`. AppModel composes the two; the feature manager depends on the contract rather than the concrete API.
-
-### Free, focused app experience
-
-ContentView hosts one NavigationStack. LaunchScheduleView asks its ViewModel to load on appearance; the ViewModel owns the task and avoids duplicate initial loads. About is a sheet. There are no paid features, upgrade tabs or purchase code. The API maps provider, vehicle, launch-site country, mission purpose and optional T-0 into immutable LaunchDetails. The ViewModel formats local planned times and explicitly distinguishes date estimates from exact times. An elapsed scheduled time is labelled as awaiting an updated schedule, not a confirmed launch outcome. The feature retains the API’s ordering.
+53 host tests cover the model, ViewModels, decoding and networking cancellation. Both live sources loaded in Simulator. The application currently has two API integrations; a third needs verification. Launch Library fetches one page of up to 50 upcoming records; RocketLaunch.Live’s free endpoint supplies five. These are bounded source lists, not a claim of complete global coverage. Cache storage is in memory only. The detailed current behavior is recorded in MULTI_PROVIDER_DESIGN.md.

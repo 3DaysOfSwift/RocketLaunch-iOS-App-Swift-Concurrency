@@ -19,8 +19,9 @@ struct AboutView: View {
                 AppCard {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Behind the schedule").font(.headline)
-                        Text("Launch information comes from RocketLaunch.Live. Schedules are provisional and can change; some mission details may not yet be available.")
+                        Text("Launch information comes from RocketLaunch.Live and The Space Devs’ Launch Library. Schedules are provisional and can change; some mission details may not yet be available.")
                             .foregroundStyle(.secondary)
+                        Link("Visit The Space Devs", destination: URL(string: "https://thespacedevs.com/llapi")!)
                         Link(destination: URL(string: "https://www.rocketlaunch.live")!) {
                             Label("Visit RocketLaunch.Live", systemImage: "arrow.up.right.square")
                         }

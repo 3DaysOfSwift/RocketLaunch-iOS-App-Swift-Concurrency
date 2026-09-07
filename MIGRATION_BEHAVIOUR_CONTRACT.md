@@ -47,3 +47,7 @@ The test suite deterministically exercises failures/empty states without dependi
 ## Product revision: fully free launch utility (2026-09-07)
 
 The developer superseded the tabbed/IAP direction: no paid offering. The UI now starts loading when shown, rather than requiring an initial button tap (supersedes BEH-006). ViewModel construction itself still starts no networking. Missing UI values use explicit unpublished/unknown text rather than “None” (updates BEH-001 presentation). The first returned launch remains authoritative; provider, vehicle, launch-site country, mission purpose and planned/estimated time are now displayed. Source timestamps with minute, second or fractional-second precision are supported. About is an information sheet.
+
+## Progressive operator tabs — 2026-09-07
+
+The latest product instruction supersedes the single-screen design. Next remains fixed; operator tabs appear as API results arrive. Two live APIs now have independent in-memory caches, source failure states and cooldown-aware refresh. A task group publishes each source independently; shared root task ownership survives tab changes. Source-qualified rows open detail snapshots. LaunchScheduleFeature stores the next candidate and updates it on source commits and clock events. See MULTI_PROVIDER_DESIGN.md for current selection policy, source limits and verification. Third source and cross-source conflict reconciliation remain unresolved; no fake integration was added.
