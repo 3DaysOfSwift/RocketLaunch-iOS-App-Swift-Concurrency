@@ -13,12 +13,12 @@ struct UpcomingView: View {
                 countryFilter
             }
             Section {
-                ForEach(filters.launches(in: viewModel.operators)) { launch in
+                ForEach(filters.launches(in: viewModel.upcomingLaunches)) { launch in
                     NavigationLink { LaunchDetailView(launch: launch) } label: {
                         LaunchListRow(viewModel: .init(launch: launch), source: launch.source.name)
                     }
                 }
-                if filters.launches(in: viewModel.operators).isEmpty {
+                if filters.launches(in: viewModel.upcomingLaunches).isEmpty {
                     Text(viewModel.isLoading ? "Loading launches…" : "No launches match these filters.")
                         .foregroundStyle(.secondary)
                 }

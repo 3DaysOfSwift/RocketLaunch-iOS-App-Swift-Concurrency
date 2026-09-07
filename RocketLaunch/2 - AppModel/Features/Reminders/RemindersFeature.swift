@@ -1,30 +1,63 @@
 import Foundation
-import Observation
 import UserNotifications
 
-@MainActor
-protocol RemindersFeatureAPI: AnyObject {
-    var reminders: [LaunchReminder] { get }
+protocol RemindersFeatureAPI: AnyObject, Sendable {
+    var snapshot: RemindersSnapshot { get async }
+    func snapshots() async -> AsyncStream<RemindersSnapshot>
     func save(_ launch: RocketLaunch, minutesBefore: Int) async throws
     func remove(_ id: String) async
-    func reconcile(_ launches: [RocketLaunch]) async
+    func reconcile(_ launches: [RocketLaunch], source: LaunchSourceID?, revision: UInt64?) async
 }
 
-@MainActor @Observable
-final class RemindersFeature: RemindersFeatureAPI {
-    private(set) var reminders: [LaunchReminder]
-    @ObservationIgnored private let client: any LaunchNotificationClient
-    @ObservationIgnored private let defaults: UserDefaults?
-    @ObservationIgnored private let now: () -> Date
-    @ObservationIgnored private var operations: [String: UUID] = [:]
+actor RemindersFeature: RemindersFeatureAPI {
+    private(set) var reminders: [LaunchReminder] = []
+    private let client: any LaunchNotificationClient
+    private var defaults: UserDefaults?
+    private let storage: ReminderStorage
+    private var hasLoaded = false
+    private let now: @Sendable () -> Date
+    private var operations: [String: UUID] = [:]
     private static let storageKey = "rocketlaunch.reminders.v1"
 
-    init(client: any LaunchNotificationClient = LocalLaunchNotifications(), defaults: UserDefaults? = nil, now: @escaping () -> Date = Date.init) {
-        self.client = client; self.defaults = defaults; self.now = now
-        reminders = defaults?.data(forKey: Self.storageKey).flatMap { try? JSONDecoder().decode([LaunchReminder].self, from: $0) } ?? []
+    init(client: any LaunchNotificationClient = LocalLaunchNotifications(), storage: ReminderStorage = .memory, now: @escaping @Sendable () -> Date = { Date() }) {
+        self.client = client; self.storage = storage; self.now = now
     }
 
+    private var revision: UInt64 = 0
+    private var observers: [UUID: AsyncStream<RemindersSnapshot>.Continuation] = [:]
+    var snapshot: RemindersSnapshot {
+        loadIfNeeded()
+        return .init(revision: revision, reminders: reminders)
+    }
+    func snapshots() -> AsyncStream<RemindersSnapshot> {
+        loadIfNeeded()
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<RemindersSnapshot>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        observers[id] = continuation
+        continuation.onTermination = { [weak self] _ in Task { await self?.removeObserver(id) } }
+        continuation.yield(snapshot)
+        return stream
+    }
+    private func removeObserver(_ id: UUID) { observers[id] = nil }
+    private func publish() {
+        revision += 1
+        let value = snapshot
+        for observer in observers.values { observer.yield(value) }
+    }
+    private func loadIfNeeded() {
+        guard !hasLoaded else { return }
+        hasLoaded = true
+        switch storage {
+        case .memory: defaults = nil
+        case .standard: defaults = .standard
+        case .suite(let name): defaults = UserDefaults(suiteName: name)
+        }
+        reminders = defaults?.data(forKey: Self.storageKey).flatMap { try? JSONDecoder().decode([LaunchReminder].self, from: $0) } ?? []
+    }
+    deinit { for observer in observers.values { observer.finish() } }
+
     func save(_ launch: RocketLaunch, minutesBefore: Int = 15) async throws {
+        loadIfNeeded()
         try await schedule(launch, minutesBefore: minutesBefore, askPermission: true)
     }
 
@@ -52,14 +85,23 @@ final class RemindersFeature: RemindersFeatureAPI {
     }
 
     func remove(_ id: String) async {
+        loadIfNeeded()
         operations[id] = nil
         let existing = reminders.first(where: { $0.id == id })
         reminders.removeAll { $0.id == id }; persist()
         if let existing { await client.cancel(existing.notificationID) }
     }
 
-    func reconcile(_ launches: [RocketLaunch]) async {
+    private var sourceRevisions: [LaunchSourceID: UInt64] = [:]
+    func reconcile(_ launches: [RocketLaunch], source: LaunchSourceID? = nil, revision: UInt64? = nil) async {
+        loadIfNeeded()
+        if let source, let revision {
+            guard revision > (sourceRevisions[source] ?? 0) else { return }
+            sourceRevisions[source] = revision
+        }
         for launch in launches {
+            // Re-check after each suspension: another source refresh can supersede this one.
+            if let source, let revision, sourceRevisions[source] != revision { return }
             guard let old = reminders.first(where: { $0.id == launch.id }),
                   old.launch.details.plannedTime != launch.details.plannedTime else { continue }
             do { try await schedule(launch, minutesBefore: old.minutesBefore, askPermission: false) }
@@ -75,6 +117,7 @@ final class RemindersFeature: RemindersFeatureAPI {
     }
 
     private func persist() {
+        publish()
         if let data = try? JSONEncoder().encode(reminders) { defaults?.set(data, forKey: Self.storageKey) }
     }
 }
@@ -117,3 +160,11 @@ actor LocalLaunchNotifications: LaunchNotificationClient {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
     }
 }
+
+struct RemindersSnapshot: Equatable, Sendable {
+    let revision: UInt64
+    let reminders: [LaunchReminder]
+    static let initial = Self(revision: 0, reminders: [])
+}
+
+enum ReminderStorage: Sendable { case memory, standard, suite(String) }

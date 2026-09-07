@@ -27,12 +27,12 @@ struct ContentView: View {
         .tint(themeManager.selected.accent)
         .preferredColorScheme(themeManager.selected.colourScheme)
         .animation(.easeInOut(duration: 0.25), value: themeManager.selected)
-        .onAppear { viewModel.loadIfNeeded() }
+        .onAppear { viewModel.loadIfNeeded(); reminders.startObserving() }
         .task { await viewModel.monitorTime() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { viewModel.updateNextLaunch() }
         }
-        .onDisappear { viewModel.cancelRefresh() }
+        .onDisappear { viewModel.cancelRefresh(); viewModel.stopObserving(); reminders.stopObserving() }
     }
 }
 

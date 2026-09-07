@@ -1,40 +1,61 @@
 import Foundation
-import Observation
 
-@MainActor
-protocol LaunchScheduleFeatureAPI: AnyObject {
-    var state: LaunchScheduleState { get }
-    var sources: [LaunchSourceSnapshot] { get }
-    var operators: [LaunchOperator] { get }
-    var updates: [LaunchUpdate] { get }
+protocol LaunchScheduleFeatureAPI: AnyObject, Sendable {
+    var snapshot: LaunchScheduleSnapshot { get async }
+    func snapshots() async -> AsyncStream<LaunchScheduleSnapshot>
     func refresh() async
     func refresh(source: LaunchSourceID) async
-    func updateNextLaunch()
+    func updateNextLaunch() async
 }
 
-@MainActor
-@Observable
-final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
+/// Owns business state and processing independently of the UI's main actor.
+actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     private(set) var state: LaunchScheduleState = .idle
     private(set) var sources: [LaunchSourceSnapshot]
     private(set) var operators: [LaunchOperator] = []
     private(set) var nextLaunch: RocketLaunch?
     private(set) var updates: [LaunchUpdate] = []
-    @ObservationIgnored private let onRefresh: @MainActor ([RocketLaunch]) async -> Void
-    @ObservationIgnored private let configurations: [LaunchSourceConfiguration]
-    @ObservationIgnored private let now: () -> Date
-    @ObservationIgnored private var requests: [LaunchSourceID: UUID] = [:]
-    @ObservationIgnored private var rollback: [LaunchSourceID: LaunchSourceSnapshot] = [:]
+    private let onRefresh: @Sendable (LaunchSourceID, UInt64, [RocketLaunch]) async -> Void
+    private let configurations: [LaunchSourceConfiguration]
+    private let now: @Sendable () -> Date
+    private var requests: [LaunchSourceID: UUID] = [:]
+    private var rollback: [LaunchSourceID: LaunchSourceSnapshot] = [:]
 
-    convenience init(repository: any LaunchRepository) {
+    init(repository: any LaunchRepository) {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
     }
 
-    init(sources: [LaunchSourceConfiguration], now: @escaping () -> Date = Date.init, onRefresh: @escaping @MainActor ([RocketLaunch]) async -> Void = { _ in }) {
+    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, onRefresh: @escaping @Sendable (LaunchSourceID, UInt64, [RocketLaunch]) async -> Void = { _, _, _ in }) {
         precondition(Set(sources.map(\.id)).count == sources.count)
         self.configurations = sources; self.now = now; self.onRefresh = onRefresh
         self.sources = sources.map { LaunchSourceSnapshot(id: $0.id) }
     }
+
+    private var revision: UInt64 = 0
+    private var upcomingLaunches: [RocketLaunch] = []
+    private var observers: [UUID: AsyncStream<LaunchScheduleSnapshot>.Continuation] = [:]
+    var snapshot: LaunchScheduleSnapshot {
+        .init(revision: revision, state: state, nextLaunch: nextLaunch, sources: sources, operators: operators,
+              upcomingLaunches: upcomingLaunches, updates: updates)
+    }
+    func snapshots() -> AsyncStream<LaunchScheduleSnapshot> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<LaunchScheduleSnapshot>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        observers[id] = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task { await self?.removeObserver(id) }
+        }
+        // Registration and initial delivery are one actor-isolated operation.
+        continuation.yield(snapshot)
+        return stream
+    }
+    private func removeObserver(_ id: UUID) { observers[id] = nil }
+    private func publish() {
+        revision += 1
+        let value = snapshot
+        for observer in observers.values { observer.yield(value) }
+    }
+    deinit { for observer in observers.values { observer.finish() } }
 
     /// Each child commits independently; the first response can populate the UI.
     func refresh() async {
@@ -65,10 +86,11 @@ final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
             sources[index].launches = launches
             sources[index].fetchedAt = now()
             sources[index].phase = .loaded
+            rebuildOperators()
             updateNextLaunch()
             // A later request must roll back to this committed result while reminders update.
             rollback[source] = sources[index]
-            await onRefresh(launches)
+            await onRefresh(source, revision, launches)
         } catch {
             guard requests[source] == id else { return }
             if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
@@ -76,12 +98,29 @@ final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
             } else {
                 sources[index].phase = .failed(Self.failure(for: error))
             }
+            updateNextLaunch()
         }
-        updateNextLaunch()
     }
 
     /// Stored output is recalculated only on model events, never in a View getter.
     func updateNextLaunch() {
+        upcomingLaunches = LaunchScheduleSnapshot.upcoming(from: sources.flatMap(\.launches), now: now())
+        let eligible = sources.filter { if case .failed = $0.phase { return false }; return true }.flatMap(\.launches)
+            .filter { $0.source != .spaceX || ($0.details.sortTime ?? .distantPast) >= now() }
+        let future = eligible.filter { ($0.details.plannedTime ?? .distantPast) >= now() }
+        nextLaunch = future.min { $0.details.plannedTime! < $1.details.plannedTime! }
+            ?? eligible.first(where: { $0.details.plannedTime == nil }) ?? eligible.first
+        if let nextLaunch { state = sources.contains(where: { $0.phase == .loading }) ? .loading(previous: nextLaunch) : .loaded(nextLaunch) }
+        else if sources.contains(where: { $0.phase == .loading }) { state = .loading(previous: state.launch) }
+        else if let failure = sources.compactMap({ snapshot -> LaunchLoadFailure? in
+            if case .failed(let failure) = snapshot.phase { return failure }; return nil
+        }).first { state = .failed(failure, previous: state.launch) }
+        else if sources.allSatisfy({ $0.phase == .idle }) { state = .idle }
+        else { state = .empty }
+        publish()
+    }
+
+    private func rebuildOperators() {
         let all = sources.flatMap(\.launches)
         let grouped = Dictionary(grouping: all) { LaunchOperator.key(for: $0.details.provider) }
         // Retain discovered operators for this session, even after an empty response.
@@ -98,18 +137,6 @@ final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
                 return lhs == rhs ? $0.id < $1.id : lhs < rhs
             }
         }
-        let eligible = sources.filter { if case .failed = $0.phase { return false }; return true }.flatMap(\.launches)
-            .filter { $0.source != .spaceX || ($0.details.sortTime ?? .distantPast) >= now() }
-        let future = eligible.filter { ($0.details.plannedTime ?? .distantPast) >= now() }
-        nextLaunch = future.min { $0.details.plannedTime! < $1.details.plannedTime! }
-            ?? eligible.first(where: { $0.details.plannedTime == nil }) ?? eligible.first
-        if let nextLaunch { state = sources.contains(where: { $0.phase == .loading }) ? .loading(previous: nextLaunch) : .loaded(nextLaunch) }
-        else if sources.contains(where: { $0.phase == .loading }) { state = .loading(previous: state.launch) }
-        else if let failure = sources.compactMap({ snapshot -> LaunchLoadFailure? in
-            if case .failed(let failure) = snapshot.phase { return failure }; return nil
-        }).first { state = .failed(failure, previous: state.launch) }
-        else if sources.allSatisfy({ $0.phase == .idle }) { state = .idle }
-        else { state = .empty }
     }
 
     private func recordChanges(from old: [RocketLaunch], to new: [RocketLaunch]) {
@@ -219,4 +246,28 @@ struct LaunchUpdate: Identifiable, Equatable, Sendable {
     let previous: RocketLaunch
     let launch: RocketLaunch
     let timeChanged: Bool
+}
+
+/// Immutable UI projection. The actor retains authoritative mutable state.
+struct LaunchScheduleSnapshot: Equatable, Sendable {
+    let revision: UInt64
+    let state: LaunchScheduleState
+    let nextLaunch: RocketLaunch?
+    let sources: [LaunchSourceSnapshot]
+    let operators: [LaunchOperator]
+    let upcomingLaunches: [RocketLaunch]
+    let updates: [LaunchUpdate]
+    static let initial = Self(revision: 0, state: .idle, nextLaunch: nil, sources: [], operators: [], upcomingLaunches: [], updates: [])
+
+    // Shared policy, executed by the feature when its data or clock changes.
+    static func upcoming(from launches: [RocketLaunch], now: Date) -> [RocketLaunch] {
+        launches.filter { launch in
+            launch.source == .spaceX ? (launch.details.sortTime ?? .distantPast) >= now
+                : (launch.details.plannedTime ?? .distantFuture) >= now
+        }.sorted {
+            let lhs = $0.details.sortTime ?? $0.details.plannedTime ?? .distantFuture
+            let rhs = $1.details.sortTime ?? $1.details.plannedTime ?? .distantFuture
+            return lhs == rhs ? $0.id < $1.id : lhs < rhs
+        }
+    }
 }

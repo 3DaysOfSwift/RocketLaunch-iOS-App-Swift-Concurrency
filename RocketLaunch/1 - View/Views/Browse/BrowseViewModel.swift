@@ -7,20 +7,12 @@ final class BrowseViewModel {
     var operatorID = ""
     var country = ""
 
-    func launches(in operators: [LaunchOperator], now: Date = .now) -> [RocketLaunch] {
-        operators.filter { operatorID.isEmpty || $0.id == operatorID }.flatMap(\.launches)
-            .filter { launch in
-                let upcoming = launch.source == .spaceX
-                    ? (launch.details.sortTime ?? .distantPast) >= now
-                    : (launch.details.plannedTime ?? .distantFuture) >= now
-                return upcoming && (country.isEmpty || Self.countryName(launch.details.country) == country)
-                    && matches([launch.name, launch.details.provider, launch.details.vehicle, launch.details.missionDescription])
-            }
-            .sorted {
-                let lhs = $0.details.sortTime ?? $0.details.plannedTime ?? .distantFuture
-                let rhs = $1.details.sortTime ?? $1.details.plannedTime ?? .distantFuture
-                return lhs == rhs ? $0.id < $1.id : lhs < rhs
-            }
+    func launches(in launches: [RocketLaunch]) -> [RocketLaunch] {
+        launches.filter { launch in
+            (operatorID.isEmpty || LaunchOperator.key(for: launch.details.provider) == operatorID)
+                && (country.isEmpty || Self.countryName(launch.details.country) == country)
+                && matches([launch.name, launch.details.provider, launch.details.vehicle, launch.details.missionDescription])
+        }
     }
 
     func operators(in operators: [LaunchOperator]) -> [LaunchOperator] {

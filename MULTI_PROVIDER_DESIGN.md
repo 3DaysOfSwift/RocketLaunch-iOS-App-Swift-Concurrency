@@ -4,7 +4,7 @@ Updated 2026-09-07: five fixed tabs replace the earlier operator-per-tab design.
 
 ## Screens
 
-Next, Upcoming, Operators, Updates and Reminders are always present. Operator groups populate after each accepted source response without waiting for the others. Known aliases such as CASC’s full name share an identity. Discovered operators remain for the session even if their current list becomes empty. Launch lists open source-labelled detail snapshots. Upcoming and Operators have independent presentation filters.
+Next, Upcoming, Operators, Changes and Reminders are always present. Operator groups populate after each accepted source response without waiting for the others. Known aliases such as CASC’s full name share an identity. Discovered operators remain for the session even if their current list becomes empty. Launch lists open source-labelled detail snapshots. Upcoming and Operators have independent presentation filters.
 
 Each operator screen shows status and refresh controls for its known contributing sources, plus sources that have not yet returned data. Failure is explicit, with previous rows retained and labelled as previous data. An empty success clears that source’s rows. Source membership is remembered so an empty operator screen retains its refresh controls. Tab switches do not refetch or cancel the shared refresh.
 
@@ -24,7 +24,7 @@ Operator lists combine source records using source-qualified identities. Records
 
 ## Verification
 
-68 host XCTest cases pass, including incremental publication before the second source completes, failure isolation, cache separation, alias identity, empty-cache replacement, remembered operators, individual-refresh updates, stale-response rejection, cancellation, time-driven Next updates, cooldown and Launch Library date precision. Simulator live smoke confirmed both source responses (5 + 50 records). Navigation is also checked manually.
+77 host XCTest cases pass, including incremental publication before the second source completes, failure isolation, cache separation, alias identity, empty-cache replacement, remembered operators, individual-refresh updates, stale-response rejection, cancellation, time-driven Next updates, cooldown and Launch Library date precision. Simulator live smoke confirmed both source responses (5 + 50 records). Navigation is also checked manually.
 
 ## Community SpaceX source
 
@@ -39,3 +39,7 @@ Updates keeps the latest 100 time or mission changes detected between successive
 RemindersFeature owns persisted reminder records and injected local-notification scheduling. Users choose 5, 15 or 60 minutes before an exact future launch time. Permission is requested only after Set reminder. Successful source refreshes reconcile changed times, replace the associated notification, or cancel it and flag the record when timing becomes uncertain. Reminders use source-qualified launch IDs; selecting duplicate records from different providers can create separate reminders. There is no background polling or server push. Delivery remains subject to system notification settings.
 
 Launch details expose HTTP(S) watch links only when supplied by a provider. RocketLaunch.Live launch-page links are labelled as information, not watch links.
+
+## Actor feature boundary
+
+LaunchScheduleFeature is now an actor. Its caches, grouping, chronological ordering, eligibility, change journal and stored Next value are computed on that actor. MainActor ViewModels receive complete versioned Sendable snapshots through independent AsyncStreams with newest-value buffering. Initial replay and per-source publication preserve progressive loading; cancellation and request identities preserve ordering. RemindersFeature is a second actor with lazy actor-owned persistence and source-revision-aware reconciliation. See ARCHITECTURE.md for the current execution and ownership contract.

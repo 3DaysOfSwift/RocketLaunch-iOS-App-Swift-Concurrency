@@ -57,7 +57,23 @@ final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
     func updateNextLaunch() {}
     private(set) var state: LaunchScheduleState = .idle
     private(set) var refreshCount = 0
-    func setState(_ state: LaunchScheduleState) { self.state = state }
+    private var revision: UInt64 = 0
+    private var observers: [UUID: AsyncStream<LaunchScheduleSnapshot>.Continuation] = [:]
+    var snapshot: LaunchScheduleSnapshot {
+        .init(revision: revision, state: state, nextLaunch: state.launch, sources: sources, operators: operators, upcomingLaunches: [], updates: updates)
+    }
+    func snapshots() -> AsyncStream<LaunchScheduleSnapshot> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<LaunchScheduleSnapshot>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        observers[id] = continuation
+        continuation.onTermination = { [weak self] _ in Task { @MainActor in self?.observers[id] = nil } }
+        continuation.yield(snapshot)
+        return stream
+    }
+    func setState(_ state: LaunchScheduleState) {
+        self.state = state; revision += 1
+        for observer in observers.values { observer.yield(snapshot) }
+    }
     func refresh() async { refreshCount += 1 }
 }
 
@@ -68,6 +84,10 @@ final class LifecycleFeature: LaunchScheduleFeatureAPI {
     var updates: [LaunchUpdate] = []
     func refresh(source: LaunchSourceID) async { await refresh() }
     func updateNextLaunch() {}
+    var snapshot: LaunchScheduleSnapshot { .initial }
+    func snapshots() -> AsyncStream<LaunchScheduleSnapshot> {
+        AsyncStream { $0.yield(.initial); $0.finish() }
+    }
     let state: LaunchScheduleState = .idle
     var pending: [CheckedContinuation<Void, Never>] = []
     var cancellations: [Int: Bool] = [:]
@@ -89,4 +109,13 @@ final class LifecycleFeature: LaunchScheduleFeatureAPI {
 func waitFor(_ expectations: [XCTestExpectation], file: StaticString = #filePath, line: UInt = #line) async {
     let result = await XCTWaiter.fulfillment(of: expectations, timeout: 3)
     XCTAssertEqual(result, .completed, file: file, line: line)
+}
+
+/// Mutable deterministic clock used across test and feature actors.
+final class TestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+    init(_ value: Date) { self.value = value }
+    func read() -> Date { lock.withLock { value } }
+    func advance(_ seconds: TimeInterval) { lock.withLock { value = value.addingTimeInterval(seconds) } }
 }

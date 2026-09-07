@@ -19,11 +19,13 @@ struct AppModel {
         let libraryURL = URL(string: "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?limit=50&mode=normal&hide_recent_previous=true")!
         let library = LaunchLibraryAPI(session: .shared, endpoint: libraryURL)
         let spaceX = SpaceXAPI(session: .shared, endpoint: URL(string: "https://api.spacexdata.com/v5/launches/query")!)
-        let reminders = RemindersFeature(defaults: .standard)
+        let reminders = RemindersFeature(storage: .standard)
         return AppModel(launchSchedule: LaunchScheduleFeature(sources: [
             .init(id: .rocketLaunchLive, repository: repository),
             .init(id: .launchLibrary, repository: library, minimumRefreshInterval: 300),
             .init(id: .spaceX, repository: spaceX, minimumRefreshInterval: 60)
-        ], onRefresh: { await reminders.reconcile($0) }), reminders: reminders)
+        ], onRefresh: { source, revision, launches in
+            await reminders.reconcile(launches, source: source, revision: revision)
+        }), reminders: reminders)
     }
 }

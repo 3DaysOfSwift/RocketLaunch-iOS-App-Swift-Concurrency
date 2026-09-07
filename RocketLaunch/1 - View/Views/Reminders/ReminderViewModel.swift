@@ -8,7 +8,30 @@ final class ReminderViewModel {
     @ObservationIgnored private let feature: any RemindersFeatureAPI
     @ObservationIgnored private var action: Task<Void, Never>?
     init(feature: any RemindersFeatureAPI = AppModel.shared.reminders) { self.feature = feature }
-    var reminders: [LaunchReminder] { feature.reminders }
+    private(set) var snapshot: RemindersSnapshot = .initial
+    var reminders: [LaunchReminder] { snapshot.reminders }
+    @ObservationIgnored private var observationTask: Task<Void, Never>?
+    @ObservationIgnored private var observationID: UUID?
+    func startObserving() {
+        guard observationTask == nil else { return }
+        let feature = feature
+        let id = UUID(); observationID = id
+        observationTask = Task { [weak self] in
+            let stream = await feature.snapshots()
+            for await value in stream {
+                guard !Task.isCancelled, self?.observationID == id else { break }
+                self?.apply(value)
+            }
+        }
+    }
+    func stopObserving() {
+        observationID = nil
+        observationTask?.cancel(); observationTask = nil
+    }
+    private func apply(_ value: RemindersSnapshot) {
+        guard value.revision >= snapshot.revision else { return }
+        snapshot = value
+    }
     func contains(_ id: String) -> Bool { reminders.contains { $0.id == id && $0.issue == nil && $0.fireDate > Date() } }
     func save(_ launch: RocketLaunch, minutesBefore: Int) {
         guard !isBusy else { return }
@@ -25,6 +48,8 @@ final class ReminderViewModel {
                 default: self?.errorMessage = "The reminder couldn’t be saved. Please try again."
                 }
             }
+            let value = await feature.snapshot
+            self?.apply(value)
             self?.isBusy = false; self?.action = nil
         }
     }
@@ -34,8 +59,10 @@ final class ReminderViewModel {
         let feature = feature
         action = Task { [weak self] in
             await feature.remove(id)
+            let value = await feature.snapshot
+            self?.apply(value)
             self?.isBusy = false; self?.action = nil
         }
     }
-    deinit { action?.cancel() }
+    deinit { observationTask?.cancel(); action?.cancel() }
 }

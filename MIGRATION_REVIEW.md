@@ -36,3 +36,5 @@ Implementation checkpoint: 2026-09-07, uncommitted working tree. Overall accepta
 5. Check large Dynamic Type/VoiceOver and a physical device before treating this as a commercial reference.
 
 The current audit found no further concrete architecture change worth adding. These outstanding validations must not be represented as completed, and the final feature report is intentionally deferred until acceptance.
+
+Actor-feature validation, 2026-09-07: all 77 XCTest cases passed in Xcode on iPhone Air Simulator (iOS 26.2), as well as in the macOS host runner. This supersedes earlier MainActor-feature descriptions; ARCHITECTURE.md and CONCURRENCY_INVENTORY.md describe the current actor/snapshot implementation. Performance profiling and physical-device notification delivery are not claimed by these checks.

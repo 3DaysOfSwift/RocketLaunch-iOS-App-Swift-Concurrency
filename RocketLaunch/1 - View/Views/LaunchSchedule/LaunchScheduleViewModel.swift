@@ -12,9 +12,38 @@ final class LaunchScheduleViewModel {
 
     init(feature: any LaunchScheduleFeatureAPI = AppModel.shared.launchSchedule) { self.feature = feature }
 
-    var launchName: String { feature.state.launch?.name ?? String(localized: "None") }
-    var mission: String { feature.state.launch?.primaryMissionDescription ?? String(localized: "None") }
-    private var detail: LaunchDetailViewModel { .init(launch: feature.state.launch) }
+    private(set) var snapshot: LaunchScheduleSnapshot = .initial
+    @ObservationIgnored private var observationTask: Task<Void, Never>?
+    @ObservationIgnored private var observationID: UUID?
+    @ObservationIgnored private var clockTask: Task<Void, Never>?
+    var upcomingLaunches: [RocketLaunch] { snapshot.upcomingLaunches }
+
+    func startObserving() {
+        guard observationTask == nil else { return }
+        let feature = feature
+        let id = UUID(); observationID = id
+        observationTask = Task { [weak self] in
+            let stream = await feature.snapshots()
+            for await value in stream {
+                guard !Task.isCancelled, self?.observationID == id else { break }
+                self?.apply(value)
+            }
+        }
+    }
+    func stopObserving() {
+        observationID = nil
+        observationTask?.cancel(); observationTask = nil
+        clockTask?.cancel(); clockTask = nil
+    }
+    func synchronize() async { apply(await feature.snapshot) }
+    private func apply(_ value: LaunchScheduleSnapshot) {
+        guard value.revision >= snapshot.revision else { return }
+        snapshot = value
+    }
+
+    var launchName: String { snapshot.state.launch?.name ?? String(localized: "None") }
+    var mission: String { snapshot.state.launch?.primaryMissionDescription ?? String(localized: "None") }
+    private var detail: LaunchDetailViewModel { .init(launch: snapshot.state.launch) }
     var launchTitle: String { detail.launchTitle }
     var missionSummary: String { detail.missionSummary }
     var provider: String { detail.provider }
@@ -24,24 +53,29 @@ final class LaunchScheduleViewModel {
     var launchTime: String { detail.launchTime }
     var timingNote: String { detail.timingNote }
     func loadIfNeeded() {
-        guard refreshTask == nil, case .idle = feature.state else { return }
+        startObserving()
+        guard refreshTask == nil, case .idle = snapshot.state else { return }
         requestRefresh()
     }
-    var operators: [LaunchOperator] { feature.operators }
+    var operators: [LaunchOperator] { snapshot.operators }
     func tabTitle(for launchOperator: LaunchOperator) -> String {
         let name = launchOperator.name
         return name.count > 12 ? String(name.prefix(10)) + "…" : name
     }
-    var currentLaunch: RocketLaunch? { feature.state.launch }
-    var updates: [LaunchUpdate] { feature.updates }
-    var sources: [LaunchSourceSnapshot] { feature.sources }
-    func updateNextLaunch() { feature.updateNextLaunch() }
+    var currentLaunch: RocketLaunch? { snapshot.state.launch }
+    var updates: [LaunchUpdate] { snapshot.updates }
+    var sources: [LaunchSourceSnapshot] { snapshot.sources }
+    func updateNextLaunch() {
+        clockTask?.cancel()
+        let feature = feature
+        clockTask = Task { await feature.updateNextLaunch() }
+    }
     func launches(for operatorID: String) -> [RocketLaunch] {
-        feature.operators.first(where: { $0.id == operatorID })?.launches ?? []
+        snapshot.operators.first(where: { $0.id == operatorID })?.launches ?? []
     }
     func relevantSources(for operatorID: String?) -> [LaunchSourceSnapshot] {
         guard let operatorID else { return sources }
-        let knownSources = feature.operators.first(where: { $0.id == operatorID })?.sourceIDs ?? []
+        let knownSources = snapshot.operators.first(where: { $0.id == operatorID })?.sourceIDs ?? []
         return sources.filter {
             if $0.id == .spaceX { return operatorID == "spacex" }
             return $0.fetchedAt == nil || knownSources.contains($0.id)
@@ -64,14 +98,14 @@ final class LaunchScheduleViewModel {
             return source.launches.isEmpty ? String(localized: "Refresh failed · No data available") : String(localized: "Refresh failed · Showing previous data")
         }
     }
-    var hasLaunch: Bool { feature.state.launch != nil }
+    var hasLaunch: Bool { snapshot.state.launch != nil }
     var isLoading: Bool {
-        if case .loading = feature.state { return true }
+        if case .loading = snapshot.state { return true }
         return false
     }
-    var isEmpty: Bool { feature.state == .empty }
+    var isEmpty: Bool { snapshot.state == .empty }
     var errorMessage: String? {
-        guard case .failed(let failure, _) = feature.state else { return nil }
+        guard case .failed(let failure, _) = snapshot.state else { return nil }
         switch failure {
         case .offline: return String(localized: "You’re offline. Connect to the internet and try again.")
         case .timedOut: return String(localized: "The request timed out. Please try again.")
@@ -82,16 +116,22 @@ final class LaunchScheduleViewModel {
     }
 
     /// Directly awaitable for callers that already own their task lifetime.
-    func refresh() async { await feature.refresh() }
+    func refresh() async {
+        await feature.refresh()
+        if !Task.isCancelled { await synchronize() }
+    }
 
     /// The screen owns replaceable work through its ViewModel, never through View state.
     func requestRefresh(source: LaunchSourceID? = nil) {
+        startObserving()
         if let source {
             sourceTasks[source]?.cancel()
             let id = UUID(); sourceRequestIDs[source] = id
             let feature = feature
             sourceTasks[source] = Task { [weak self] in
                 await feature.refresh(source: source)
+                let value = await feature.snapshot
+                if !Task.isCancelled { self?.apply(value) }
                 guard self?.sourceRequestIDs[source] == id else { return }
                 self?.sourceTasks[source] = nil; self?.sourceRequestIDs[source] = nil
             }
@@ -103,6 +143,8 @@ final class LaunchScheduleViewModel {
         let feature = feature
         refreshTask = Task { [weak self] in
             await feature.refresh()
+            let value = await feature.snapshot
+            if !Task.isCancelled { self?.apply(value) }
             guard self?.refreshID == id else { return }
             self?.refreshTask = nil
             self?.refreshID = nil
@@ -111,7 +153,7 @@ final class LaunchScheduleViewModel {
 
     func monitorTime() async {
         while !Task.isCancelled {
-            feature.updateNextLaunch()
+            await feature.updateNextLaunch()
             do { try await Task.sleep(for: .seconds(60)) } catch { return }
         }
     }
@@ -124,7 +166,7 @@ final class LaunchScheduleViewModel {
         refreshTask = nil
     }
 
-    deinit { refreshTask?.cancel(); sourceTasks.values.forEach { $0.cancel() } }
+    deinit { observationTask?.cancel(); clockTask?.cancel(); refreshTask?.cancel(); sourceTasks.values.forEach { $0.cancel() } }
 }
 
 @MainActor

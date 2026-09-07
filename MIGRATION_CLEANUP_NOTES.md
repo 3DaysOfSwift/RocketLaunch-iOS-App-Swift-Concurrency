@@ -17,3 +17,11 @@ Track developer corrections here so they can inform an additional cleanup pass i
 - Keep source cache commits settled before awaiting downstream reminder updates so replacement requests roll back to the latest accepted data.
 - Notification replacement needs unique request IDs and stale-completion rejection, including removal while scheduling is suspended.
 - Keep country filter aliases consistent across data sources.
+
+## Actor feature migration pass
+
+- An async Feature API marked MainActor does not offload business computation. Use separate concrete feature actors when the intended contract is off-main business ownership.
+- Replace direct observable feature reads with immutable Sendable snapshots held by MainActor ViewModels. Register streams and initial replay atomically; use independent subscribers, bounded buffering, revisions and explicit consumer task ownership.
+- Do not perform persistence in a main-actor composition initializer. Load lazily inside the owning feature actor.
+- Revisit every await boundary for reentrancy, including feature-to-feature notifications. Source revisions and operation IDs serve different ordering purposes.
+- Update tests to await snapshots and verify progressive UI publication, subscriber cancellation, off-main business work and main-actor observation.

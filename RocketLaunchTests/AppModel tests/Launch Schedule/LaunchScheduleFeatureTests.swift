@@ -6,7 +6,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
     @MainActor func testConstructionDoesNotFetch() async {
         let repository = ControlledLaunchRepository()
         let launchSchedule = LaunchScheduleFeature(repository: repository)
-        XCTAssertEqual(launchSchedule.state, .idle)
+        let projection1 = await launchSchedule.snapshot
+        XCTAssertEqual(projection1.state, .idle)
         let count = await repository.requestCount
         XCTAssertEqual(count, 0)
     }
@@ -18,11 +19,14 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let launches = try LaunchFixtures.launches()
         let task = Task { await launchSchedule.refresh() }
         await waitFor([began])
-        XCTAssertEqual(launchSchedule.state, .loading(previous: nil))
+        let projection2 = await launchSchedule.snapshot
+        XCTAssertEqual(projection2.state, .loading(previous: nil))
         await repository.complete(0, with: .success(launches))
         await task.value
-        XCTAssertEqual(launchSchedule.state, .loaded(launches[2]))
-        XCTAssertEqual(launchSchedule.sources[0].launches, launches)
+        let projection3 = await launchSchedule.snapshot
+        XCTAssertEqual(projection3.state, .loaded(launches[2]))
+        let projection4 = await launchSchedule.snapshot
+        XCTAssertEqual(projection4.sources[0].launches, launches)
     }
 
     @MainActor func testEmptyResponseHasAnHonestEmptyState() async {
@@ -33,7 +37,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         await waitFor([began])
         await repository.complete(0, with: .success([]))
         await task.value
-        XCTAssertEqual(launchSchedule.state, .empty)
+        let projection5 = await launchSchedule.snapshot
+        XCTAssertEqual(projection5.state, .empty)
     }
 
     @MainActor func testFailuresAreClassifiedForRecovery() async {
@@ -52,7 +57,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
             await waitFor([began])
             await repository.complete(0, with: .failure(error))
             await task.value
-            XCTAssertEqual(launchSchedule.state, .failed(failure, previous: nil))
+            let projection6 = await launchSchedule.snapshot
+            XCTAssertEqual(projection6.state, .failed(failure, previous: nil))
         }
     }
 
@@ -69,12 +75,15 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         await waitFor([first]); await repository.complete(0, with: .success([launches[0]])); await initial.value
         let failed = Task { await launchSchedule.refresh() }
         await waitFor([second])
-        XCTAssertEqual(launchSchedule.state, .loading(previous: launches[0]))
+        let projection7 = await launchSchedule.snapshot
+        XCTAssertEqual(projection7.state, .loading(previous: launches[0]))
         await repository.complete(1, with: .failure(URLError(.notConnectedToInternet))); await failed.value
-        XCTAssertEqual(launchSchedule.state, .failed(.offline, previous: launches[0]))
+        let projection8 = await launchSchedule.snapshot
+        XCTAssertEqual(projection8.state, .failed(.offline, previous: launches[0]))
         let retry = Task { await launchSchedule.refresh() }
         await waitFor([third]); await repository.complete(2, with: .success([launches[1]])); await retry.value
-        XCTAssertEqual(launchSchedule.state, .loaded(launches[1]))
+        let projection9 = await launchSchedule.snapshot
+        XCTAssertEqual(projection9.state, .loaded(launches[1]))
     }
 
     @MainActor func testOlderSuccessCannotOverwriteNewerSuccess() async throws {
@@ -87,7 +96,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let new = Task { await launchSchedule.refresh() }; await waitFor([second])
         await repository.complete(1, with: .success([launches[1]])); await new.value
         await repository.complete(0, with: .success([launches[0]])); await old.value
-        XCTAssertEqual(launchSchedule.state, .loaded(launches[1]))
+        let projection10 = await launchSchedule.snapshot
+        XCTAssertEqual(projection10.state, .loaded(launches[1]))
     }
 
     @MainActor func testOlderFailureCannotOverwriteNewerSuccess() async throws {
@@ -100,7 +110,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let new = Task { await launchSchedule.refresh() }; await waitFor([second])
         await repository.complete(1, with: .success([launch])); await new.value
         await repository.complete(0, with: .failure(URLError(.timedOut))); await old.value
-        XCTAssertEqual(launchSchedule.state, .loaded(launch))
+        let projection11 = await launchSchedule.snapshot
+        XCTAssertEqual(projection11.state, .loaded(launch))
     }
 
     @MainActor func testCancelledSuccessDoesNotPublishOrLeaveLoadingState() async throws {
@@ -110,7 +121,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let task = Task { await launchSchedule.refresh() }; await waitFor([began])
         task.cancel()
         await repository.complete(0, with: .success(try LaunchFixtures.launches())); await task.value
-        XCTAssertEqual(launchSchedule.state, .idle)
+        let projection12 = await launchSchedule.snapshot
+        XCTAssertEqual(projection12.state, .idle)
     }
 
     @MainActor func testCancellingReplacementRestoresLastSettledState() async throws {
@@ -123,7 +135,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         new.cancel()
         await repository.complete(1, with: .failure(CancellationError())); await new.value
         await repository.complete(0, with: .success(try LaunchFixtures.launches())); await old.value
-        XCTAssertEqual(launchSchedule.state, .idle)
+        let projection13 = await launchSchedule.snapshot
+        XCTAssertEqual(projection13.state, .idle)
     }
 }
 
@@ -140,18 +153,32 @@ final class ProgressiveLaunchTests: XCTestCase {
         let second = launch("1", .launchLibrary, "Blue Origin", now.addingTimeInterval(300))
         let task = Task { await feature.refresh() }
         await waitFor([aStarted, bStarted])
-        withObservationTracking { _ = feature.operators } onChange: { published.fulfill() }
+        let stream = await feature.snapshots()
+        let observation = Task {
+            for await value in stream where !value.operators.isEmpty {
+                published.fulfill()
+                return
+            }
+        }
+        defer { observation.cancel() }
         await a.complete(0, with: .success([first]))
         await waitFor([published])
-        XCTAssertEqual(feature.nextLaunch, first)
-        XCTAssertEqual(feature.operators.map(\.name), ["SpaceX"])
-        XCTAssertEqual(feature.sources[1].phase, .loading)
+        let projection14 = await feature.snapshot
+        XCTAssertEqual(projection14.nextLaunch, first)
+        let projection15 = await feature.snapshot
+        XCTAssertEqual(projection15.operators.map(\.name), ["SpaceX"])
+        let projection16 = await feature.snapshot
+        XCTAssertEqual(projection16.sources[1].phase, .loading)
         await b.complete(0, with: .success([second])); await task.value
-        XCTAssertEqual(feature.nextLaunch, second)
-        XCTAssertEqual(feature.operators.map(\.name), ["SpaceX", "Blue Origin"])
+        let projection17 = await feature.snapshot
+        XCTAssertEqual(projection17.nextLaunch, second)
+        let projection18 = await feature.snapshot
+        XCTAssertEqual(projection18.operators.map(\.name), ["SpaceX", "Blue Origin"])
         XCTAssertNotEqual(first.id, second.id)
-        XCTAssertEqual(feature.sources[0].launches, [first])
-        XCTAssertEqual(feature.sources[1].launches, [second])
+        let projection19 = await feature.snapshot
+        XCTAssertEqual(projection19.sources[0].launches, [first])
+        let projection20 = await feature.snapshot
+        XCTAssertEqual(projection20.sources[1].launches, [second])
     }
 
     @MainActor func testFailedSourceDoesNotCancelAnotherSource() async {
@@ -164,8 +191,10 @@ final class ProgressiveLaunchTests: XCTestCase {
         let task = Task { await feature.refresh() }; await waitFor([aStarted, bStarted])
         await a.complete(0, with: .failure(URLError(.timedOut)))
         await b.complete(0, with: .success([expected])); await task.value
-        XCTAssertEqual(feature.sources[0].phase, .failed(.timedOut))
-        XCTAssertEqual(feature.state, .loaded(expected))
+        let projection21 = await feature.snapshot
+        XCTAssertEqual(projection21.sources[0].phase, .failed(.timedOut))
+        let projection22 = await feature.snapshot
+        XCTAssertEqual(projection22.state, .loaded(expected))
     }
 
     @MainActor func testIndividualRefreshUpdatesStoredNextAndRetainsEmptyOperatorTab() async {
@@ -178,11 +207,16 @@ final class ProgressiveLaunchTests: XCTestCase {
         await repository.complete(0, with: .success([record])); await initial.value
         let refresh = Task { await feature.refresh(source: .rocketLaunchLive) }; await waitFor([second])
         await repository.complete(1, with: .success([])); await refresh.value
-        XCTAssertNil(feature.nextLaunch)
-        XCTAssertEqual(feature.state, .empty)
-        XCTAssertEqual(feature.operators.map(\.name), ["SpaceX"])
-        XCTAssertTrue(feature.operators[0].launches.isEmpty)
-        XCTAssertEqual(feature.operators[0].sourceIDs, [.rocketLaunchLive])
+        let projection23 = await feature.snapshot
+        XCTAssertNil(projection23.nextLaunch)
+        let projection24 = await feature.snapshot
+        XCTAssertEqual(projection24.state, .empty)
+        let projection25 = await feature.snapshot
+        XCTAssertEqual(projection25.operators.map(\.name), ["SpaceX"])
+        let projection26 = await feature.snapshot
+        XCTAssertTrue(projection26.operators[0].launches.isEmpty)
+        let projection27 = await feature.snapshot
+        XCTAssertEqual(projection27.operators[0].sourceIDs, [.rocketLaunchLive])
     }
 
     @MainActor func testFailedRefreshRetainsRowsAndReportsFailure() async {
@@ -195,24 +229,30 @@ final class ProgressiveLaunchTests: XCTestCase {
         await repository.complete(0, with: .success([record])); await initial.value
         let refresh = Task { await feature.refresh() }; await waitFor([second])
         await repository.complete(1, with: .failure(URLError(.notConnectedToInternet))); await refresh.value
-        XCTAssertEqual(feature.operators[0].launches, [record])
-        XCTAssertEqual(feature.sources[0].phase, .failed(.offline))
-        XCTAssertNil(feature.nextLaunch)
-        XCTAssertEqual(feature.state, .failed(.offline, previous: record))
+        let projection28 = await feature.snapshot
+        XCTAssertEqual(projection28.operators[0].launches, [record])
+        let projection29 = await feature.snapshot
+        XCTAssertEqual(projection29.sources[0].phase, .failed(.offline))
+        let projection30 = await feature.snapshot
+        XCTAssertNil(projection30.nextLaunch)
+        let projection31 = await feature.snapshot
+        XCTAssertEqual(projection31.state, .failed(.offline, previous: record))
     }
 
     @MainActor func testStoredNextChangesWhenTimePassesWithoutARequest() async {
         let started = expectation(description: "started")
         let repository = ControlledLaunchRepository { _ in started.fulfill() }
-        var clock = Date(timeIntervalSince1970: 2_000_000_000)
-        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], now: { clock })
-        let first = launch("1", .rocketLaunchLive, "SpaceX", clock.addingTimeInterval(60))
-        let second = launch("2", .rocketLaunchLive, "SpaceX", clock.addingTimeInterval(120))
+        let clock = TestClock(Date(timeIntervalSince1970: 2_000_000_000))
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], now: { clock.read() })
+        let first = launch("1", .rocketLaunchLive, "SpaceX", clock.read().addingTimeInterval(60))
+        let second = launch("2", .rocketLaunchLive, "SpaceX", clock.read().addingTimeInterval(120))
         let task = Task { await feature.refresh() }; await waitFor([started])
         await repository.complete(0, with: .success([first, second])); await task.value
-        XCTAssertEqual(feature.nextLaunch, first)
-        clock = clock.addingTimeInterval(90); feature.updateNextLaunch()
-        XCTAssertEqual(feature.nextLaunch, second)
+        let projection32 = await feature.snapshot
+        XCTAssertEqual(projection32.nextLaunch, first)
+        clock.advance(90); await feature.updateNextLaunch()
+        let projection33 = await feature.snapshot
+        XCTAssertEqual(projection33.nextLaunch, second)
         let count = await repository.requestCount
         XCTAssertEqual(count, 1)
     }
@@ -230,8 +270,10 @@ final class ProgressiveLaunchTests: XCTestCase {
         let early = record("early", 100), late = record("late", 200)
         let task = Task { await feature.refresh() }; await waitFor([started])
         await repository.complete(0, with: .success([late, early])); await task.value
-        XCTAssertEqual(feature.operators[0].launches, [early, late])
-        XCTAssertNil(feature.operators[0].launches[0].details.plannedTime)
+        let projection34 = await feature.snapshot
+        XCTAssertEqual(projection34.operators[0].launches, [early, late])
+        let projection35 = await feature.snapshot
+        XCTAssertNil(projection35.operators[0].launches[0].details.plannedTime)
     }
 
     @MainActor func testSourceCooldownAvoidsDuplicateRequests() async {
