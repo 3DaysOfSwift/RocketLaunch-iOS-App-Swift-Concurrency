@@ -231,6 +231,10 @@ A reminder reschedule illustrates why these checks belong after suspension as we
 
 Capacity is another actor invariant that must survive suspension. With 49 saved reminders, two concurrent additions must not both claim the final slot. RemindersFeature counts saved IDs together with pending operation IDs, reserving capacity before awaiting the notification client. A replacement uses its existing launch's slot, and failure releases the reservation.
 
+First saves need the same attention as replacements. While permission or scheduling is suspended, there may be no saved reminder for reconciliation to find. The pending operation therefore retains its launch value. Before awaiting any rescheduling, an accepted source update invalidates pending operations whose launch time has changed. Those operations cancel their obsolete notification and return `ReminderSaveOutcome.superseded`; the ViewModel explains that outcome. An unchanged source time leaves the pending save valid. This implementation rejects the superseded save and asks the user to check current details rather than silently saving a different time.
+
+For partial startup cancellation, `loadIfNeeded` examines individual sources. Once cancellation settles, it retries sources still idle and retains completed results. A failed source remains an explicit retry decision.
+
 The public reconciliation API accepts one Sendable LaunchSourceUpdate, containing a required source, revision and launch values. This keeps ordering metadata attached to the data it describes.
 
 Cancellation is cooperative. Code checks it at appropriate boundaries; it is not proof that a remote operation or system side effect has been undone. State acceptance and side-effect reconciliation remain explicit responsibilities.
@@ -270,7 +274,7 @@ The implemented application has:
 - Concurrent provider retrieval with independent publication and failure handling.
 - Main-actor UI preferences, formatting and small presentation filters.
 
-As verified on 7 September 2026, all **88 tests passed on macOS and iPhone Air Simulator running iOS 26.2**. Coverage includes off-main feature processing, main-actor observable publication, progressive results, independent subscriptions, latest-snapshot buffering, stale requests, cancellation and reminder ordering. Eleven regression tests added in the cleanup pass cover suspended rescheduling, stale failures, unknown times, pending capacity and failure release, initial-load ownership/retry, and clock/cooldown publication. Earlier live verification loaded five RocketLaunch.Live records and 50 Launch Library records while the SpaceX integration failed independently.
+As verified on 7 September 2026, all **94 tests passed on macOS and iPhone Air Simulator running iOS 26.2**. Coverage includes off-main feature processing, main-actor observable publication, progressive results, independent subscriptions, latest-snapshot buffering, stale requests, cancellation and reminder ordering. Eleven regression tests added in the cleanup pass cover suspended rescheduling, stale failures, unknown times, pending capacity and failure release, initial-load ownership/retry, and clock/cooldown publication. Earlier live verification loaded five RocketLaunch.Live records and 50 Launch Library records while the SpaceX integration failed independently.
 
 This establishes that the intended boundaries work in the tested implementation. It is not an Instruments benchmark, a guarantee of zero UI stalls, or evidence that every hardware core is being used. Device responsiveness, large datasets, expensive formatting and notification delivery remain matters for targeted validation.
 

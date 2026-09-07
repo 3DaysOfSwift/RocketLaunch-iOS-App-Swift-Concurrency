@@ -38,7 +38,12 @@ final class ReminderViewModel {
         isBusy = true
         let feature = feature
         action = Task { [weak self] in
-            do { try await feature.save(launch, minutesBefore: minutesBefore) }
+            do {
+                let outcome = try await feature.save(launch, minutesBefore: minutesBefore)
+                if outcome == .superseded {
+                    self?.errorMessage = "This reminder changed while saving. Check the latest launch details before trying again."
+                }
+            }
             catch {
                 switch error {
                 case ReminderError.denied: self?.errorMessage = "Allow notifications for RocketLaunch in Settings to receive reminders."

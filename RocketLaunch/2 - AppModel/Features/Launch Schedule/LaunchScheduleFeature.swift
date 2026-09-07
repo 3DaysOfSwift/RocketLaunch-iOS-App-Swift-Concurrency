@@ -65,11 +65,16 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
 
     /// The feature makes the initial-load decision before its first suspension.
     func loadIfNeeded() async {
-        guard !Task.isCancelled, !initialLoadInProgress,
-              sources.allSatisfy({ $0.phase == .idle }) else { return }
+        guard !Task.isCancelled, !initialLoadInProgress else { return }
+        let unfinished = sources.filter { $0.phase == .idle }.map(\.id)
+        guard !unfinished.isEmpty else { return }
         initialLoadInProgress = true
         defer { initialLoadInProgress = false }
-        await refresh()
+        await withTaskGroup(of: Void.self) { group in
+            for source in unfinished {
+                group.addTask { await self.refresh(source: source) }
+            }
+        }
     }
 
     /// Each child commits independently; the first response can populate the UI.

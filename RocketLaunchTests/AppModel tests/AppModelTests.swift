@@ -1,4 +1,5 @@
 import XCTest
+import Observation
 @testable import RocketLaunch
 
 final class AppModelTests: XCTestCase {
@@ -137,7 +138,8 @@ final class RemindersAndBrowsingTests: XCTestCase {
         await fulfillment(of: [started], timeout: 2)
         await feature.remove(launch.id)
         await client.finish()
-        try await task.value
+        let outcome = try await task.value
+        XCTAssertEqual(outcome, .superseded)
         let projection19 = await feature.snapshot
         XCTAssertTrue(projection19.reminders.isEmpty)
         let count = await client.canceled.count
@@ -402,7 +404,8 @@ final class ActorSnapshotTests: XCTestCase {
         await fulfillment(of: [started], timeout: 2)
         do { try await feature.save(launch(51), minutesBefore: 5) } catch ReminderError.limit { }
         await client.finish()
-        try await first.value
+        let outcome = try await first.value
+        XCTAssertEqual(outcome, .saved)
         let value = await feature.snapshot
         XCTAssertEqual(value.reminders.count, 50)
         let active = await client.activeIDs
@@ -422,7 +425,7 @@ final class ActorSnapshotTests: XCTestCase {
         await fulfillment(of: [started], timeout: 2)
         do { try await feature.save(launch(51), minutesBefore: 5) } catch ReminderError.limit { }
         await client.finish(failing: true)
-        do { try await first.value; XCTFail("Expected scheduling failure") } catch ReminderError.denied { }
+        do { _ = try await first.value; XCTFail("Expected scheduling failure") } catch ReminderError.denied { }
         try await feature.save(launch(51), minutesBefore: 5)
         let value = await feature.snapshot
         XCTAssertEqual(value.reminders.count, 50)
@@ -452,4 +455,142 @@ private actor SuspendingNotificationClient: LaunchNotificationClient {
         continuation = nil
     }
     func cancel(_ id: String) async { activeIDs.remove(id); canceled.append(id) }
+}
+
+@MainActor final class AdditionalConcurrencyReviewTests: XCTestCase {
+    func testFirstSaveMustNotCommitTimeSupersededDuringScheduling() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ offset: Double) -> RocketLaunch {
+            .init(id: 1, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(offset)))
+        }
+        let started = expectation(description: "First save suspended")
+        let client = SuspendingNotificationClient(suspendAt: 1) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        let saving = Task { try await feature.save(launch(3600), minutesBefore: 5) }
+        await fulfillment(of: [started], timeout: 2)
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 1, launches: [launch(7200)]))
+        await client.finish()
+        let outcome = try await saving.value
+        XCTAssertEqual(outcome, .superseded)
+        let snapshot = await feature.snapshot
+        XCTAssertTrue(snapshot.reminders.isEmpty)
+        let active = await client.activeIDs
+        XCTAssertTrue(active.isEmpty)
+    }
+
+    func testUnchangedRefreshPreservesPendingFirstSave() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ offset: Double) -> RocketLaunch {
+            .init(id: 1, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(offset)))
+        }
+        let started = expectation(description: "First save suspended")
+        let client = SuspendingNotificationClient(suspendAt: 1) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        let saving = Task { try await feature.save(launch(3600), minutesBefore: 5) }
+        await fulfillment(of: [started], timeout: 2)
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 1, launches: [launch(3600)]))
+        await client.finish()
+        let outcome = try await saving.value
+        XCTAssertEqual(outcome, .saved)
+        let snapshot = await feature.snapshot
+        XCTAssertEqual(snapshot.reminders.first?.launch, launch(3600))
+        let active = await client.activeIDs
+        XCTAssertEqual(active, Set(snapshot.reminders.map(\.notificationID)))
+    }
+
+    func testUnknownTimeSupersedesPendingFirstSave() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ offset: Double?) -> RocketLaunch {
+            .init(id: 1, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: offset.map { now.addingTimeInterval($0) }))
+        }
+        let started = expectation(description: "First save suspended")
+        let client = SuspendingNotificationClient(suspendAt: 1) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        let saving = Task { try await feature.save(launch(3600), minutesBefore: 5) }
+        await fulfillment(of: [started], timeout: 2)
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 1, launches: [launch(nil)]))
+        await client.finish()
+        let outcome = try await saving.value
+        XCTAssertEqual(outcome, .superseded)
+        let snapshot = await feature.snapshot
+        XCTAssertTrue(snapshot.reminders.isEmpty)
+        let active = await client.activeIDs
+        XCTAssertTrue(active.isEmpty)
+    }
+
+    func testSupersededFirstSaveReturnsOutcomeEvenWhenSchedulingFails() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ offset: Double) -> RocketLaunch {
+            .init(id: 1, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(offset)))
+        }
+        let started = expectation(description: "First save suspended")
+        let client = SuspendingNotificationClient(suspendAt: 1) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        let saving = Task { try await feature.save(launch(3600), minutesBefore: 5) }
+        await fulfillment(of: [started], timeout: 2)
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 1, launches: [launch(7200)]))
+        await client.finish(failing: true)
+        let outcome = try await saving.value
+        XCTAssertEqual(outcome, .superseded)
+        let snapshot = await feature.snapshot
+        XCTAssertTrue(snapshot.reminders.isEmpty)
+        let active = await client.activeIDs
+        XCTAssertTrue(active.isEmpty)
+    }
+
+    func testViewModelIgnoresDoubleTapAndExplainsSupersededSave() async {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let launch = RocketLaunch(id: 1, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(3600)))
+        let changed = RocketLaunch(id: 1, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(7200)))
+        let started = expectation(description: "Save started")
+        let finished = expectation(description: "ViewModel finishes")
+        let client = SuspendingNotificationClient(suspendAt: 1) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        let viewModel = ReminderViewModel(feature: feature)
+        viewModel.save(launch, minutesBefore: 5)
+        viewModel.save(launch, minutesBefore: 5)
+        await fulfillment(of: [started], timeout: 2)
+        let calls = await client.calls
+        XCTAssertEqual(calls, 1)
+        withObservationTracking { _ = viewModel.isBusy } onChange: { finished.fulfill() }
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 1, launches: [changed]))
+        await client.finish()
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertFalse(viewModel.isBusy)
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertTrue(viewModel.reminders.isEmpty)
+    }
+
+    func testPartialInitialLoadRetriesOnlyIdleProvider() async {
+        let aStarted = expectation(description: "A started")
+        let bStarted = expectation(description: "B started")
+        let retryStarted = expectation(description: "B retries")
+        let a = ControlledLaunchRepository { _ in aStarted.fulfill() }
+        let b = ControlledLaunchRepository { index in if index == 0 { bStarted.fulfill() } else { retryStarted.fulfill() } }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: a), .init(id: .launchLibrary, repository: b)])
+        let load = Task { await feature.loadIfNeeded() }
+        await fulfillment(of: [aStarted, bStarted], timeout: 2)
+        // A commits before the screen disappears; B is still downloading.
+        let stream = await feature.snapshots()
+        let aLoaded = expectation(description: "A committed")
+        let observer = Task {
+            for await value in stream {
+                if value.sources.first?.phase == .loaded { aLoaded.fulfill(); break }
+            }
+        }
+        await a.complete(0, with: .success([]))
+        await fulfillment(of: [aLoaded], timeout: 2)
+        await observer.value
+        load.cancel()
+        await b.complete(0, with: .failure(CancellationError()))
+        await load.value
+        let retry = Task { await feature.loadIfNeeded() }
+        await fulfillment(of: [retryStarted], timeout: 2)
+        let count = await b.requestCount
+        XCTAssertEqual(count, 2, "Idle provider should resume when the screen loads again")
+        if count == 2 { await b.complete(1, with: .success([])) }
+        await retry.value
+        let aCount = await a.requestCount
+        XCTAssertEqual(aCount, 1)
+    }
 }

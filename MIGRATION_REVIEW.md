@@ -53,3 +53,13 @@ All six recorded items are resolved:
 Validation: 88 XCTest cases passed on macOS and in Xcode on iPhone Air Simulator (iOS 26.2). This includes the two previously failing races and nine further regression cases. The iOS application builds successfully with Swift 6 and complete concurrency checking. Test notification clients verify final active notification IDs and obsolete-request cleanup; no physical-device notification delivery is claimed.
 
 Reevaluation: these fixes preserve the existing AppModel composition, ordinary feature actors, structured provider fan-out and MainActor presentation snapshots. The recorded defects are resolved without adding detached tasks or a generic messaging framework. Runtime boundary and progressive-publication tests still pass. This review establishes the tested ordering and ownership guarantees, not universal freedom from races or measured UI performance. Instruments profiling and physical-device notification delivery remain separate validation work.
+
+## Follow-up fixes completed — 7 September 2026
+
+Resolved both findings from the follow-up review. Pending reminder operations retain the launch being saved; accepted source updates invalidate changed pending times before any reconciliation suspension. This covers first saves without a persisted record. Obsolete successes cancel their own notification, obsolete failures return the same superseded outcome, and unchanged refreshes preserve pending saves. ReminderSaveOutcome distinguishes committed saves from superseded commands; the ViewModel shows an explanatory message. The redundant token cleanup in catch was removed; defer remains the owner of token cleanup.
+
+loadIfNeeded now requests only idle providers after a partial initial load has settled, retaining completed provider caches and existing cooldown/in-progress guards. The review reproduction now uses explicit request expectations rather than a timed sleep.
+
+Validation: all 94 XCTest cases passed on macOS and iPhone Air Simulator (iOS 26.2), including six new tests for pending first-save freshness, unknown times, unchanged updates, stale scheduling failures, double-tap/UI outcome handling, and partial-load recovery. Existing removal and concurrent-capacity tests also assert the new command outcomes. Xcode compiled the application and test bundle successfully.
+
+Reevaluation: the two reproduced cases are resolved; existing actor-boundary, progressive-publication, cancellation and capacity tests still pass. AppModel composition and feature actors remain unchanged in their roles. Notification clients are test doubles; real device delivery and Instruments performance measurements remain separate validation work. No claim is made that these tests exhaust every possible interleaving.

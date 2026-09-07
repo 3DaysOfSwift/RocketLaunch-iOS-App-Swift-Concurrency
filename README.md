@@ -12,7 +12,7 @@ The project began as a starter pack. Its unfinished behaviour and real defects g
 
 Refresh uses native asynchronous URLSession networking, actor-owned decoding and business state, delivered as immutable snapshots to MainActor ViewModels. A new screen refresh cancels its previous Task, and the feature rejects obsolete results before publication. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
 
-All 88 XCTest cases pass on macOS and iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
+All 94 XCTest cases pass on macOS and iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
 
 ## The architectural sentence
 
@@ -57,7 +57,7 @@ The screen retains the last launch during refresh or failure, displays a recover
 
 `RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
 
-The 88 XCTest cases cover:
+The 94 XCTest cases cover:
 
 - AppModel construction and independent application graphs.
 - Launch selection, empty responses and repository failures.
@@ -69,7 +69,7 @@ The 88 XCTest cases cover:
 
 Tests are grouped into `View model tests`, `AppModel tests`, shared `Test Support` and `Fixtures`. They do not contact the live API or mutate `AppModel.shared`.
 
-The iOS app and test bundle build successfully. All 88 tests passed in Xcode on iPhone Air (iOS 26.2) and on macOS using the same test files and actual Model/ViewModel sources.
+The iOS app and test bundle build successfully. All 94 tests passed in Xcode on iPhone Air (iOS 26.2) and on macOS using the same test files and actual Model/ViewModel sources.
 
 When a simulator is unavailable, run the host checks on a Mac with Xcode and Python 3:
 

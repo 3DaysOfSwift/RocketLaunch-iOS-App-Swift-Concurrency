@@ -4,7 +4,7 @@ import UserNotifications
 protocol RemindersFeatureAPI: AnyObject, Sendable {
     var snapshot: RemindersSnapshot { get async }
     func snapshots() async -> AsyncStream<RemindersSnapshot>
-    func save(_ launch: RocketLaunch, minutesBefore: Int) async throws
+    @discardableResult func save(_ launch: RocketLaunch, minutesBefore: Int) async throws -> ReminderSaveOutcome
     func remove(_ id: String) async
     func reconcile(_ update: LaunchSourceUpdate) async
 }
@@ -16,7 +16,11 @@ actor RemindersFeature: RemindersFeatureAPI {
     private let storage: ReminderStorage
     private var hasLoaded = false
     private let now: @Sendable () -> Date
-    private var operations: [String: UUID] = [:]
+    private struct PendingOperation {
+        let token: UUID
+        let launch: RocketLaunch
+    }
+    private var operations: [String: PendingOperation] = [:]
     private static let storageKey = "rocketlaunch.reminders.v1"
 
     init(client: any LaunchNotificationClient = LocalLaunchNotifications(), storage: ReminderStorage = .memory, now: @escaping @Sendable () -> Date = { Date() }) {
@@ -56,16 +60,17 @@ actor RemindersFeature: RemindersFeatureAPI {
     }
     deinit { for observer in observers.values { observer.finish() } }
 
-    func save(_ launch: RocketLaunch, minutesBefore: Int = 15) async throws {
+    @discardableResult
+    func save(_ launch: RocketLaunch, minutesBefore: Int = 15) async throws -> ReminderSaveOutcome {
         loadIfNeeded()
-        try await schedule(launch, minutesBefore: minutesBefore, askPermission: true)
+        return try await schedule(launch, minutesBefore: minutesBefore, askPermission: true)
     }
 
-    private func schedule(_ launch: RocketLaunch, minutesBefore: Int, askPermission: Bool, update: LaunchSourceUpdate? = nil) async throws {
+    private func schedule(_ launch: RocketLaunch, minutesBefore: Int, askPermission: Bool, update: LaunchSourceUpdate? = nil) async throws -> ReminderSaveOutcome {
         let occupied = Set(reminders.map(\.id)).union(operations.keys)
         // Even a replacement with an unknown time supersedes the older operation.
-        let token = UUID(); operations[launch.id] = token
-        defer { if operations[launch.id] == token { operations[launch.id] = nil } }
+        let token = UUID(); operations[launch.id] = .init(token: token, launch: launch)
+        defer { if operations[launch.id]?.token == token { operations[launch.id] = nil } }
         guard let time = launch.details.plannedTime else { throw ReminderError.unknownTime }
         let fireDate = time.addingTimeInterval(-Double(minutesBefore) * 60)
         guard fireDate > now() else { throw ReminderError.tooLate }
@@ -76,12 +81,15 @@ actor RemindersFeature: RemindersFeatureAPI {
         do {
             try await client.schedule(id: notificationID, title: launch.name, date: fireDate, askPermission: askPermission)
         } catch {
-            if operations[launch.id] == token { operations[launch.id] = nil }
+            guard operations[launch.id]?.token == token, isCurrent(update) else {
+                await client.cancel(notificationID)
+                return .superseded
+            }
             throw error
         }
-        guard operations[launch.id] == token, isCurrent(update) else {
+        guard operations[launch.id]?.token == token, isCurrent(update) else {
             await client.cancel(notificationID)
-            return
+            return .superseded
         }
         operations[launch.id] = nil
         let old = reminders.first(where: { $0.id == launch.id })
@@ -89,6 +97,7 @@ actor RemindersFeature: RemindersFeatureAPI {
         reminders.append(.init(launch: launch, notificationID: notificationID, minutesBefore: minutesBefore, fireDate: fireDate, issue: nil))
         reminders.sort { $0.fireDate < $1.fireDate }; persist()
         if let old { await client.cancel(old.notificationID) }
+        return .saved
     }
 
     func remove(_ id: String) async {
@@ -109,13 +118,22 @@ actor RemindersFeature: RemindersFeatureAPI {
         loadIfNeeded()
         guard sourceRevisions[update.source].map({ update.revision > $0 }) ?? true else { return }
         sourceRevisions[update.source] = update.revision
+        // Invalidate every changed pending save before suspending for any existing
+        // reminder. First saves may still be awaiting notification permission and
+        // therefore have no persisted record for the reconciliation loop to find.
+        for launch in update.launches where launch.source == update.source {
+            if let pending = operations[launch.id],
+               pending.launch.details.plannedTime != launch.details.plannedTime {
+                operations[launch.id] = nil
+            }
+        }
         for launch in update.launches where launch.source == update.source {
             // A newer response supersedes this entire reconciliation, including a
             // suspended reschedule when the newer time matches the saved reminder.
             guard isCurrent(update) else { return }
             guard let old = reminders.first(where: { $0.id == launch.id }),
                   old.launch.details.plannedTime != launch.details.plannedTime else { continue }
-            do { try await schedule(launch, minutesBefore: old.minutesBefore, askPermission: false, update: update) }
+            do { _ = try await schedule(launch, minutesBefore: old.minutesBefore, askPermission: false, update: update) }
             catch {
                 guard isCurrent(update), operations[launch.id] == nil,
                       let index = reminders.firstIndex(where: { $0.id == launch.id && $0.notificationID == old.notificationID && $0.launch == old.launch }) else { continue }
@@ -141,6 +159,9 @@ struct LaunchReminder: Identifiable, Codable, Equatable, Sendable {
     let fireDate: Date
     var issue: String?
 }
+
+/// Saved means this command committed; superseded means it did not commit.
+enum ReminderSaveOutcome: Equatable, Sendable { case saved, superseded }
 
 enum ReminderError: Error { case unknownTime, tooLate, denied, limit }
 
