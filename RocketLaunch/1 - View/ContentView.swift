@@ -16,7 +16,7 @@ struct ContentView: View {
             NavigationStack { OperatorsView(viewModel: viewModel) }
                 .tabItem { Label("Operators", systemImage: "building.2") }.tag("operators")
             NavigationStack { UpdatesView(viewModel: viewModel) }
-                .tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }.tag("updates")
+                .tabItem { Label("Changes", systemImage: "arrow.triangle.2.circlepath") }.tag("updates")
             NavigationStack { RemindersView() }
                 .tabItem { Label("Reminders", systemImage: "bell") }.tag("reminders")
         }

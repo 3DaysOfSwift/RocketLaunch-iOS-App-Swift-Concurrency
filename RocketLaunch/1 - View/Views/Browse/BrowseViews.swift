@@ -93,7 +93,7 @@ struct UpdatesView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Updates")
+        .navigationTitle("Changes")
         .toolbar { Button("Refresh") { viewModel.requestRefresh() } }
     }
 }
