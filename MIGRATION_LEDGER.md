@@ -89,7 +89,7 @@ Historical callback checkpoint (superseded by the current status below). Origina
 
 2026-09-07 before migration implementation: 66% weekly allowance used / 34% remaining. Percentages are account-wide, rounded reports, not per-project credits. Concurrent work prevents exact attribution.
 
-Checkpoint usage report: 67% used / 33% remaining. Reported account-wide change since the start is 1 percentage point; this is rounded and not an exact migration credit cost.
+Checkpoint usage report: 68% used / 33% remaining. Reported account-wide change since the start is 1 percentage point; this is rounded and not an exact migration credit cost.
 
 ## Live baseline defect correction — 2026-09-07
 
@@ -115,3 +115,7 @@ The latest product instruction supersedes the single-screen design. Next remains
 Developer explicitly requested the community SpaceX API after reviewing its archived status. Added the documented query adapter, independent cache/status, source identity and attribution. Past/undated records are excluded from Next. Six additional fixture/behavior checks pass (59 host tests total), including HTTP failure and outdated schedule exclusion. No third-party endpoint reliability is claimed from those tests.
 
 Live Simulator check: RocketLaunch.Live returned 5 records and Launch Library returned 50. The SpaceX request failed and displayed “Refresh failed · No data available” with its own refresh cooldown. Next and the other sources remained usable. The iOS Simulator build succeeded.
+
+## Five fixed tabs — 2026-09-07
+
+Supersedes the operator-per-tab layout with Next, Upcoming, Operators, Updates and Reminders. Added search and country/operator filters, conditional watch/information links, a session-scoped schedule-change log and persistent local reminders. AppModel composes both features; accepted refreshes reconcile changed notification times. Reminder permission, invalid dates, rescheduling, persistence, source identity, filters and change detection are covered by automated checks. 68 host tests pass; Simulator app build and live operator filtering were checked. Notification delivery has not been claimed as tested on a physical device.

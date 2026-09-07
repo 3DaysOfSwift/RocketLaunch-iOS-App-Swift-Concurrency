@@ -52,6 +52,7 @@ actor ControlledLaunchRepository: LaunchRepository {
 final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
     var sources: [LaunchSourceSnapshot] = []
     var operators: [LaunchOperator] = []
+    var updates: [LaunchUpdate] = []
     func refresh(source: LaunchSourceID) async { await refresh() }
     func updateNextLaunch() {}
     private(set) var state: LaunchScheduleState = .idle
@@ -64,6 +65,7 @@ final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
 final class LifecycleFeature: LaunchScheduleFeatureAPI {
     var sources: [LaunchSourceSnapshot] = []
     var operators: [LaunchOperator] = []
+    var updates: [LaunchUpdate] = []
     func refresh(source: LaunchSourceID) async { await refresh() }
     func updateNextLaunch() {}
     let state: LaunchScheduleState = .idle

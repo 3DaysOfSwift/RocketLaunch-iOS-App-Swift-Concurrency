@@ -1,12 +1,12 @@
-# Progressive operator tabs
+# Progressive launch data and fixed navigation
 
-Implemented 2026-09-07 following the developer’s final clarification: data providers supply records; tabs represent the launch operators discovered in those records. The app remains fully free.
+Updated 2026-09-07: five fixed tabs replace the earlier operator-per-tab design. Data providers supply records; operators are grouped within the Operators screen. The app remains fully free.
 
 ## Screens
 
-Next is always present. Operator tabs appear after each accepted response, without waiting for the other source. Within each batch new names are sorted, then appended; established tabs keep their order. Known aliases such as CASC’s full name share an identity. Discovered tabs remain for the session even if their current list becomes empty. Each tab has independent navigation to a source-labelled launch detail snapshot. iPhone uses its native More menu when there are too many tabs for the bar.
+Next, Upcoming, Operators, Updates and Reminders are always present. Operator groups populate after each accepted source response without waiting for the others. Known aliases such as CASC’s full name share an identity. Discovered operators remain for the session even if their current list becomes empty. Launch lists open source-labelled detail snapshots. Upcoming and Operators have independent presentation filters.
 
-Each operator screen shows status and refresh controls for its known contributing sources, plus sources that have not yet returned data. Failure is explicit, with previous rows retained and labelled as previous data. An empty success clears that source’s rows. Source membership is remembered so an empty tab retains its refresh controls. Tab switches do not refetch or cancel the shared refresh.
+Each operator screen shows status and refresh controls for its known contributing sources, plus sources that have not yet returned data. Failure is explicit, with previous rows retained and labelled as previous data. An empty success clears that source’s rows. Source membership is remembered so an empty operator screen retains its refresh controls. Tab switches do not refetch or cancel the shared refresh.
 
 ## Data and concurrency
 
@@ -24,10 +24,18 @@ Operator lists combine source records using source-qualified identities. Records
 
 ## Verification
 
-59 host XCTest cases pass, including incremental publication before the second source completes, failure isolation, cache separation, alias identity, empty-cache replacement, remembered tabs, individual-refresh updates, stale-response rejection, cancellation, time-driven Next updates, cooldown and Launch Library date precision. Simulator live smoke confirmed both source responses (5 + 50 records). Navigation is also checked manually.
+68 host XCTest cases pass, including incremental publication before the second source completes, failure isolation, cache separation, alias identity, empty-cache replacement, remembered operators, individual-refresh updates, stale-response rejection, cancellation, time-driven Next updates, cooldown and Launch Library date precision. Simulator live smoke confirmed both source responses (5 + 50 records). Navigation is also checked manually.
 
 ## Community SpaceX source
 
-SpaceXAPI implements the documented v5 POST /launches/query endpoint and requests populated rocket/launchpad names. It is the community r-spacex project, not an official SpaceX service. It has its own memory cache, a 20-second request timeout, a 60-second refresh cooldown and independent failure state. Its status is shown on Next and the SpaceX operator screen. A failed SpaceX request does not prevent other sources publishing.
+SpaceXAPI implements the documented v5 POST /launches/query endpoint and requests populated rocket/launchpad names. It is the community r-spacex project, not an official SpaceX service. It has its own memory cache, a 20-second request timeout, a 60-second refresh cooldown and independent failure state. Its status is available from Next’s data-source sheet, Upcoming and the SpaceX operator screen. A failed SpaceX request does not prevent other sources publishing.
 
 Past or undated SpaceX schedule records may be browsed in its source-labelled cache but cannot become Next. A response containing only outdated records is labelled accordingly. Country is left unknown when absent from the launchpad schema; rocket-manufacturer country is not substituted. Decoding respects date precision. The archived service’s current availability and data freshness must not be inferred from successful fixture tests.
+
+## Schedule updates and reminders
+
+Updates keeps the latest 100 time or mission changes detected between successive downloads from the same source during this session. The initial download establishes the baseline; it does not create artificial updates. Updates is not a news feed or a background monitor.
+
+RemindersFeature owns persisted reminder records and injected local-notification scheduling. Users choose 5, 15 or 60 minutes before an exact future launch time. Permission is requested only after Set reminder. Successful source refreshes reconcile changed times, replace the associated notification, or cancel it and flag the record when timing becomes uncertain. Reminders use source-qualified launch IDs; selecting duplicate records from different providers can create separate reminders. There is no background polling or server push. Delivery remains subject to system notification settings.
+
+Launch details expose HTTP(S) watch links only when supplied by a provider. RocketLaunch.Live launch-page links are labelled as information, not watch links.

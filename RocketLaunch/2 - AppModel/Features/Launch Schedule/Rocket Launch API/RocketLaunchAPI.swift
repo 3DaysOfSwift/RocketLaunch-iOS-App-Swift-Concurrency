@@ -53,7 +53,8 @@ actor RocketLaunchAPI: LaunchRepository {
                             country: payload.pad?.location?.country, site: payload.pad?.location?.name,
                             plannedTime: try payload.t0.map(Self.parseLaunchTime),
                             sortTime: payload.sortDate.flatMap(Double.init).map { Date(timeIntervalSince1970: $0) },
-                            estimatedDateLabel: payload.dateLabel, missionDescription: payload.missionDescription))
+                            estimatedDateLabel: payload.dateLabel, missionDescription: payload.missionDescription,
+                            detailsURL: payload.slug.flatMap { launchWebURL("https://www.rocketlaunch.live/launch/" + $0) }))
         }
     }
 }
@@ -73,10 +74,11 @@ private struct LaunchPayload: Decodable {
     let pad: PadPayload?
     let t0: String?
     let sortDate: String?
+    let slug: String?
     let dateLabel: String?
     let missionDescription: String?
     enum CodingKeys: String, CodingKey {
-        case id, name, missions, provider, vehicle, pad, t0
+        case id, name, missions, provider, vehicle, pad, t0, slug
         case sortDate = "sort_date"
         case dateLabel = "date_str"
         case missionDescription = "mission_description"

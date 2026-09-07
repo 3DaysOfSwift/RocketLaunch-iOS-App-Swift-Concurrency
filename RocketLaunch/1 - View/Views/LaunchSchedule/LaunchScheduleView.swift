@@ -3,28 +3,37 @@ import SwiftUI
 struct LaunchScheduleView: View {
     let viewModel: LaunchScheduleViewModel
     @State private var showsAbout = false
+    @State private var showsSources = false
     @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 28) {
                 if viewModel.hasLaunch {
                     timing
                     AppCard {
                         VStack(alignment: .leading, spacing: 18) {
-                            fact("Who", viewModel.provider, "building.2")
-                            Divider()
+                            HStack(alignment: .top, spacing: 24) {
+                                fact("Who", viewModel.provider, "building.2")
+                                Spacer(minLength: 0)
+                                fact("Country", viewModel.country, "globe")
+                            }
                             fact("Rocket", viewModel.vehicle, "arrow.up.right")
-                            Divider()
-                            fact("Launch country", viewModel.country, "globe")
-                            Text(viewModel.site).font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
                     AppCard {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("What for?").font(.headline)
                             Text(viewModel.launchTitle).font(.title3.bold())
-                            Text(viewModel.missionSummary).foregroundStyle(.secondary)
+                            Text(viewModel.missionSummary).foregroundStyle(.secondary).lineLimit(3)
+                        }
+                    }
+                    if let launch = viewModel.currentLaunch {
+                        NavigationLink("Launch details") { LaunchDetailView(launch: launch) }
+                            .buttonStyle(.borderedProminent)
+                            .foregroundStyle(themeManager.selected.buttonForeground)
+                        if let url = launch.details.watchURL {
+                            Link(destination: url) { Label("Watch launch", systemImage: "play.circle.fill") }
                         }
                     }
                 } else if viewModel.isLoading {
@@ -46,13 +55,19 @@ struct LaunchScheduleView: View {
                     }
                     .buttonStyle(.bordered)
                     .accessibilityIdentifier("refreshLaunches")
+                    .padding(.top, 12)
                 } else if viewModel.hasLaunch {
                     ProgressView("Updating schedule…").frame(maxWidth: .infinity)
                 }
-                SourceStatusView(viewModel: viewModel)
-                Text("Next is based on the available sources. Schedules may disagree or change.")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }.padding(20)
+                VStack(alignment: .leading, spacing: 16) {
+                    Button("Data sources and refresh status") { showsSources = true }
+                    Text("Next is based on the available sources. Schedules may disagree or change.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            }
+            .padding(20)
+            .padding(.bottom, 24)
         }
         .background(themeManager.selected.background)
         .foregroundStyle(themeManager.selected.foreground)
@@ -63,6 +78,7 @@ struct LaunchScheduleView: View {
                     .accessibilityLabel("About RocketLaunch")
             }
         }
+        .sheet(isPresented: $showsSources) { NavigationStack { List { SourceStatusView(viewModel: viewModel) }.navigationTitle("Data sources").toolbar { Button("Done") { showsSources = false } } } }
         .sheet(isPresented: $showsAbout) { NavigationStack { AboutView() } }
 
     }

@@ -7,3 +7,5 @@ Use the shared RocketLaunch scheme in Xcode, select an iPhone simulator running 
 The response fixture is fixed. Network tests own ephemeral sessions and URLProtocol responses; none contacts the live endpoint. Controlled repository continuations deliberately delay completion so tests prove order and cancellation without timing sleeps. Test-only unchecked Sendable is restricted to a documented lock-protected URLProtocol fixture store.
 
 The earlier defect-characterisation expectations have been replaced by assertions for approved corrected behaviour. Callback checkpoints remain in the local migration pack.
+
+The five-tab revision has 68 passing host tests. Added coverage includes reminder persistence, permission denial, invalid/past times, automatic rescheduling, cancellation after removing an in-flight reminder, source identity, browsing filters and session change detection. Local notification delivery itself still needs device validation; unit tests inject a notification client.

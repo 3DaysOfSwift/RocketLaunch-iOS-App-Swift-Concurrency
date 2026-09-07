@@ -35,6 +35,11 @@
 		D742B6F54A5210A60DE2925C = {isa = PBXBuildFile; fileRef = ECF3AA58DF64286E918A8453; };
 		2338D39EF5D218558C7916FA = {isa = PBXBuildFile; fileRef = 6B9AA865F333AFF8BBCF1CB7; };
 		71EE6C4EB964B7D50B88E3A0 = {isa = PBXBuildFile; fileRef = 57C37ACE8DE78CB7F8AD428D; };
+		50F7307AE1F9BC19D6C6D5C3 /* BrowseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2CC0C13153D6DA54B7687B6 /* BrowseViewModel.swift */; };
+		D952B3A092D495835A57648C /* BrowseViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96320E21EBBF4D064BD23E03 /* BrowseViews.swift */; };
+		7323CD0427F3266796D2804F /* ReminderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AA6D9F0BE450505C16EB3FC /* ReminderViewModel.swift */; };
+		88713411E296CA5A546C798F /* RemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29A9ADF0C789F4AC1FFDD51 /* RemindersView.swift */; };
+		D373992CBC7135C2085B33DA /* RemindersFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880D15A28EDF0CD06A0A0901 /* RemindersFeature.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +83,11 @@
 		ECF3AA58DF64286E918A8453 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorLaunchesView.swift; sourceTree = "<group>"; };
 		6B9AA865F333AFF8BBCF1CB7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchLibraryAPI.swift; sourceTree = "<group>"; };
 		57C37ACE8DE78CB7F8AD428D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceXAPI.swift; sourceTree = "<group>"; };
+		A2CC0C13153D6DA54B7687B6 /* BrowseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseViewModel.swift; sourceTree = "<group>"; };
+		96320E21EBBF4D064BD23E03 /* BrowseViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseViews.swift; sourceTree = "<group>"; };
+		5AA6D9F0BE450505C16EB3FC /* ReminderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderViewModel.swift; sourceTree = "<group>"; };
+		C29A9ADF0C789F4AC1FFDD51 /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
+		880D15A28EDF0CD06A0A0901 /* RemindersFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersFeature.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -187,6 +197,7 @@
 			isa = PBXGroup;
 			children = (
 				6CB6337847237203B7FAEAB7 /* Launch Schedule */,
+				BE26C1A0D7A71973E1094637 /* Reminders */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -212,6 +223,8 @@
 			isa = PBXGroup;
 			children = (
 				59BF3C8797FBE4A3A23CF1AC /* LaunchSchedule */,
+				997FF6857A644603B8F89379 /* Reminders */,
+				AB18C5F1D05AB1692261E605 /* Browse */,
 				5E04A7F3004B799FE6627D22,
 				AA8ACBD186B991A40F505A85,
 				2D2C9E90B57E87F89DFBC817,
@@ -291,6 +304,9 @@
 		5E04A7F3004B799FE6627D22 = {isa = PBXGroup; children = (ECF3AA58DF64286E918A8453,); path = "Operators"; sourceTree = "<group>"; };
 		6C85A65CD7956631ADE2DD3F = {isa = PBXGroup; children = (6B9AA865F333AFF8BBCF1CB7,); path = "Launch Library API"; sourceTree = "<group>"; };
 		D43A9F7790FB4DB1FFCD4912 = {isa = PBXGroup; children = (57C37ACE8DE78CB7F8AD428D,); path = "SpaceX API"; sourceTree = "<group>"; };
+		AB18C5F1D05AB1692261E605 /* Browse */ = {isa = PBXGroup; children = (A2CC0C13153D6DA54B7687B6 /* BrowseViewModel.swift */, 96320E21EBBF4D064BD23E03 /* BrowseViews.swift */,); path = Browse; sourceTree = "<group>"; };
+		997FF6857A644603B8F89379 /* Reminders */ = {isa = PBXGroup; children = (5AA6D9F0BE450505C16EB3FC /* ReminderViewModel.swift */, C29A9ADF0C789F4AC1FFDD51 /* RemindersView.swift */,); path = Reminders; sourceTree = "<group>"; };
+		BE26C1A0D7A71973E1094637 /* Reminders */ = {isa = PBXGroup; children = (880D15A28EDF0CD06A0A0901 /* RemindersFeature.swift */,); path = Reminders; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -401,6 +417,11 @@
 				4D2FA66A637E666D17D05682 /* LaunchScheduleViewModel.swift in Sources */,
 				210F0EFB74899257C00AF13A /* AppModel.swift in Sources */,
 				650D1F72675866403091D9B5 /* LaunchScheduleFeature.swift in Sources */,
+				D373992CBC7135C2085B33DA /* RemindersFeature.swift in Sources */,
+				88713411E296CA5A546C798F /* RemindersView.swift in Sources */,
+				7323CD0427F3266796D2804F /* ReminderViewModel.swift in Sources */,
+				D952B3A092D495835A57648C /* BrowseViews.swift in Sources */,
+				50F7307AE1F9BC19D6C6D5C3 /* BrowseViewModel.swift in Sources */,
 				71EE6C4EB964B7D50B88E3A0,
 				2338D39EF5D218558C7916FA,
 				D742B6F54A5210A60DE2925C,

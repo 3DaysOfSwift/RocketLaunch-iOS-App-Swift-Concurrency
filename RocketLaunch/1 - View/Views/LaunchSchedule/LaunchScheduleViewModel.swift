@@ -32,6 +32,8 @@ final class LaunchScheduleViewModel {
         let name = launchOperator.name
         return name.count > 12 ? String(name.prefix(10)) + "…" : name
     }
+    var currentLaunch: RocketLaunch? { feature.state.launch }
+    var updates: [LaunchUpdate] { feature.updates }
     var sources: [LaunchSourceSnapshot] { feature.sources }
     func updateNextLaunch() { feature.updateNextLaunch() }
     func launches(for operatorID: String) -> [RocketLaunch] {

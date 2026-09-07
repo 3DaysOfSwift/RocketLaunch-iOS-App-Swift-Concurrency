@@ -6,6 +6,7 @@ protocol LaunchScheduleFeatureAPI: AnyObject {
     var state: LaunchScheduleState { get }
     var sources: [LaunchSourceSnapshot] { get }
     var operators: [LaunchOperator] { get }
+    var updates: [LaunchUpdate] { get }
     func refresh() async
     func refresh(source: LaunchSourceID) async
     func updateNextLaunch()
@@ -18,6 +19,8 @@ final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     private(set) var sources: [LaunchSourceSnapshot]
     private(set) var operators: [LaunchOperator] = []
     private(set) var nextLaunch: RocketLaunch?
+    private(set) var updates: [LaunchUpdate] = []
+    @ObservationIgnored private let onRefresh: @MainActor ([RocketLaunch]) async -> Void
     @ObservationIgnored private let configurations: [LaunchSourceConfiguration]
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private var requests: [LaunchSourceID: UUID] = [:]
@@ -27,9 +30,9 @@ final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
     }
 
-    init(sources: [LaunchSourceConfiguration], now: @escaping () -> Date = Date.init) {
+    init(sources: [LaunchSourceConfiguration], now: @escaping () -> Date = Date.init, onRefresh: @escaping @MainActor ([RocketLaunch]) async -> Void = { _ in }) {
         precondition(Set(sources.map(\.id)).count == sources.count)
-        self.configurations = sources; self.now = now
+        self.configurations = sources; self.now = now; self.onRefresh = onRefresh
         self.sources = sources.map { LaunchSourceSnapshot(id: $0.id) }
     }
 
@@ -58,9 +61,14 @@ final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
             let launches = try await config.repository.fetchUpcomingLaunches()
             try Task.checkCancellation()
             guard requests[source] == id else { return }
+            recordChanges(from: sources[index].launches, to: launches)
             sources[index].launches = launches
             sources[index].fetchedAt = now()
             sources[index].phase = .loaded
+            updateNextLaunch()
+            // A later request must roll back to this committed result while reminders update.
+            rollback[source] = sources[index]
+            await onRefresh(launches)
         } catch {
             guard requests[source] == id else { return }
             if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
@@ -76,7 +84,7 @@ final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     func updateNextLaunch() {
         let all = sources.flatMap(\.launches)
         let grouped = Dictionary(grouping: all) { LaunchOperator.key(for: $0.details.provider) }
-        // Retain discovered tabs for this session, even after an empty response.
+        // Retain discovered operators for this session, even after an empty response.
         let existingIDs = Set(operators.map(\.id))
         for key in grouped.keys.sorted() where !existingIDs.contains(key) {
             let name = LaunchOperator.canonicalName(grouped[key]?.first?.details.provider)
@@ -102,6 +110,20 @@ final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         }).first { state = .failed(failure, previous: state.launch) }
         else if sources.allSatisfy({ $0.phase == .idle }) { state = .idle }
         else { state = .empty }
+    }
+
+    private func recordChanges(from old: [RocketLaunch], to new: [RocketLaunch]) {
+        let oldByID = Dictionary(old.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for launch in new {
+            guard let previous = oldByID[launch.id] else { continue }
+            let timeChanged = previous.details.plannedTime != launch.details.plannedTime
+                || previous.details.estimatedDateLabel != launch.details.estimatedDateLabel
+            let missionChanged = previous.name != launch.name || previous.details.missionDescription != launch.details.missionDescription
+                || previous.missions != launch.missions
+            guard timeChanged || missionChanged else { continue }
+            updates.insert(LaunchUpdate(id: UUID(), detectedAt: now(), previous: previous, launch: launch, timeChanged: timeChanged), at: 0)
+        }
+        updates = Array(updates.prefix(100))
     }
 
     private static func failure(for error: any Error) -> LaunchLoadFailure {
@@ -141,7 +163,7 @@ enum LaunchScheduleState: Equatable, Sendable {
     }
 }
 
-enum LaunchSourceID: String, Sendable, CaseIterable, Identifiable {
+enum LaunchSourceID: String, Sendable, Codable, CaseIterable, Identifiable {
     case rocketLaunchLive, launchLibrary, spaceX
     var id: String { rawValue }
     var name: String {
@@ -189,4 +211,12 @@ struct LaunchOperator: Equatable, Sendable, Identifiable {
     static func key(for name: String?) -> String {
         canonicalName(name).lowercased()
     }
+}
+
+struct LaunchUpdate: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let detectedAt: Date
+    let previous: RocketLaunch
+    let launch: RocketLaunch
+    let timeChanged: Bool
 }

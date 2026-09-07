@@ -10,3 +10,10 @@ Track developer corrections here so they can inform an additional cleanup pass i
 - **Proposed cleanup check:** Review each migrated feature for a concrete class named `<DomainName>Feature`, an API protocol named `<DomainName>FeatureAPI`, and colocated protocol/implementation. Split declarations only when there is a concrete reason.
 
 - **Naming refinement:** The developer subsequently chose `LaunchScheduleFeature` / `LaunchScheduleFeatureAPI` in place of the initial `LaunchSchedule` / `LaunchScheduleFeature` pairing. Stored properties can use the concise domain name `launchSchedule`. Use this latest convention in the cleanup pass.
+
+## Feature additions during UI work
+
+- Register new feature and ViewModel files in the Xcode target; the host test runner discovers files independently and alone cannot establish Xcode membership.
+- Keep source cache commits settled before awaiting downstream reminder updates so replacement requests roll back to the latest accepted data.
+- Notification replacement needs unique request IDs and stale-completion rejection, including removal while scheduling is suspended.
+- Keep country filter aliases consistent across data sources.

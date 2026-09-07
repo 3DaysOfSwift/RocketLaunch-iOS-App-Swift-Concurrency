@@ -63,7 +63,9 @@ actor LaunchLibraryAPI: LaunchRepository {
                 details: .init(provider: item.launch_service_provider?.name,
                     vehicle: item.rocket?.configuration?.name, country: item.pad?.country?.name,
                     site: item.pad?.location?.name, plannedTime: precise ? date : nil, sortTime: date,
-                    estimatedDateLabel: dateLabel, missionDescription: item.mission?.description))
+                    estimatedDateLabel: dateLabel, missionDescription: item.mission?.description,
+                    watchURL: item.vid_urls?.compactMap { launchWebURL($0.url) }.first,
+                    detailsURL: item.info_urls?.compactMap { launchWebURL($0.url) }.first))
         }
     }
 }
@@ -79,8 +81,12 @@ private struct LaunchPayload: Decodable {
     let rocket: RocketPayload?
     let mission: MissionPayload?
     let pad: PadPayload?
+    let vid_urls: [LinkPayload]?
+    let info_urls: [LinkPayload]?
 }
 private struct NamedPayload: Decodable { let name: String? }
 private struct RocketPayload: Decodable { let configuration: NamedPayload? }
 private struct MissionPayload: Decodable { let name: String?; let description: String? }
 private struct PadPayload: Decodable { let country: NamedPayload?; let location: NamedPayload? }
+
+private struct LinkPayload: Decodable { let url: String? }

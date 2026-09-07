@@ -26,7 +26,7 @@ struct OperatorLaunchesView: View {
     }
 }
 
-private struct LaunchListRow: View {
+struct LaunchListRow: View {
     let viewModel: LaunchDetailViewModel
     let source: String
     var body: some View {
@@ -42,6 +42,8 @@ private struct LaunchListRow: View {
 struct LaunchDetailView: View {
     let launch: RocketLaunch
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(ReminderViewModel.self) private var reminders
+    @State private var minutesBefore = 15
     private var viewModel: LaunchDetailViewModel { .init(launch: launch) }
 
     var body: some View {
@@ -60,6 +62,32 @@ struct LaunchDetailView: View {
                         detail("Rocket", viewModel.vehicle)
                         detail("Launch country", viewModel.country)
                         detail("Launch site", viewModel.site)
+                    }
+                }
+                if let url = launch.details.watchURL {
+                    Link(destination: url) { Label("Watch launch", systemImage: "play.circle.fill") }
+                        .buttonStyle(.borderedProminent)
+                }
+                if let url = launch.details.detailsURL {
+                    Link("More launch information", destination: url)
+                }
+                AppCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Reminder", systemImage: "bell").font(.headline)
+                        if launch.details.plannedTime != nil {
+                            Picker("Alert before launch", selection: $minutesBefore) {
+                                Text("5 minutes").tag(5)
+                                Text("15 minutes").tag(15)
+                                Text("1 hour").tag(60)
+                            }
+                            Button(reminders.contains(launch.id) ? "Update reminder" : "Set reminder") {
+                                reminders.save(launch, minutesBefore: minutesBefore)
+                            }.buttonStyle(.bordered).disabled(reminders.isBusy)
+                            if reminders.contains(launch.id) { Text("Saved in Reminders").font(.caption).foregroundStyle(.secondary) }
+                        } else {
+                            Text("Reminders become available when an exact launch time is announced.")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Text("What for?").font(.headline)

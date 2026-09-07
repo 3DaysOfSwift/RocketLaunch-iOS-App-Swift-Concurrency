@@ -48,7 +48,8 @@ actor SpaceXAPI: LaunchRepository {
                 estimatedDate: .init(month: nil, day: nil, year: nil),
                 details: .init(provider: "SpaceX", vehicle: payload.rocket?.name,
                     site: payload.launchpad?.full_name, plannedTime: exact ? date : nil,
-                    sortTime: date, estimatedDateLabel: label, missionDescription: payload.details))
+                    sortTime: date, estimatedDateLabel: label, missionDescription: payload.details, watchURL: launchWebURL(payload.links?.webcast),
+                    detailsURL: launchWebURL(payload.links?.article)))
         }
     }
 }
@@ -63,6 +64,9 @@ private struct LaunchPayload: Decodable {
     let details: String?
     let rocket: RocketPayload?
     let launchpad: PadPayload?
+    let links: LinksPayload?
 }
 private struct RocketPayload: Decodable { let name: String? }
 private struct PadPayload: Decodable { let full_name: String? }
+
+private struct LinksPayload: Decodable { let webcast: String?; let article: String? }

@@ -12,7 +12,7 @@ The project began as a starter pack. Its unfinished behaviour and real defects g
 
 Refresh uses native asynchronous URLSession networking, actor-owned decoding and MainActor-owned feature state. A new screen refresh cancels its previous Task, and the feature rejects obsolete results before publication. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
 
-All 59 XCTest cases pass on macOS; the previous 35-test suite also passed on iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
+All 68 XCTest cases pass on macOS; the previous 35-test suite also passed on iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
 
 ## The architectural sentence
 
@@ -24,7 +24,7 @@ That sentence is also the folder structure. Open `RocketLaunch.xcodeproj` in Xco
 - **2 - AppModel** contains the composition root and the launch feature: its API, manager, data types, repository contract and networking implementation.
 - **3 - App Resources** contains the app’s assets and sample JSON.
 
-`AppModel.live()` assembles the dependencies without starting a request. The ViewModel asks the narrow `LaunchScheduleFeatureAPI` to refresh. `LaunchScheduleFeature` stores each source’s list, discovers operator tabs and selects the next candidate, while the `RocketLaunchAPI` actor retrieves and decodes the response using `URLSession.data(from:)`. The ViewModel prepares values for the screen.
+`AppModel.live()` assembles the dependencies without starting a request. The ViewModel asks the narrow `LaunchScheduleFeatureAPI` to refresh. `LaunchScheduleFeature` stores each source’s list, groups launches by operator and selects the next candidate, while the `RocketLaunchAPI` actor retrieves and decodes the response using `URLSession.data(from:)`. The ViewModel prepares values for the screen.
 
 The architecture follows the principles used by [Trend](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency). Read the [AppModel iOS Application Template](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency/blob/main/APPMODEL_IOS_APPLICATION_TEMPLATE.md) for the target architecture and [ARCHITECTURE.md](ARCHITECTURE.md) for this project’s current implementation and transitional boundaries.
 
@@ -55,7 +55,7 @@ The screen retains the last launch during refresh or failure, displays a recover
 
 `RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
 
-The 59 XCTest cases cover:
+The 68 XCTest cases cover:
 
 - AppModel construction and independent application graphs.
 - Launch selection, empty responses and repository failures.
@@ -94,12 +94,20 @@ Explore the training program at [3DaysOfSwiftConcurrency.com](https://www.3dayso
 
 ## App experience
 
-RocketLaunch is completely free, with no in-app purchases. Next is always the first tab. Operator tabs appear as each API response arrives and retain their order throughout the session. Each operator has a selectable launch list and detail screen. Source failures and previous cached data are visible, with independent refresh controls. Planned times appear in local time; estimates remain explicit. Additional operators are accessible through iPhone’s native More menu when needed.
+RocketLaunch is completely free, with no in-app purchases. Five fixed tabs provide Next, Upcoming, Operators, Updates and Reminders. Next gives a short overview with detail and watch links when supplied. Upcoming filters by operator, launch country and search; Operators filters by name and launch country. Source failures and previous cached data remain visible with independent refresh controls. Operator lists populate as each source returns. Planned times appear in local time; estimates remain explicit.
 
 Launch Library refresh attempts have a five-minute cooldown within the running app. The community SpaceX API is also enabled as a third source. See [MULTI_PROVIDER_DESIGN.md](MULTI_PROVIDER_DESIGN.md) for the progressive refresh behavior and current limits.
 
 ## Community SpaceX source
 
-SpaceXAPI implements the documented v5 POST /launches/query endpoint and requests populated rocket/launchpad names. It is the community r-spacex project, not an official SpaceX service. It has its own memory cache, a 20-second request timeout, a 60-second refresh cooldown and independent failure state. Its status is shown on Next and the SpaceX operator screen. A failed SpaceX request does not prevent other sources publishing.
+SpaceXAPI implements the documented v5 POST /launches/query endpoint and requests populated rocket/launchpad names. It is the community r-spacex project, not an official SpaceX service. It has its own memory cache, a 20-second request timeout, a 60-second refresh cooldown and independent failure state. Its status is available from Next’s data-source sheet, Upcoming and the SpaceX operator screen. A failed SpaceX request does not prevent other sources publishing.
 
 Past or undated SpaceX schedule records may be browsed in its source-labelled cache but cannot become Next. A response containing only outdated records is labelled accordingly. Country is left unknown when absent from the launchpad schema; rocket-manufacturer country is not substituted. Decoding respects date precision. The archived service’s current availability and data freshness must not be inferred from successful fixture tests.
+
+## Schedule updates and reminders
+
+Updates keeps the latest 100 time or mission changes detected between successive downloads from the same source during this session. The initial download establishes the baseline; it does not create artificial updates. Updates is not a news feed or a background monitor.
+
+RemindersFeature owns persisted reminder records and injected local-notification scheduling. Users choose 5, 15 or 60 minutes before an exact future launch time. Permission is requested only after Set reminder. Successful source refreshes reconcile changed times, replace the associated notification, or cancel it and flag the record when timing becomes uncertain. Reminders use source-qualified launch IDs; selecting duplicate records from different providers can create separate reminders. There is no background polling or server push. Delivery remains subject to system notification settings.
+
+Launch details expose HTTP(S) watch links only when supplied by a provider. RocketLaunch.Live launch-page links are labelled as information, not watch links.
