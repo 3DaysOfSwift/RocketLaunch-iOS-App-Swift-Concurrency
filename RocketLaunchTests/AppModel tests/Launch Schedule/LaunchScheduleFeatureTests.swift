@@ -9,11 +9,12 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let feature = LaunchScheduleFeature(repository: repository)
         let first = Task { await feature.loadIfNeeded() }
         await waitFor([began])
-        await feature.loadIfNeeded()
+        let joining = Task { await feature.loadIfNeeded() }
         let pendingCount = await repository.requestCount
         XCTAssertEqual(pendingCount, 1)
         await repository.complete(0, with: .success([]))
         await first.value
+        await joining.value
         await feature.loadIfNeeded()
         let settledCount = await repository.requestCount
         XCTAssertEqual(settledCount, 1)
@@ -127,6 +128,7 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let launchSchedule = LaunchScheduleFeature(repository: repository)
         let launches = try LaunchFixtures.launches()
         let old = Task { await launchSchedule.refresh() }; await waitFor([first])
+        old.cancel(); await old.value
         let new = Task { await launchSchedule.refresh() }; await waitFor([second])
         await repository.complete(1, with: .success([launches[1]])); await new.value
         await repository.complete(0, with: .success([launches[0]])); await old.value
@@ -141,6 +143,7 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let launchSchedule = LaunchScheduleFeature(repository: repository)
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         let old = Task { await launchSchedule.refresh() }; await waitFor([first])
+        old.cancel(); await old.value
         let new = Task { await launchSchedule.refresh() }; await waitFor([second])
         await repository.complete(1, with: .success([launch])); await new.value
         await repository.complete(0, with: .failure(URLError(.timedOut))); await old.value
@@ -153,7 +156,7 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let repository = ControlledLaunchRepository { _ in began.fulfill() }
         let launchSchedule = LaunchScheduleFeature(repository: repository)
         let task = Task { await launchSchedule.refresh() }; await waitFor([began])
-        task.cancel()
+        task.cancel(); await task.value
         await repository.complete(0, with: .success(try LaunchFixtures.launches())); await task.value
         let projection12 = await launchSchedule.snapshot
         XCTAssertEqual(projection12.state, .idle)
@@ -165,6 +168,7 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let repository = ControlledLaunchRepository { index in (index == 0 ? first : second).fulfill() }
         let launchSchedule = LaunchScheduleFeature(repository: repository)
         let old = Task { await launchSchedule.refresh() }; await waitFor([first])
+        old.cancel(); await old.value
         let new = Task { await launchSchedule.refresh() }; await waitFor([second])
         new.cancel()
         await repository.complete(1, with: .failure(CancellationError())); await new.value

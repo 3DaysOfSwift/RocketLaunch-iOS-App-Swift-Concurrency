@@ -10,9 +10,9 @@ The project began as a starter pack. Its unfinished behaviour and real defects g
 
 **The Swift Concurrency implementation is ready for final review.** The app now targets **iOS 17 and later**, uses **Swift 6 with complete concurrency checking**, and uses Apple’s Observation framework.
 
-Refresh uses native asynchronous URLSession networking, actor-owned decoding and business state, delivered as immutable snapshots to MainActor ViewModels. A new screen refresh cancels its previous Task, and the feature rejects obsolete results before publication. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
+Refresh uses native asynchronous URLSession networking, actor-owned decoding and business state, delivered as immutable snapshots to MainActor ViewModels. Repeated refreshes share active provider work, and canceled request identities prevent late results from being published. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
 
-All 94 XCTest cases pass on macOS and iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
+All 97 current XCTest cases pass on macOS. The iOS app and test bundle build; simulator execution of this refactor remains pending because the Mac was locked. The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
 
 ## The architectural sentence
 
@@ -57,19 +57,19 @@ The screen retains the last launch during refresh or failure, displays a recover
 
 `RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
 
-The 94 XCTest cases cover:
+The 97 XCTest cases cover:
 
 - AppModel construction and independent application graphs.
 - Launch selection, empty responses and repository failures.
 - ViewModel initial state, displayed values, failure recovery and retained results.
 - JSON decoding with complete, null, omitted and malformed date components.
 - The real networking/decoding boundary using an isolated URLSession and controlled responses.
-- Cancellation of real URLSession requests, stale-response rejection, Task replacement and cancellation when the screen owner disappears or is released.
+- Cancellation of real URLSession requests, stale-response rejection, shared requests and cancellation when the screen owner disappears or is released.
 - Shared Observation updates and theme selection.
 
 Tests are grouped into `View model tests`, `AppModel tests`, shared `Test Support` and `Fixtures`. They do not contact the live API or mutate `AppModel.shared`.
 
-The iOS app and test bundle build successfully. All 94 tests passed in Xcode on iPhone Air (iOS 26.2) and on macOS using the same test files and actual Model/ViewModel sources.
+The iOS app and test bundle build successfully. All 97 current tests passed on macOS using actual Model/ViewModel sources. Previous iPhone Air tests belong to the preceding architecture revision; this refactor still needs simulator execution.
 
 When a simulator is unavailable, run the host checks on a Mac with Xcode and Python 3:
 
@@ -110,7 +110,7 @@ Past or undated SpaceX schedule records may be browsed in its source-labelled ca
 
 Changes keeps the latest 100 time or mission changes detected between successive downloads from the same source during this session. The initial download establishes the baseline; it does not create artificial updates. Changes is not a news feed or a background monitor.
 
-RemindersFeature owns persisted reminder records and injected local-notification scheduling. Users choose 5, 15 or 60 minutes before an exact future launch time. Permission is requested only after Set reminder. Successful source refreshes reconcile changed times, replace the associated notification, or cancel it and flag the record when timing becomes uncertain. Reminders use source-qualified launch IDs; selecting duplicate records from different providers can create separate reminders. There is no background polling or server push. Delivery remains subject to system notification settings.
+LaunchScheduleFeature owns both launch data and persisted desired reminders, with an injected local-notification client. Screens request reminders by launch ID and lead time. Pending, scheduled and failed delivery are explicit. Users choose 5, 15 or 60 minutes before an exact future launch time. Permission is requested only after Set reminder. Successful source refreshes reconcile changed times, replace the associated notification, or cancel it and flag the record when timing becomes uncertain. Reminders use source-qualified launch IDs; selecting duplicate records from different providers can create separate reminders. There is no background polling or server push. Delivery remains subject to system notification settings.
 
 Launch details expose HTTP(S) watch links only when supplied by a provider. RocketLaunch.Live launch-page links are labelled as information, not watch links.
 

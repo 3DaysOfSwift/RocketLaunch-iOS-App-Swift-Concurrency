@@ -12,7 +12,9 @@ struct RemindersView: View {
                 NavigationLink { LaunchDetailView(launch: reminder.launch) } label: {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(reminder.launch.name).font(.headline)
-                        if let issue = reminder.issue {
+                        if reminder.status == .pending {
+                            Label("Scheduling…", systemImage: "clock").font(.caption)
+                        } else if let issue = reminder.issue {
                             Label(issue, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                         } else {
                             Text(reminder.fireDate, format: .dateTime.month().day().hour().minute())

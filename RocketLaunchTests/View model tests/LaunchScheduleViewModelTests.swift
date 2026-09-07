@@ -107,19 +107,18 @@ final class LaunchScheduleViewModelTests: XCTestCase {
         XCTAssertEqual(first.launchName, launch.name)
         XCTAssertEqual(second.launchName, launch.name)
     }
-    @MainActor func testNewScreenRefreshCancelsPreviousTask() async {
+    @MainActor func testRepeatedScreenRefreshKeepsCurrentTask() async {
         let feature = LifecycleFeature()
         let first = expectation(description: "first starts")
-        let second = expectation(description: "second starts")
-        let finished = expectation(description: "both finish"); finished.expectedFulfillmentCount = 2
-        feature.onRequest = { index in (index == 0 ? first : second).fulfill() }
+        let finished = expectation(description: "finishes")
+        feature.onRequest = { _ in first.fulfill() }
         feature.onFinish = { _ in finished.fulfill() }
         let viewModel = LaunchScheduleViewModel(feature: feature)
         viewModel.requestRefresh(); await waitFor([first])
-        viewModel.requestRefresh(); await waitFor([second])
-        feature.complete(0); feature.complete(1); await waitFor([finished])
-        XCTAssertEqual(feature.cancellations[0], true)
-        XCTAssertEqual(feature.cancellations[1], false)
+        viewModel.requestRefresh()
+        XCTAssertEqual(feature.pending.count, 1)
+        feature.complete(0); await waitFor([finished])
+        XCTAssertEqual(feature.cancellations[0], false)
     }
     @MainActor func testScreenDisappearanceCancelsRefresh() async {
         let feature = LifecycleFeature()

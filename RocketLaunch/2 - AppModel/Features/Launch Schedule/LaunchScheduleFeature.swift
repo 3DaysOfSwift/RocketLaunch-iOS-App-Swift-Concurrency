@@ -7,6 +7,10 @@ protocol LaunchScheduleFeatureAPI: AnyObject, Sendable {
     func refresh() async
     func refresh(source: LaunchSourceID) async
     func updateNextLaunch() async
+    var reminderSnapshot: RemindersSnapshot { get async }
+    func reminderSnapshots() async -> AsyncStream<RemindersSnapshot>
+    @discardableResult func setReminder(for launchID: String, minutesBefore: Int) async throws -> ReminderSaveOutcome
+    func removeReminder(_ launchID: String) async
 }
 
 /// Owns business state and processing independently of the UI's main actor.
@@ -16,24 +20,28 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     private(set) var operators: [LaunchOperator] = []
     private(set) var nextLaunch: RocketLaunch?
     private(set) var updates: [LaunchUpdate] = []
-    private let onRefresh: @Sendable (LaunchSourceUpdate) async -> Void
     private let configurations: [LaunchSourceConfiguration]
     private let now: @Sendable () -> Date
-    private var requests: [LaunchSourceID: UUID] = [:]
-    private var rollback: [LaunchSourceID: LaunchSourceSnapshot] = [:]
+    private struct Request {
+        let id: UUID
+        let task: Task<Void, Never>
+        var previous: LaunchSourceSnapshot
+        var waiters: [UUID: CheckedContinuation<Void, Never>]
+    }
+    private var requests: [LaunchSourceID: Request] = [:]
 
     init(repository: any LaunchRepository) {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
     }
 
-    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, onRefresh: @escaping @Sendable (LaunchSourceUpdate) async -> Void = { _ in }) {
+    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, notificationClient: any LaunchNotificationClient = LocalLaunchNotifications(), reminderStorage: ReminderStorage = .memory) {
         precondition(Set(sources.map(\.id)).count == sources.count)
-        self.configurations = sources; self.now = now; self.onRefresh = onRefresh
+        self.configurations = sources; self.now = now
+        self.notificationClient = notificationClient; self.reminderStorage = reminderStorage
         self.sources = sources.map { LaunchSourceSnapshot(id: $0.id) }
         self.lastPublished = .init(revision: 0, state: .idle, nextLaunch: nil, sources: self.sources, operators: [], upcomingLaunches: [], updates: [])
     }
 
-    private var initialLoadInProgress = false
     private var lastPublished: LaunchScheduleSnapshot?
     private var revision: UInt64 = 0
     private var upcomingLaunches: [RocketLaunch] = []
@@ -61,23 +69,24 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         lastPublished = value
         for observer in observers.values { observer.yield(value) }
     }
-    deinit { for observer in observers.values { observer.finish() } }
-
-    /// The feature makes the initial-load decision before its first suspension.
-    func loadIfNeeded() async {
-        guard !Task.isCancelled, !initialLoadInProgress else { return }
-        let unfinished = sources.filter { $0.phase == .idle }.map(\.id)
-        guard !unfinished.isEmpty else { return }
-        initialLoadInProgress = true
-        defer { initialLoadInProgress = false }
-        await withTaskGroup(of: Void.self) { group in
-            for source in unfinished {
-                group.addTask { await self.refresh(source: source) }
-            }
+    deinit {
+        for observer in observers.values { observer.finish() }
+        for observer in reminderObservers.values { observer.finish() }
+        for request in requests.values {
+            request.task.cancel()
+            for waiter in request.waiters.values { waiter.resume() }
         }
     }
 
-    /// Each child commits independently; the first response can populate the UI.
+    /// Join active initial work or request only providers with no settled result.
+    func loadIfNeeded() async {
+        let unfinished = sources.filter { $0.phase == .idle || $0.phase == .loading }.map(\.id)
+        await withTaskGroup(of: Void.self) { group in
+            for source in unfinished { group.addTask { await self.refresh(source: source) } }
+        }
+    }
+
+    /// Child callers share each provider's active request and publish independently.
     func refresh() async {
         await withTaskGroup(of: Void.self) { group in
             for configuration in configurations {
@@ -87,39 +96,82 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     }
 
     func refresh(source: LaunchSourceID) async {
+        let waiterID = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                registerRefresh(source: source, waiterID: waiterID, continuation: continuation)
+            }
+        } onCancel: {
+            Task { await self.cancelRefresh(source: source, waiterID: waiterID) }
+        }
+    }
+
+    private func registerRefresh(source: LaunchSourceID, waiterID: UUID, continuation: CheckedContinuation<Void, Never>) {
         guard !Task.isCancelled,
               let index = sources.firstIndex(where: { $0.id == source }),
-              let config = configurations.first(where: { $0.id == source }) else { return }
-        if let retryAt = sources[index].nextRefreshAt, now() < retryAt { return }
+              let configuration = configurations.first(where: { $0.id == source }) else { continuation.resume(); return }
+        // Joining existing work does not make another HTTP request or bypass cooldown.
+        if requests[source] != nil {
+            requests[source]?.waiters[waiterID] = continuation
+            return
+        }
+        if let retryAt = sources[index].nextRefreshAt, now() < retryAt { continuation.resume(); return }
+        let previous = sources[index]
         let id = UUID()
-        let previous = rollback[source] ?? sources[index]
-        requests[source] = id; rollback[source] = previous
         sources[index].phase = .loading
-        sources[index].nextRefreshAt = now().addingTimeInterval(config.minimumRefreshInterval)
+        sources[index].nextRefreshAt = now().addingTimeInterval(configuration.minimumRefreshInterval)
         updateNextLaunch()
-        defer { if requests[source] == id { requests[source] = nil; rollback[source] = nil } }
-        do {
-            let launches = try await config.repository.fetchUpcomingLaunches()
-            try Task.checkCancellation()
-            guard requests[source] == id else { return }
+        let repository = configuration.repository
+        let task = Task { [weak self] in
+            let result: Result<[RocketLaunch], any Error>
+            do {
+                let launches = try await repository.fetchUpcomingLaunches()
+                try Task.checkCancellation()
+                result = .success(launches)
+            } catch { result = .failure(error) }
+            await self?.completeRefresh(source: source, id: id, result: result)
+        }
+        requests[source] = Request(id: id, task: task, previous: previous, waiters: [waiterID: continuation])
+    }
+
+    private func cancelRefresh(source: LaunchSourceID, waiterID: UUID) {
+        guard var request = requests[source], let waiter = request.waiters.removeValue(forKey: waiterID) else { return }
+        if request.waiters.isEmpty {
+            // Detach ownership now; a new screen need not wait for canceled transport.
+            requests[source] = nil
+            request.task.cancel()
+            if let index = sources.firstIndex(where: { $0.id == source }) { sources[index] = request.previous }
+            updateNextLaunch()
+        } else { requests[source] = request }
+        waiter.resume()
+    }
+
+    private func completeRefresh(source: LaunchSourceID, id: UUID, result: Result<[RocketLaunch], any Error>) async {
+        guard let request = requests[source], request.id == id,
+              let index = sources.firstIndex(where: { $0.id == source }) else { return }
+        var effects: [ReminderEffect] = []
+        switch result {
+        case .success(let launches):
             recordChanges(from: sources[index].launches, to: launches)
             sources[index].launches = launches
             sources[index].fetchedAt = now()
             sources[index].phase = .loaded
             rebuildOperators()
-            updateNextLaunch()
-            // A later request must roll back to this committed result while reminders update.
-            rollback[source] = sources[index]
-            await onRefresh(.init(source: source, revision: revision, launches: launches))
-        } catch {
-            guard requests[source] == id else { return }
-            if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
-                sources[index] = previous
-            } else {
-                sources[index].phase = .failed(Self.failure(for: error))
-            }
-            updateNextLaunch()
+            // Cache and desired reminders change in one uninterrupted actor operation.
+            effects = reconcileReminders(with: launches)
+        case .failure(let error):
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                sources[index] = request.previous
+            } else { sources[index].phase = .failed(Self.failure(for: error)) }
         }
+        updateNextLaunch()
+        requests[source]?.previous = sources[index]
+        await withTaskGroup(of: Void.self) { group in
+            for effect in effects { group.addTask { _ = try? await self.deliverReminder(effect, askPermission: false) } }
+        }
+        guard let finished = requests[source], finished.id == id else { return }
+        requests[source] = nil
+        for waiter in finished.waiters.values { waiter.resume() }
     }
 
     /// Stored output is recalculated only on model events, never in a View getter.
@@ -180,6 +232,150 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         updates = Array(updates.prefix(100))
     }
 
+    private let notificationClient: any LaunchNotificationClient
+    private let reminderStorage: ReminderStorage
+    private var reminderDefaults: UserDefaults?
+    private var remindersLoaded = false
+    private var reminders: [LaunchReminder] = []
+    private var userSaveCounts: [String: Int] = [:]
+    private var reminderRevision: UInt64 = 0
+    private var reminderObservers: [UUID: AsyncStream<RemindersSnapshot>.Continuation] = [:]
+
+    var reminderSnapshot: RemindersSnapshot {
+        loadRemindersIfNeeded()
+        return .init(revision: reminderRevision, reminders: reminders)
+    }
+    func reminderSnapshots() -> AsyncStream<RemindersSnapshot> {
+        loadRemindersIfNeeded()
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<RemindersSnapshot>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        reminderObservers[id] = continuation
+        continuation.onTermination = { [weak self] _ in Task { await self?.removeReminderObserver(id) } }
+        continuation.yield(reminderSnapshot)
+        return stream
+    }
+    private func removeReminderObserver(_ id: UUID) { reminderObservers[id] = nil }
+    private func loadRemindersIfNeeded() {
+        guard !remindersLoaded else { return }
+        remindersLoaded = true
+        switch reminderStorage {
+        case .memory: reminderDefaults = nil
+        case .standard: reminderDefaults = .standard
+        case .suite(let name): reminderDefaults = UserDefaults(suiteName: name)
+        }
+        reminders = reminderDefaults?.data(forKey: "rocketlaunch.reminders.v1")
+            .flatMap { try? JSONDecoder().decode([LaunchReminder].self, from: $0) } ?? []
+        // An interrupted external operation is not evidence of successful delivery.
+        for index in reminders.indices where reminders[index].status == .pending {
+            reminders[index].status = .failed
+            reminders[index].issue = "Scheduling was interrupted. Set this reminder again."
+        }
+    }
+    private func persistReminders() {
+        reminderRevision += 1
+        let value = reminderSnapshot
+        if let data = try? JSONEncoder().encode(reminders) { reminderDefaults?.set(data, forKey: "rocketlaunch.reminders.v1") }
+        for observer in reminderObservers.values { observer.yield(value) }
+    }
+
+    private struct ReminderEffect: Sendable {
+        let desired: LaunchReminder
+        let previousNotificationID: String?
+        var mayRequestPermission = false
+    }
+
+    @discardableResult
+    func setReminder(for launchID: String, minutesBefore: Int = 15) async throws -> ReminderSaveOutcome {
+        loadRemindersIfNeeded()
+        guard let launch = sources.lazy.flatMap(\.launches).first(where: { $0.id == launchID }) else { throw ReminderError.launchUnavailable }
+        guard [5, 15, 60].contains(minutesBefore) else { throw ReminderError.invalidLeadTime }
+        guard let time = launch.details.plannedTime else { throw ReminderError.unknownTime }
+        let fireDate = time.addingTimeInterval(-Double(minutesBefore) * 60)
+        guard fireDate > now() else { throw ReminderError.tooLate }
+        guard reminders.count < 50 || reminders.contains(where: { $0.id == launchID }) else { throw ReminderError.limit }
+        let effect = prepareReminder(launch: launch, minutesBefore: minutesBefore, fireDate: fireDate)
+        persistReminders()
+        userSaveCounts[launchID, default: 0] += 1
+        defer {
+            let remaining = (userSaveCounts[launchID] ?? 1) - 1
+            userSaveCounts[launchID] = remaining == 0 ? nil : remaining
+        }
+        return try await deliverReminder(effect, askPermission: true)
+    }
+
+    /// Lookup, validation and desired-state replacement happen before any await.
+    private func prepareReminder(launch: RocketLaunch, minutesBefore: Int, fireDate: Date) -> ReminderEffect {
+        let old = reminders.first(where: { $0.id == launch.id })
+        let desired = LaunchReminder(launch: launch, notificationID: "rocketlaunch." + UUID().uuidString,
+            minutesBefore: minutesBefore, fireDate: fireDate, issue: nil, status: .pending)
+        reminders.removeAll { $0.id == launch.id }
+        reminders.append(desired)
+        reminders.sort { $0.fireDate < $1.fireDate }
+        return .init(desired: desired, previousNotificationID: old?.notificationID, mayRequestPermission: (userSaveCounts[launch.id] ?? 0) > 0)
+    }
+
+    private func reconcileReminders(with launches: [RocketLaunch]) -> [ReminderEffect] {
+        loadRemindersIfNeeded()
+        var effects: [ReminderEffect] = []
+        var changed = false
+        for launch in launches {
+            guard let old = reminders.first(where: { $0.id == launch.id }), old.launch != launch else { continue }
+            changed = true
+            if old.launch.details.plannedTime == launch.details.plannedTime {
+                if let index = reminders.firstIndex(where: { $0.id == launch.id }) { reminders[index].launch = launch }
+                continue
+            }
+            let fireDate = launch.details.plannedTime?.addingTimeInterval(-Double(old.minutesBefore) * 60)
+            var effect = prepareReminder(launch: launch, minutesBefore: old.minutesBefore, fireDate: fireDate ?? old.fireDate)
+            if fireDate == nil || fireDate! <= now() {
+                let index = reminders.firstIndex(where: { $0.id == launch.id })!
+                reminders[index].status = .failed
+                reminders[index].issue = "Launch time changed. Open this launch to set a new reminder."
+                effect = .init(desired: reminders[index], previousNotificationID: old.notificationID)
+            }
+            effects.append(effect)
+        }
+        if changed { persistReminders() }
+        return effects
+    }
+
+    private func deliverReminder(_ effect: ReminderEffect, askPermission: Bool) async throws -> ReminderSaveOutcome {
+        let desired = effect.desired
+        if let oldID = effect.previousNotificationID { await notificationClient.cancel(oldID) }
+        guard reminders.contains(where: { $0.notificationID == desired.notificationID }) else { return .superseded }
+        guard desired.status == .pending else { return .superseded }
+        do {
+            try await notificationClient.schedule(id: desired.notificationID, title: desired.launch.name,
+                date: desired.fireDate, askPermission: askPermission || effect.mayRequestPermission)
+            guard let index = reminders.firstIndex(where: { $0.notificationID == desired.notificationID }) else {
+                await notificationClient.cancel(desired.notificationID)
+                return .superseded
+            }
+            guard desired.fireDate > now() else { throw ReminderError.tooLate }
+            reminders[index].status = .scheduled
+            persistReminders()
+            return .saved
+        } catch {
+            let current = reminders.firstIndex(where: { $0.notificationID == desired.notificationID })
+            if let index = current {
+                reminders[index].status = .failed
+                reminders[index].issue = "The notification could not be scheduled. Set this reminder again."
+                persistReminders()
+            }
+            await notificationClient.cancel(desired.notificationID)
+            guard reminders.contains(where: { $0.notificationID == desired.notificationID }) else { return .superseded }
+            throw error
+        }
+    }
+
+    func removeReminder(_ launchID: String) async {
+        loadRemindersIfNeeded()
+        guard let old = reminders.first(where: { $0.id == launchID }) else { return }
+        reminders.removeAll { $0.id == launchID }
+        persistReminders()
+        await notificationClient.cancel(old.notificationID)
+    }
+
     private static func failure(for error: any Error) -> LaunchLoadFailure {
         if let error = error as? LaunchRepositoryError {
             switch error {
@@ -227,13 +423,6 @@ enum LaunchSourceID: String, Sendable, Codable, CaseIterable, Identifiable {
         case .spaceX: "SpaceX API"
         }
     }
-}
-
-/// One accepted provider response, with the revision that orders its reconciliation.
-struct LaunchSourceUpdate: Sendable {
-    let source: LaunchSourceID
-    let revision: UInt64
-    let launches: [RocketLaunch]
 }
 
 struct LaunchSourceConfiguration: Sendable {

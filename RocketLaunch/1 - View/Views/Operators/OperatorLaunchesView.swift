@@ -82,7 +82,7 @@ struct LaunchDetailView: View {
                                 Text("1 hour").tag(60)
                             }
                             Button(reminders.contains(launch.id) ? "Update reminder" : "Set reminder") {
-                                reminders.save(launch, minutesBefore: minutesBefore)
+                                reminders.save(launch.id, minutesBefore: minutesBefore)
                             }.buttonStyle(.bordered).disabled(reminders.isBusy)
                             if reminders.contains(launch.id) { Text("Saved in Reminders").font(.caption).foregroundStyle(.secondary) }
                         } else {

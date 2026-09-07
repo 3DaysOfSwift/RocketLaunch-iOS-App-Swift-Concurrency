@@ -1,34 +1,17 @@
 # Concurrency inventory
 
-## Execution ownership
-
-| Owner | Execution and responsibility |
+| Owner | Responsibility |
 | --- | --- |
-| AppModel | MainActor composition only; owns feature references |
-| LaunchScheduleFeature actor | Source cache commits, grouping, sorting, change detection, upcoming eligibility, Next selection |
-| RemindersFeature actor | Reminder validation, reconciliation, JSON persistence and authoritative reminder state |
-| API actors | Native asynchronous URLSession calls, response validation, decoding and domain mapping |
-| LocalLaunchNotifications actor | Notification request preparation and asynchronous system calls |
-| Observable ViewModels | MainActor snapshot publication, presentation formatting and user filters |
-| ThemeManager | MainActor UI preference state |
+| AppModel, MainActor | Construct and retain the application graph |
+| LaunchScheduleFeature actor | Authoritative launch caches, Next, Changes, desired reminders, persistence and notification revision checks |
+| API actors | Native async transport, decoding and mapping |
+| LocalLaunchNotifications actor | Shared permission request and iOS notification effects |
+| Observable ViewModels, MainActor | Snapshot publication, presentation and owned UI tasks |
 
-## Tasks and cancellation
+Refresh-all has structured child callers. The feature owns one shared request Task per source and tracks cancellation-aware waiters. Multiple callers join useful work; cooldown applies only to new requests. Last-waiter cancellation detaches ownership and rejects late results. Initial loading requests idle sources and joins loading sources. UI refresh taps do not cancel an active UI command.
 
-- LaunchScheduleViewModel owns replaceable refresh-all and per-source Task handles. Request generation checks prevent old task completion from clearing newer handles.
-- LaunchScheduleFeature creates structured child tasks for provider fan-out. Source failures remain independent; each successful source publishes before the group completes. Cancellation is checked around transport/decoding and before cache publication. Decoding itself is synchronous and not preemptively interrupted.
-- Both ViewModels own cancelable snapshot-consumer tasks. They capture their owners weakly between stream values and reject old subscription generations. Root disappearance cancels observation; deinit cancels retained tasks.
-- SwiftUI owns the root's awaitable clock loop. Task.sleep suspends without blocking a thread. The schedule ViewModel retains a short foreground clock-update task.
-- ReminderViewModel owns its user-command task. Notification operations use unique IDs so removing/replacing a reminder cannot let an older scheduled alert restore stale state. These system side effects are protected by operation identity; cancellation alone is not treated as a rollback guarantee.
-- AsyncStream termination uses a short Task to remove the continuation on its feature actor. There are no detached tasks, blocking waits or GCD scheduling in production.
+Reminder lookup by ID, validation and desired-state storage are synchronous on the same actor as launch data. Refresh updates both sets of state before suspension. External effects carry unique notification IDs and check current desired state after await. Pending and failed delivery remain explicit. Removal and replacement cannot be undone by an obsolete effect. An ongoing user save can authorize its replacement's permission request; ordinary refreshes cannot initiate permission prompts.
 
-## Data delivery and ordering
+Snapshot streams replay complete state with newest-value buffering and independent subscriptions. MainActor ViewModels reject stale revisions/subscriptions. Root clock monitoring suspends with Task.sleep; actors do not reserve threads or automatically parallelize a calculation across cores. Shared request tasks and the permission task are explicitly owned unstructured work; there are no detached tasks, GCD scheduling or blocking waits in production.
 
-Each feature offers independent AsyncStream subscriptions with initial-state replay and bufferingNewest(1). Snapshots are complete immutable Sendable values. Monotonic revisions guard ViewModel publication against delayed older snapshots. LaunchSourceUpdate carries mandatory source/revision metadata into reminder reconciliation. Freshness is checked before committing a scheduled notification and before recording scheduling failure, as well as between records. Pending additions reserve reminder capacity across suspension. Unchanged schedule snapshots are suppressed, while cooldown expiry remains an observable state change. The feature owns the initial-load decision and retries only idle providers after partial cancellation has settled. Pending reminder operations retain their launch value so accepted source changes can invalidate a first save before any saved record exists. Save returns an explicit saved/superseded outcome, including when an obsolete scheduling operation fails.
-
-Actors serialize synchronous state access but are reentrant at await. They do not own dedicated threads, and one feature's calculation does not automatically spread across CPU cores. In particular, marking a method async alone is not the execution boundary: entering a separate feature actor is.
-
-## Evidence
-
-94 tests pass on macOS and iPhone Air Simulator (iOS 26.2). Added coverage verifies two subscribers, slow-consumer coalescing, independent subscriber cancellation, initial reminder replay, stale reminder source revisions, actual off-main feature processing and main-actor observable publication before another provider finishes. Existing network cancellation, replacement request, failure isolation and owner-release tests remain in place.
-
-The application builds with Swift 6 and complete concurrency checking. The live Simulator check loaded five RocketLaunch.Live and 50 Launch Library records with independent SpaceX failure. This is execution/correctness evidence, not an Instruments performance measurement. Test-only locks/checked continuations provide controlled clocks and completion ordering; production requires no unchecked Sendable escape hatches.
+97 host tests pass. The iOS app/test bundle build with Swift 6 complete concurrency checking. Current simulator execution remains pending while the Mac is locked. Device notifications and Instruments performance are not claimed as verified.

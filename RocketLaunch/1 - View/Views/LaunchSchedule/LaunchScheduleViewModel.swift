@@ -121,7 +121,7 @@ final class LaunchScheduleViewModel {
     func requestRefresh(source: LaunchSourceID? = nil) {
         startObserving()
         if let source {
-            sourceTasks[source]?.cancel()
+            guard sourceTasks[source] == nil, refreshTask == nil else { return }
             let id = UUID(); sourceRequestIDs[source] = id
             let feature = feature
             sourceTasks[source] = Task { [weak self] in
@@ -137,7 +137,7 @@ final class LaunchScheduleViewModel {
     }
 
     private func startRefresh(onlyIfNeeded: Bool) {
-        refreshTask?.cancel()
+        guard refreshTask == nil else { return }
         let id = UUID()
         refreshID = id
         let feature = feature

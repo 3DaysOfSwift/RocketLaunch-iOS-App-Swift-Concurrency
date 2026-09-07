@@ -50,6 +50,11 @@ actor ControlledLaunchRepository: LaunchRepository {
 
 @MainActor @Observable
 final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
+    var reminderSnapshot: RemindersSnapshot { .initial }
+    func reminderSnapshots() -> AsyncStream<RemindersSnapshot> { AsyncStream { $0.yield(.initial); $0.finish() } }
+    func setReminder(for launchID: String, minutesBefore: Int) async throws -> ReminderSaveOutcome { throw ReminderError.launchUnavailable }
+    func removeReminder(_ launchID: String) async {}
+
     var sources: [LaunchSourceSnapshot] = []
     var operators: [LaunchOperator] = []
     var updates: [LaunchUpdate] = []
@@ -84,6 +89,11 @@ final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
 
 @MainActor
 final class LifecycleFeature: LaunchScheduleFeatureAPI {
+    var reminderSnapshot: RemindersSnapshot { .initial }
+    func reminderSnapshots() -> AsyncStream<RemindersSnapshot> { AsyncStream { $0.yield(.initial); $0.finish() } }
+    func setReminder(for launchID: String, minutesBefore: Int) async throws -> ReminderSaveOutcome { throw ReminderError.launchUnavailable }
+    func removeReminder(_ launchID: String) async {}
+
     var sources: [LaunchSourceSnapshot] = []
     var operators: [LaunchOperator] = []
     var updates: [LaunchUpdate] = []

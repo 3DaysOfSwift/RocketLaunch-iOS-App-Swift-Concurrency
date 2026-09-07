@@ -15,7 +15,7 @@ AppModel, KISS and feature actors answer different questions.
 | Idea | Question it answers | Practical result |
 | --- | --- | --- |
 | **AppModel** | What constitutes the runnable application model, and who owns it? | An explicit composition root constructs features and connects their dependencies. |
-| **Feature actors** | Where does business state live, and where does its processing execute? | Each substantial stateful feature has an isolated owner outside the main actor. |
+| **Feature actors** | Where does business state live, and where does its processing execute? | Related business state has an isolated owner outside the main actor. |
 | **KISS** | How much structure does this application actually need? | Clear responsibilities with a small number of useful types and boundaries. |
 | **Observable ViewModels** | What state does this interface need to present? | Main-actor presentation state that the UI can read synchronously. |
 
@@ -35,53 +35,39 @@ This is a deliberate interpretation of model separation. It is compatible with f
 
 ## 3. The architecture at a glance
 
-**AppModel constructs and owns two business features: launch scheduling and reminders. Each feature is an actor. Each has a main-actor ViewModel that presents its state to SwiftUI.**
-
-The diagram below shows the actual RocketLaunch components and how they communicate after AppModel has connected them.
+**AppModel owns one business actor, LaunchScheduleFeature, which owns both launch schedules and reminder decisions. Two MainActor ViewModels present different snapshots of that same actor.**
 
 ```mermaid
 flowchart TB
-    subgraph UI["Main actor · presentation"]
-        Views["SwiftUI screens"]
-        LaunchVM["LaunchScheduleViewModel<br/>Observable launch snapshot"]
-        ReminderVM["ReminderViewModel<br/>Observable reminder snapshot"]
-        Views -->|Launch intents| LaunchVM
-        Views -->|Reminder intents| ReminderVM
+    AppModel["AppModel · composition and ownership"]
+    subgraph UI["MainActor · presentation"]
+        Screens["SwiftUI screens"]
+        ScheduleVM["LaunchScheduleViewModel"]
+        ReminderVM["ReminderViewModel"]
+        Screens --> ScheduleVM
+        Screens --> ReminderVM
     end
-
-    subgraph Model["Application model · each actor has its own isolation"]
-        LaunchFeature["LaunchScheduleFeature actor<br/>Caches · grouping · Changes · Next"]
-        ReminderFeature["RemindersFeature actor<br/>Reminder rules · saved reminders"]
+    subgraph Model["Application model"]
+        Feature["LaunchScheduleFeature actor<br/>Provider caches · Next · Changes<br/>Desired reminders · persistence"]
         RocketAPI["RocketLaunchAPI actor"]
         LibraryAPI["LaunchLibraryAPI actor"]
         SpaceXAPI["SpaceXAPI actor"]
-        Notifications["LocalLaunchNotifications actor"]
-
-        LaunchFeature -->|Fetch launches| RocketAPI
-        LaunchFeature -->|Fetch launches| LibraryAPI
-        LaunchFeature -->|Fetch launches| SpaceXAPI
-        ReminderFeature -->|Schedule or cancel alerts| Notifications
-        LaunchFeature -->|Accepted schedule changes| ReminderFeature
+        Notifications["LocalLaunchNotifications actor<br/>Permission · schedule · cancel"]
+        Feature -->|Fetch| RocketAPI
+        Feature -->|Fetch| LibraryAPI
+        Feature -->|Fetch| SpaceXAPI
+        Feature -->|Notification effects| Notifications
     end
-
-    LaunchVM -->|Async feature commands| LaunchFeature
-    LaunchFeature -->|Launch snapshots| LaunchVM
-    ReminderVM -->|Async feature commands| ReminderFeature
-    ReminderFeature -->|Reminder snapshots| ReminderVM
+    AppModel -.->|Constructs and owns| Feature
+    ScheduleVM -->|Load and refresh| Feature
+    Feature -->|Launch snapshots| ScheduleVM
+    ReminderVM -->|Launch ID and lead time| Feature
+    Feature -->|Reminder snapshots| ReminderVM
 ```
 
-**There are two parallel feature paths:**
+Both ViewModels use LaunchScheduleFeatureAPI. The two snapshot streams serve presentation needs; they do not imply two state owners. Source cache updates and corresponding desired reminder changes happen synchronously inside the same actor, with no cross-feature reconciliation message.
 
-| Feature | Main-actor presentation | Actor-owned business work | Dependencies |
-| --- | --- | --- | --- |
-| Launch scheduling | LaunchScheduleViewModel | LaunchScheduleFeature | Three launch API actors |
-| Reminders | ReminderViewModel | RemindersFeature | LocalLaunchNotifications actor; persistence inside the feature |
-
-The ViewModels call their features through `LaunchScheduleFeatureAPI` and `RemindersFeatureAPI`. Those protocols describe the boundary; they are not additional runtime components. SwiftUI reads the observable snapshots held by the ViewModels to present the results.
-
-The one connection between features has a specific purpose: an accepted launch refresh can change the time of an existing reminder. AppModel wires a callback that sends those launch records and their revision to RemindersFeature for reconciliation. The launch feature does not manage notification requests itself.
-
-AppModel supplies ownership and wiring. The arrows show runtime communication. The application-model box groups related responsibilities; it does **not** represent one shared actor or one background thread.
+Group state that must change consistently under one actor. A screen, tab or product feature name does not automatically require another actor.
 
 ## 4. Making effective use of Swift Concurrency
 
@@ -125,11 +111,11 @@ Likewise, placing blocking file or legacy API calls in an actor does not make th
 
 ## 6. AppModel constructs the graph
 
-AppModel provides a recognizable entry point to the runnable model. In RocketLaunch it constructs the launch feature, reminder feature and API dependencies, then connects accepted launch updates to reminder reconciliation.
+AppModel provides a recognizable entry point to the runnable model. In RocketLaunch it constructs one launch-and-reminder feature actor with API and notification dependencies. There is no second reminder actor or reconciliation callback.
 
 Its composition method is main-actor isolated because that is convenient for the app entry point. This does not transfer main-actor isolation to separately constructed feature actors.
 
-Construction should remain lightweight. It should not quietly start network requests or perform substantial storage work. RocketLaunch loads saved reminders lazily within the reminders actor when a command or subscription first needs them.
+Construction should remain lightweight. It should not quietly start network requests or perform substantial storage work. RocketLaunch loads saved reminders lazily within the shared feature actor when a command or subscription first needs them.
 
 The shared live graph is a production convenience. Tests can construct independent graphs with controlled repositories, notification clients and isolated storage. Feature implementations should receive dependencies rather than reach back into `AppModel.shared` for collaborators.
 
@@ -188,63 +174,40 @@ LaunchScheduleFeature suppresses publications when the complete snapshot is unch
 
 ViewModels reject older revisions. This protects against a delayed stream value arriving after a newer direct snapshot read. Subscription generation IDs also prevent a canceled consumer from publishing into a restarted observation session.
 
-## 10. Structured work and owned long-lived tasks
+## 10. Structured callers and shared provider requests
 
-RocketLaunch starts its provider work using a task group:
+Refresh-all uses a task group to call each provider independently. Every provider call registers a cancellation-aware waiter with the feature. If that source already has an active request, the new caller joins it instead of starting another HTTP request. Joining does not bypass cooldown because no additional request is made.
+
+The feature explicitly owns one Task per active provider request. Each task calls the API actor and submits its result with a request ID. Callers remain responsible for their own wait lifetime. Canceling one waiter leaves work running for other waiters; canceling the last detaches that request, restores its settled state and cancels transport. A late result cannot commit because its request ID no longer matches. A new caller can begin even if old transport has not yet cooperated with cancellation.
+
+ViewModels retain their UI task handles and ignore repeated refresh taps while the same command is active. Root disappearance cancels those callers and their snapshot subscriptions. loadIfNeeded joins loading sources and requests idle sources, preserving completed caches. Tab changes retain the root owners. Snapshot tasks capture ViewModels weakly between values.
+
+Not every task is structurally nested: shared provider requests, UI event tasks, observation consumers and the notification client's shared permission request have explicit owners. Short stream-termination tasks remove their continuation on the actor. No detached tasks or blocking waits are used.
+
+## 11. Make the model decision before suspension
+
+The reminder command carries user intent:
 
 ```swift
-func refresh() async {
-    await withTaskGroup(of: Void.self) { group in
-        for configuration in configurations {
-            group.addTask {
-                await self.refresh(source: configuration.id)
-            }
-        }
-    }
-}
+try await feature.setReminder(for: launchID, minutesBefore: 15)
 ```
 
-Each source method catches and classifies its ordinary errors independently, commits accepted data and publishes a snapshot. The group still waits for all its children, but the screen can display available results before the group's overall operation completes. A failed SpaceX request therefore does not discard working Launch Library results.
+On LaunchScheduleFeature, the command looks up the current cached launch, validates its time and lead time, checks capacity and stores a desired reminder marked pending. There is no await between these decisions. An old detail screen therefore cannot overwrite the current launch time: it supplies identity and a preference, not launch data.
 
-Not every task in the application is structurally nested. UI-triggered refresh handles and long-lived observation consumers use explicitly owned `Task` instances. Their ViewModels retain and cancel them. The root lifecycle owns the awaitable clock monitor. A short task in stream termination removes the continuation on the feature actor.
+An accepted source refresh updates the cache and desired reminders in the same uninterrupted actor operation. Pending first saves are already model records, so they participate naturally. The model then publishes snapshots and applies notification effects asynchronously. Unknown or elapsed times produce an honest failed reminder and cancellation of its previous alert. Missing IDs are rejected; the UI must refresh current launch data rather than use an old screen value as a substitute.
 
-These lifetimes must be visible in the design. Root disappearance stops subscriptions and refresh work; deinitialization cancels retained handles. Tab changes preserve the shared root owners. Stream loops capture their ViewModels weakly between values so observation does not keep an abandoned screen owner alive indefinitely.
+Every desired reminder has a unique notification ID, which also identifies its revision. After iOS scheduling returns, the actor checks that this ID still belongs to the desired record. If it does, delivery becomes scheduled. Otherwise it cancels that obsolete notification and returns superseded. The same identity check prevents a delayed error from damaging a newer reminder. Removal deletes desired state before awaiting external cancellation.
 
-## 11. Actors do not remove ordering problems
+The notification client coalesces overlapping user-authorized permission requests. A refresh replacing a still-active user save may continue that permission intent; an ordinary refresh does not initiate a new permission prompt. Scheduling errors remain visible as failed delivery. The desired reminder remains available for retry or removal; failed and pending records count toward the 50-record limit. Persisted pending records are shown as interrupted after restart, not presumed delivered. Older records without a delivery-status field remain readable.
 
-Actor isolation prevents simultaneous unsynchronized access to actor-owned mutable state. It does not make a whole async operation indivisible. Other operations may enter while it is suspended, and actor scheduling should not be treated as FIFO business ordering. [Actor reentrancy: SE-0306](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0306-actors.md#actor-reentrancy)
-
-Consider two refreshes. A starts first, B starts later, B finishes first, and A returns last. Both responses can be perfectly valid JSON. The feature must still prevent A from overwriting the newer accepted result.
-
-RocketLaunch uses several identities for different purposes:
-
-| Identity | What it protects |
-| --- | --- |
-| Per-source request ID | Acceptance of the latest request and cancellation rollback |
-| ViewModel task ID | Old completion clearing a newer task handle |
-| Snapshot revision | Older state overwriting newer presentation |
-| Subscription generation | A canceled consumer publishing after restart |
-| Source revision sent to reminders | An older launch update undoing newer reconciliation |
-| Notification operation ID | A suspended schedule operation restoring a removed or replaced reminder |
-
-A reminder reschedule illustrates why these checks belong after suspension as well as before it. Suppose the saved time is T1, an update starts scheduling T2, and a newer update restores T1 before scheduling finishes. Comparing the latest update with saved state is insufficient: both say T1, but the old T2 operation is still in flight. RocketLaunch rechecks the source revision immediately before committing the scheduled replacement. An obsolete success cancels its own new notification; an obsolete failure cannot mark the current reminder as failed.
-
-Capacity is another actor invariant that must survive suspension. With 49 saved reminders, two concurrent additions must not both claim the final slot. RemindersFeature counts saved IDs together with pending operation IDs, reserving capacity before awaiting the notification client. A replacement uses its existing launch's slot, and failure releases the reservation.
-
-First saves need the same attention as replacements. While permission or scheduling is suspended, there may be no saved reminder for reconciliation to find. The pending operation therefore retains its launch value. Before awaiting any rescheduling, an accepted source update invalidates pending operations whose launch time has changed. Those operations cancel their obsolete notification and return `ReminderSaveOutcome.superseded`; the ViewModel explains that outcome. An unchanged source time leaves the pending save valid. This implementation rejects the superseded save and asks the user to check current details rather than silently saving a different time.
-
-For partial startup cancellation, `loadIfNeeded` examines individual sources. Once cancellation settles, it retries sources still idle and retains completed results. A failed source remains an explicit retry decision.
-
-The public reconciliation API accepts one Sendable LaunchSourceUpdate, containing a required source, revision and launch values. This keeps ordering metadata attached to the data it describes.
-
-Cancellation is cooperative. Code checks it at appropriate boundaries; it is not proof that a remote operation or system side effect has been undone. State acceptance and side-effect reconciliation remain explicit responsibilities.
+Actor isolation does not make iOS notification operations transactional. The system side effect still requires reconciliation, and an alert already delivered cannot be recalled. The architecture makes the business decision synchronous and narrows the remaining ordering work to this explicit external boundary.
 
 ## 12. KISS keeps the architecture teachable
 
 The purpose of these boundaries is to make ownership and execution easier to understand. Keep that benefit visible in the code:
 
 1. Keep a feature's protocol and implementation together.
-2. Give an actor one meaningful business responsibility.
+2. Put state that must change consistently under the same actor; do not create an actor for each tab.
 3. Use ordinary Sendable values for results and dependencies.
 4. Keep decoding details private to the API adapter where practical.
 5. Add streams when progressive or ongoing state warrants them.
@@ -267,15 +230,15 @@ Finally, test the boundary itself as well as the feature's answers. The compiler
 
 The implemented application has:
 
-- A LaunchScheduleFeature actor for caches, grouping, chronological ordering, eligibility, change detection and Next selection.
-- A RemindersFeature actor for reminder processing and persistence.
+- One LaunchScheduleFeature actor for caches, grouping, chronological ordering, eligibility, Changes, Next, desired reminders and persistence.
 - API actors for asynchronous retrieval, decoding and domain mapping.
 - Main-actor observable ViewModels with versioned snapshot delivery.
 - Concurrent provider retrieval with independent publication and failure handling.
 - Main-actor UI preferences, formatting and small presentation filters.
 
-As verified on 7 September 2026, all **94 tests passed on macOS and iPhone Air Simulator running iOS 26.2**. Coverage includes off-main feature processing, main-actor observable publication, progressive results, independent subscriptions, latest-snapshot buffering, stale requests, cancellation and reminder ordering. Eleven regression tests added in the cleanup pass cover suspended rescheduling, stale failures, unknown times, pending capacity and failure release, initial-load ownership/retry, and clock/cooldown publication. Earlier live verification loaded five RocketLaunch.Live records and 50 Launch Library records while the SpaceX integration failed independently.
+The shared-actor revision has **97 passing macOS host tests**. The iOS application and test bundle build successfully with Swift 6 and complete concurrency checking. Tests cover ID-based saves, stale detail values, desired state before suspension, late notification cleanup, unknown times, capacity, persistence compatibility, shared requests, cancellation recovery, actor boundaries and progressive UI publication. Earlier two-feature tests were replaced where their contracts no longer exist; tests now exercise the unified public API.
 
+The Mac was locked during this pass, so the updated suite has not been executed in the iPhone simulator. Previous simulator and live-provider checks belong to the preceding revision, not this refactor. Physical-device notification delivery and Instruments profiling remain open.
 This establishes that the intended boundaries work in the tested implementation. It is not an Instruments benchmark, a guarantee of zero UI stalls, or evidence that every hardware core is being used. Device responsiveness, large datasets, expensive formatting and notification delivery remain matters for targeted validation.
 
 ## 15. The architectural conclusion

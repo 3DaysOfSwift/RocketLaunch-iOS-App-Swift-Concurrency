@@ -1,3 +1,15 @@
+# Current validation: shared launch and reminder actor
+
+97 host XCTest cases pass against the real Model/ViewModel sources. The iOS application and test target build successfully. The current simulator run is pending because the Mac was locked; earlier simulator counts below describe earlier revisions.
+
+The separate reminder actor and its cross-feature reconciliation API have been removed. Their tests were replaced with 19 tests through the unified ID-based command/cache boundary and four shared-request lifecycle tests. Other decoding, progressive-source, snapshot, theme, ViewModel and cancellation coverage remains. Existing stale-response tests now explicitly cancel the old caller before starting new work; overlapping live callers share requests instead of superseding each other.
+
+Coverage includes stale detail IDs resolving current data, desired state before suspension, pending first saves participating in refresh, unchanged/unknown times, late success/failure cleanup, removal/replacement, capacity, explicit delivery failure/retry, expired scheduling, legacy persistence, interrupted persistence, double taps, partial startup recovery and joining requests during cooldown.
+
+Permission flags and notification identities are checked with injected clients. Actual permission dialogs, physical-device notification delivery and Instruments profiling remain separate checks.
+
+## Previous validation history
+
 # Running the regression suite
 
 Use the shared RocketLaunch scheme in Xcode, select an iPhone simulator running iOS 17 or later, then Product → Test (Cmd-U). Tests live in RocketLaunchTests and are members of its iOS unit-test target. All 35 cases passed on iPhone Air/iOS 26.2.

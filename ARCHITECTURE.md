@@ -1,62 +1,63 @@
 # RocketLaunch architecture
 
-AppModel constructs and owns the runnable application model. Business features are actors; SwiftUI observes main-actor ViewModels containing immutable feature snapshots. The app has five fixed tabs: Next, Upcoming, Operators, Changes and Reminders.
+**AppModel owns one business actor, LaunchScheduleFeature, which owns both launch schedules and reminder decisions. Two MainActor ViewModels present different snapshots of that same actor.**
 
-```text
-Main actor                         Feature actors                 Service actors
-SwiftUI → observable ViewModel ───→ LaunchScheduleFeature ────────→ RocketLaunchAPI
-                              │                           ├─────→ LaunchLibraryAPI
-                              │                           └─────→ SpaceXAPI
-                              └──→ RemindersFeature ────────────→ LocalLaunchNotifications
-          ← Sendable snapshots ←      actor-owned state
+```mermaid
+flowchart TB
+    AppModel["AppModel · composition and ownership"]
+    subgraph UI["MainActor · presentation"]
+        Screens["SwiftUI screens"]
+        ScheduleVM["LaunchScheduleViewModel"]
+        ReminderVM["ReminderViewModel"]
+        Screens --> ScheduleVM
+        Screens --> ReminderVM
+    end
+    subgraph Model["Application model"]
+        Feature["LaunchScheduleFeature actor<br/>Provider caches · Next · Changes<br/>Desired reminders · persistence"]
+        RocketAPI["RocketLaunchAPI actor"]
+        LibraryAPI["LaunchLibraryAPI actor"]
+        SpaceXAPI["SpaceXAPI actor"]
+        Notifications["LocalLaunchNotifications actor<br/>Permission · schedule · cancel"]
+        Feature -->|Fetch| RocketAPI
+        Feature -->|Fetch| LibraryAPI
+        Feature -->|Fetch| SpaceXAPI
+        Feature -->|Notification effects| Notifications
+    end
+    AppModel -.->|Constructs and owns| Feature
+    ScheduleVM -->|Load and refresh| Feature
+    Feature -->|Launch snapshots| ScheduleVM
+    ReminderVM -->|Launch ID and lead time| Feature
+    Feature -->|Reminder snapshots| ReminderVM
 ```
 
-## The feature boundary
+Both ViewModels use LaunchScheduleFeatureAPI. The two snapshot streams serve presentation needs; they do not imply two state owners. Source cache updates and corresponding desired reminder changes happen synchronously inside the same actor, with no cross-feature reconciliation message.
 
-LaunchScheduleFeatureAPI and RemindersFeatureAPI are Sendable asynchronous contracts declared directly above their concrete actors in the same files. They expose commands, a current immutable snapshot and an asynchronous snapshot stream. AppModel remains MainActor-isolated for composition; constructing a separate actor does not give that actor MainActor isolation. Construction starts no requests and does not load reminder storage.
+Group state that must change consistently under one actor. A screen, tab or product feature name does not automatically require another actor.
 
-LaunchScheduleFeature owns source caches, request identities, cooldowns, operator grouping, schedule-change detection, upcoming eligibility and ordering, and stored nextLaunch. These operations execute on its actor. RemindersFeature owns reminder validation, replacement identities, reconciliation, JSON encoding/decoding and UserDefaults access on its actor. Reminder storage loads lazily on the first command or subscription, not during main-actor construction.
+## Ownership and commands
 
-API actors await native URLSession operations and decode their responses on their own actor execution paths. Immutable Sendable domain values cross the boundaries. No detached tasks or unsafe production Sendable declarations are needed.
+LaunchScheduleFeatureAPI is declared above its actor implementation. It exposes launch snapshots, reminder snapshots, load/refresh commands, setReminder(for:minutesBefore:) and removeReminder(_:). AppModel constructs and retains this one feature with injected repositories, notification client, clock and reminder storage. It performs no network or persistence work during initialization.
 
-An actor is a serial isolation domain, not a dedicated thread or CPU core. Separate actors can make concurrent progress, and network waits suspend tasks. An await permits reentrancy; request identities and revision checks still matter.
+The feature owns provider caches, source phases/cooldowns, operator groups, upcoming ordering, stored Next, the change journal and desired reminder records. MainActor observable ViewModels own UI snapshots, formatting, filtering and user interaction. API actors own transport/decoding. LocalLaunchNotifications owns iOS notification calls and shared permission handling. Actors have serial isolation domains, not dedicated CPU cores.
 
-## Snapshot delivery and lifetime
+## Reminder transaction and external effect
 
-Each snapshots() call registers an independent AsyncStream subscriber and immediately yields the current complete snapshot in the same actor-isolated operation. There is no gap between registration and the initial read. Streams buffer only the newest complete snapshot, preventing an inactive UI from accumulating an unbounded queue. Intermediate presentation states can be coalesced; source caches and the bounded change journal remain in the latest snapshot.
+The UI sends a source-qualified launch ID and 5, 15 or 60 minutes of lead time. The feature resolves its current cache, validates timing/capacity and persists a pending desired reminder without suspension. Unknown IDs are rejected. No stale RocketLaunch value returns from a screen to drive a save.
 
-Every publication has a monotonically increasing revision. ViewModels reject older snapshots, including a delayed stream value arriving after a direct command-completion read. Subscription generation IDs prevent canceled subscriptions from publishing after observation restarts.
+Successful source commits synchronously update desired reminders before any notification await. Timing changes prepare a new notification identity; invalid timing flags the record and cancels the old alert. External scheduling happens afterward. An effect confirms delivery only if its notification identity is still current. Obsolete success cleans up its own alert; obsolete failure cannot mark a newer record failed. Removal deletes desired state before canceling externally.
 
-The root owns the two observable ViewModels. They own their stream-consumer tasks, capture themselves weakly inside long-lived loops, stop observing on root disappearance and cancel on deinitialization. Each stream termination schedules a short actor cleanup task to remove its continuation; this is not an independently running business operation. Ending one subscriber does not end the others or cancel source work.
+ReminderSaveOutcome.saved confirms delivery of that revision. Superseded means a newer desired state or removal replaced it; it does not mean the initial desired state was never stored. The UI explains this and shows pending, scheduled and failed delivery honestly. Failed desired records are retained for retry/removal and count toward capacity. Existing storage is backward compatible; an interrupted pending record is flagged on reload. Permission requests originate from user saves, including replacements while that intent is still active; background refresh alone does not prompt.
 
-The ViewModel delegates loadIfNeeded to the feature, which checks its authoritative source state and marks an initial load in progress before awaiting provider work. A fresh ViewModel cannot trigger another initial download merely because its first snapshot has not arrived. After a canceled initial load settles, loadIfNeeded retries only idle providers, preserving completed caches and failed-source retry policy. Refresh tasks remain ViewModel-owned and replaceable. The root lifecycle owns the awaitable clock-monitor task. Tab switches do not dispose of these shared owners. A bounded foreground clock-update task is also retained and canceled by the schedule ViewModel.
+## Request lifetime and cooldown
 
-## Refresh and ordering
+Refresh-all uses structured child callers. Each provider keeps one explicitly owned request Task with a unique ID and cancellation-aware waiters. Active calls join before cooldown is considered. Canceling one waiter preserves other callers' work. Canceling the last immediately detaches ownership, restores settled source state and cancels transport. Late detached responses are rejected by ID, even if the transport takes longer to stop. Committed data remains settled while notification effects finish.
 
-A structured task group starts the configured sources concurrently. Each source commits and publishes as it completes; the UI does not await the slowest source before displaying available results. Ordinary errors are isolated per provider. Stale request IDs cannot overwrite newer data, and canceled requests restore their last settled source snapshot.
+loadIfNeeded joins loading sources and requests idle ones. Successful caches and failed-source retry decisions are preserved. ViewModels ignore overlapping refresh taps rather than canceling useful requests. Root disappearance cancels caller and observer tasks; tab changes retain the shared root owners. Notification effects use desired-state identity rather than assuming cancellation rolls back system side effects.
 
-Operator groups rebuild only on accepted data changes. Clock events recompute time-sensitive upcoming/Next results without rebuilding operator groups. An unchanged complete snapshot is not republished. Expired cooldowns are cleared as meaningful state changes so refresh controls update even when launch data is unchanged. Next prefers precise future launches from non-failed sources and retains explicitly labelled undated/elapsed fallbacks. Failed source caches remain available with failure attribution in browse screens. Cross-source duplicates are not silently reconciled.
+## Snapshot delivery
 
-After a source commit, AppModel's Sendable callback passes one LaunchSourceUpdate containing the source, publication revision and launch values to the reminders actor. That actor rejects older source revisions, checks them between records, and checks freshness again after notification scheduling returns, before committing the replacement. A superseded request cancels only its newly scheduled notification. The error path also checks freshness before changing a reminder or canceling its old alert. Individual operation IDs independently protect user replacement/removal.
-
-Before reconciliation suspends, it compares each returned launch time with pending operations as well as saved records. A changed time invalidates a pending first save even when no reminder record exists yet. The obsolete operation cleans up its own notification and returns ReminderSaveOutcome.superseded. Unchanged times preserve a pending user save. Saved means the command committed at that point; it does not promise that no later command can replace it. The ViewModel explains superseded saves to the user. Overlapping button taps are ignored while its current command is busy.
-
-The reminder capacity rule counts saved launch IDs together with pending operation IDs. A pending addition reserves its slot before suspension; replacements reuse the same launch's slot. Completion, failure and removal release reservations without clearing a newer operation's token.
-
-## Presentation
-
-ViewModels hold read-only observable snapshots. They format text and apply user-selected search, operator and country filters. Upcoming eligibility and chronological ordering are already calculated by the feature. Small presentation operations and theme selection intentionally remain on the main actor.
-
-The eight colour themes remain in the MainActor ThemeManager. Settings and Next's double-tap gesture share its persisted selection. Detail screens display the immutable launch record selected by the user.
-
-## Sources and reminders
-
-RocketLaunch.Live supplies five records; Launch Library supplies one page of up to 50; the archived community SpaceX API is a third integration with independent failure handling. These are bounded lists, not a complete worldwide schedule. SpaceX records with past or unknown dates cannot become Next or appear in Upcoming; other providers still supply SpaceX launches. The current unreliable source remains in the live graph for the planned failure/recovery teaching exercise.
-
-Changes retains up to 100 time/mission changes detected between downloads during the current app session. The first download establishes a baseline. Reminders persist between app launches and use system local notifications. Schedule refreshes update their times; no background polling or server push is implemented. Notification delivery depends on system settings. Watch links are shown only when supplied; ordinary launch-page links are labelled as information.
+Launch and reminder streams are separate immutable projections of one actor. Each subscriber gets initial replay and its own bufferingNewest(1) stream. Registration and initial replay are actor-isolated. Revisions and subscription generations protect MainActor publication. An unchanged launch snapshot is not republished; meaningful time changes, including cooldown expiry, are published. Clock processing does not rebuild operator groups.
 
 ## Verification
 
-94 XCTest cases pass on macOS and iPhone Air Simulator (iOS 26.2), covering decoding, cancellation, stale results, independent providers, reminder persistence and ordering, stream replay/coalescing, independent subscribers, ViewModel observation and incremental delivery. Runtime checks exercise feature calculations away from the main thread and observable publication on MainActor. The iOS simulator application builds successfully; live data loaded from RocketLaunch.Live and Launch Library while SpaceX failed independently.
-
-These checks establish behavior and execution boundaries, not a measured frame-rate improvement or guaranteed parallel utilization of CPU cores. Device performance profiling and notification delivery remain separate validation work.
+97 host XCTest cases pass against real Model/ViewModel sources. The iOS app and test bundle build with Swift 6 complete concurrency checking. This revision's simulator execution is pending because the Mac was locked. Earlier live checks loaded RocketLaunch.Live and Launch Library with independent SpaceX failure. Test clients validate notification identities and cleanup, not physical-device alert delivery. Instruments responsiveness measurements remain separate validation work.

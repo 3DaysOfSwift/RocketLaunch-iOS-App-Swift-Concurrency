@@ -12,7 +12,7 @@ Each operator screen shows status and refresh controls for its known contributin
 
 RocketLaunch.Live supplies its free next-five response. Launch Library 2 supplies up to 50 upcoming records from its production 2.3.0 endpoint. Its refresh attempts have a five-minute in-memory cooldown. The third source is the community r-spacex SpaceX API, queried for up to 50 upcoming records with populated rocket and launchpad details.
 
-LaunchScheduleFeature owns one snapshot/cache per source, containing the entire decoded list, phase, fetched timestamp and next refresh time. All commits are Main Actor isolated; network waiting and decoding happen through the API actors. Refresh-all uses a task group. Each child handles its own error and commits when ready. The caller awaits completion of the group, while the UI sees intermediate commits immediately. An individual source refresh uses the same commit path and cannot cancel another source’s work. Request IDs reject superseded responses. Cancellation restores that source’s settled state.
+LaunchScheduleFeature owns one snapshot/cache per source, containing the entire decoded list, phase, fetched timestamp and next refresh time. All commits are isolated to LaunchScheduleFeature; network waiting and decoding happen through the API actors. Refresh-all uses a task group. Each child handles its own error and commits when ready. The caller awaits completion of the group, while the UI sees intermediate commits immediately. An individual source refresh uses the same commit path and cannot cancel another source’s work. Request IDs reject superseded responses. Cancellation restores that source’s settled state.
 
 The root ViewModel owns refresh task handles across tab changes. SwiftUI owns the root’s awaitable clock-monitor task, which asks the feature to re-evaluate once a minute. Foreground activation also re-evaluates. There is no per-tab polling or network request.
 
@@ -24,7 +24,7 @@ Operator lists combine source records using source-qualified identities. Records
 
 ## Verification
 
-77 host XCTest cases pass, including incremental publication before the second source completes, failure isolation, cache separation, alias identity, empty-cache replacement, remembered operators, individual-refresh updates, stale-response rejection, cancellation, time-driven Next updates, cooldown and Launch Library date precision. Simulator live smoke confirmed both source responses (5 + 50 records). Navigation is also checked manually.
+97 host XCTest cases pass, including incremental publication before the second source completes, failure isolation, cache separation, alias identity, empty-cache replacement, remembered operators, individual-refresh updates, stale-response rejection, cancellation, time-driven Next updates, cooldown and Launch Library date precision. Simulator live smoke confirmed both source responses (5 + 50 records). Navigation is also checked manually.
 
 ## Community SpaceX source
 
@@ -36,10 +36,10 @@ Past or undated SpaceX schedule records may be browsed in its source-labelled ca
 
 Updates keeps the latest 100 time or mission changes detected between successive downloads from the same source during this session. The initial download establishes the baseline; it does not create artificial updates. Updates is not a news feed or a background monitor.
 
-RemindersFeature owns persisted reminder records and injected local-notification scheduling. Users choose 5, 15 or 60 minutes before an exact future launch time. Permission is requested only after Set reminder. Successful source refreshes reconcile changed times, replace the associated notification, or cancel it and flag the record when timing becomes uncertain. Reminders use source-qualified launch IDs; selecting duplicate records from different providers can create separate reminders. There is no background polling or server push. Delivery remains subject to system notification settings.
+LaunchScheduleFeature owns both launch data and persisted desired reminders, with an injected local-notification client. Screens request reminders by launch ID and lead time. Pending, scheduled and failed delivery are explicit. Users choose 5, 15 or 60 minutes before an exact future launch time. Permission is requested only after Set reminder. Successful source refreshes reconcile changed times, replace the associated notification, or cancel it and flag the record when timing becomes uncertain. Reminders use source-qualified launch IDs; selecting duplicate records from different providers can create separate reminders. There is no background polling or server push. Delivery remains subject to system notification settings.
 
 Launch details expose HTTP(S) watch links only when supplied by a provider. RocketLaunch.Live launch-page links are labelled as information, not watch links.
 
 ## Actor feature boundary
 
-LaunchScheduleFeature is now an actor. Its caches, grouping, chronological ordering, eligibility, change journal and stored Next value are computed on that actor. MainActor ViewModels receive complete versioned Sendable snapshots through independent AsyncStreams with newest-value buffering. Initial replay and per-source publication preserve progressive loading; cancellation and request identities preserve ordering. RemindersFeature is a second actor with lazy actor-owned persistence and source-revision-aware reconciliation. See ARCHITECTURE.md for the current execution and ownership contract.
+LaunchScheduleFeature is now an actor. Its caches, grouping, chronological ordering, eligibility, change journal and stored Next value are computed on that actor. MainActor ViewModels receive complete versioned Sendable snapshots through independent AsyncStreams with newest-value buffering. Initial replay and per-source publication preserve progressive loading; cancellation and request identities preserve ordering. The same actor owns desired reminders and lazy persistence; no cross-feature source-revision callback remains. ID-based commands and notification identities protect freshness. See ARCHITECTURE.md for the current execution and ownership contract.
