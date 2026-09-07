@@ -11,3 +11,10 @@ struct AppCard<Content: View>: View {
             .background(themeManager.selected.surface, in: RoundedRectangle(cornerRadius: 24))
     }
 }
+
+struct ThemedListBackground: ViewModifier {
+    @Environment(ThemeManager.self) private var themeManager
+    func body(content: Content) -> some View {
+        content.scrollContentBackground(.hidden).background(themeManager.selected.background)
+    }
+}

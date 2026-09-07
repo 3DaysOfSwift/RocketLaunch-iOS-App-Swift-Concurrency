@@ -25,6 +25,8 @@ struct ContentView: View {
             Button("OK") { reminders.errorMessage = nil }
         } message: { Text(reminders.errorMessage ?? "") }
         .tint(themeManager.selected.accent)
+        .preferredColorScheme(themeManager.selected.colourScheme)
+        .animation(.easeInOut(duration: 0.25), value: themeManager.selected)
         .onAppear { viewModel.loadIfNeeded() }
         .task { await viewModel.monitorTime() }
         .onChange(of: scenePhase) { _, phase in

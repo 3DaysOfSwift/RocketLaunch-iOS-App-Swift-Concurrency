@@ -22,6 +22,7 @@ struct OperatorLaunchesView: View {
                 }
             }
         }
+        .modifier(ThemedListBackground())
         .navigationTitle(name)
     }
 }
@@ -97,6 +98,7 @@ struct LaunchDetailView: View {
             }.padding(20)
         }
         .background(themeManager.selected.background)
+        .modifier(ThemedListBackground())
         .navigationTitle("Launch details")
         .navigationBarTitleDisplayMode(.inline)
     }

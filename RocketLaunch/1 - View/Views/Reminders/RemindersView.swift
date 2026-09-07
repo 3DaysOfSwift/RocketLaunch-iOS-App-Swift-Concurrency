@@ -29,6 +29,7 @@ struct RemindersView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+        .modifier(ThemedListBackground())
         .navigationTitle("Reminders")
     }
 }

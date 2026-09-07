@@ -25,6 +25,7 @@ struct UpcomingView: View {
             } footer: { Text("Launches are attributed to each source. The same launch may appear more than once.") }
             Section("Data sources") { SourceStatusView(viewModel: viewModel) }
         }
+        .modifier(ThemedListBackground())
         .navigationTitle("Upcoming")
         .searchable(text: $filters.search, prompt: "Mission, rocket or operator")
         .toolbar { Button { viewModel.requestRefresh() } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("Refresh launches") }
@@ -61,6 +62,7 @@ struct OperatorsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .modifier(ThemedListBackground())
         .navigationTitle("Operators")
         .searchable(text: $filters.search, prompt: "Find an operator")
     }
@@ -93,6 +95,7 @@ struct UpdatesView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+        .modifier(ThemedListBackground())
         .navigationTitle("Changes")
         .toolbar { Button("Refresh") { viewModel.requestRefresh() } }
     }

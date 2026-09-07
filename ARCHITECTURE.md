@@ -26,11 +26,11 @@ Next chooses the earliest precise future time from non-failed sources, with expl
 
 The root owns one Observable LaunchScheduleViewModel and its refresh handles, so tab changes do not cancel shared work. Each fixed tab has its own NavigationStack. BrowseViewModel owns screen search and filter choices; operator groups remain feature-owned. LaunchDetailViewModel formats a selected immutable launch snapshot and is colocated with the schedule ViewModel. Sources show explicit loading, failure and previous-cache messages; failed downloads never become successful empty lists. About is a sheet with source attribution. Operator detail navigation is inside the Operators tab; there is no dynamically expanding tab bar.
 
-Presentation reads the model; network and selection logic do not live in Views. ThemeManager owns the system/midnight palettes. The hosted test app keeps the live screen dormant.
+Presentation reads the model; network and selection logic do not live in Views. ThemeManager owns eight selectable palettes, persists the live selection through injected UserDefaults, and exposes selection and cycling actions. The Settings dropdown and Next double-tap gesture share this manager. Tests use isolated or absent storage. The hosted test app keeps the live screen dormant.
 
 ## Validation and limits
 
-68 host tests cover the model, ViewModels, decoding and networking cancellation. Both live sources loaded in Simulator. The application has three API integrations: RocketLaunch.Live, Launch Library and the community SpaceX API. Launch Library fetches one page of up to 50 upcoming records; RocketLaunch.Live’s free endpoint supplies five. These are bounded source lists, not a claim of complete global coverage. Cache storage is in memory only. The detailed current behavior is recorded in MULTI_PROVIDER_DESIGN.md.
+70 host tests cover the model, ViewModels, decoding and networking cancellation. Both live sources loaded in Simulator. The application has three API integrations: RocketLaunch.Live, Launch Library and the community SpaceX API. Launch Library fetches one page of up to 50 upcoming records; RocketLaunch.Live’s free endpoint supplies five. These are bounded source lists, not a claim of complete global coverage. Cache storage is in memory only. The detailed current behavior is recorded in MULTI_PROVIDER_DESIGN.md.
 
 ## Community SpaceX source
 

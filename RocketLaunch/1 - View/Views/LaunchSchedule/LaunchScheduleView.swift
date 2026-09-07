@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LaunchScheduleView: View {
     let viewModel: LaunchScheduleViewModel
+    @State private var showsSettings = false
     @State private var showsAbout = false
     @State private var showsSources = false
     @Environment(ThemeManager.self) private var themeManager
@@ -69,16 +70,22 @@ struct LaunchScheduleView: View {
             .padding(20)
             .padding(.bottom, 24)
         }
+        .simultaneousGesture(TapGesture(count: 2).onEnded { themeManager.selectNextTheme() })
         .background(themeManager.selected.background)
         .foregroundStyle(themeManager.selected.foreground)
         .navigationTitle("Next launch")
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { showsSettings = true } label: { Image(systemName: "gearshape") }
+                    .accessibilityLabel("Settings")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showsAbout = true } label: { Image(systemName: "info.circle") }
                     .accessibilityLabel("About RocketLaunch")
             }
         }
         .sheet(isPresented: $showsSources) { NavigationStack { List { SourceStatusView(viewModel: viewModel) }.navigationTitle("Data sources").toolbar { Button("Done") { showsSources = false } } } }
+        .sheet(isPresented: $showsSettings) { NavigationStack { SettingsView() } }
         .sheet(isPresented: $showsAbout) { NavigationStack { AboutView() } }
 
     }

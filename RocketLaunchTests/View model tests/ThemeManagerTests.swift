@@ -14,4 +14,24 @@ final class ThemeManagerTests: XCTestCase {
         await waitFor([changed])
         XCTAssertEqual(manager.selected, .midnight)
     }
+    @MainActor func testCycleVisitsEveryThemeAndWrapsToSystem() {
+        let manager = ThemeManager()
+        var visited: Set<AppColourTheme> = []
+        for _ in 0..<AppColourTheme.allCases.count {
+            visited.insert(manager.selected)
+            manager.selectNextTheme()
+        }
+        XCTAssertEqual(visited, Set(AppColourTheme.allCases))
+        XCTAssertEqual(manager.selected, .system)
+    }
+    @MainActor func testSelectionIsRestoredAndInvalidPreferenceFallsBack() {
+        let name = "rocketlaunch-theme-tests-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let manager = ThemeManager(defaults: defaults)
+        manager.select(.forest)
+        XCTAssertEqual(ThemeManager(defaults: defaults).selected, .forest)
+        defaults.set("unknown", forKey: "rocketlaunch.colourTheme")
+        XCTAssertEqual(ThemeManager(defaults: defaults).selected, .system)
+    }
 }

@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct RocketLaunchApp: App {
-    @State private var themeManager = ThemeManager()
+    @State private var themeManager = ThemeManager(defaults: .standard)
 
     var body: some Scene {
         WindowGroup {
