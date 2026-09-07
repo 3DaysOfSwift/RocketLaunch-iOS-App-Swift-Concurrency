@@ -4,11 +4,11 @@ import Observation
 @MainActor
 @Observable
 final class LaunchScheduleViewModel {
-    @ObservationIgnored private let feature: any LaunchScheduleFeature
+    @ObservationIgnored private let feature: any LaunchScheduleFeatureAPI
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshID: UUID?
 
-    init(feature: any LaunchScheduleFeature = AppModel.shared.launchSchedule) { self.feature = feature }
+    init(feature: any LaunchScheduleFeatureAPI = AppModel.shared.launchSchedule) { self.feature = feature }
 
     var launchName: String { feature.state.launch?.name ?? String(localized: "None") }
     var mission: String { feature.state.launch?.primaryMissionDescription ?? String(localized: "None") }

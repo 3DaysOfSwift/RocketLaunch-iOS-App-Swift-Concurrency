@@ -24,7 +24,7 @@ That sentence is also the folder structure. Open `RocketLaunch.xcodeproj` in Xco
 - **2 - AppModel** contains the composition root and the launch feature: its API, manager, data types, repository contract and networking implementation.
 - **3 - App Resources** contains the app’s assets and sample JSON.
 
-`AppModel.live()` assembles the dependencies without starting a request. The ViewModel asks the narrow `LaunchScheduleFeature` to refresh. `LaunchScheduleManager` selects the first returned launch, while the `RocketLaunchAPI` actor retrieves and decodes the response using `URLSession.data(from:)`. The ViewModel prepares values for the screen.
+`AppModel.live()` assembles the dependencies without starting a request. The ViewModel asks the narrow `LaunchScheduleFeatureAPI` to refresh. `LaunchScheduleFeature` selects the first returned launch, while the `RocketLaunchAPI` actor retrieves and decodes the response using `URLSession.data(from:)`. The ViewModel prepares values for the screen.
 
 The architecture follows the principles used by [Trend](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency). Read the [AppModel iOS Application Template](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency/blob/main/APPMODEL_IOS_APPLICATION_TEMPLATE.md) for the target architecture and [ARCHITECTURE.md](ARCHITECTURE.md) for this project’s current implementation and transitional boundaries.
 

@@ -10,7 +10,7 @@ Implementation checkpoint: 2026-09-07, uncommitted working tree. Overall accepta
 | Screen ViewModel ownership | One LaunchScheduleViewModel beside its screen, owned using State. ContentView is stateless composition. |
 | Clean screen construction | No screen receives feature managers, ViewModels or service closures. Theme is UI environment state. |
 | Business rules below UI | Feature selects the first launch; domain supplies primary mission semantics. ViewModel formats display values. |
-| Narrow feature dependencies | ViewModel depends only on LaunchScheduleFeature; AppModel dependencies are explicit. |
+| Narrow feature dependencies | ViewModel depends only on LaunchScheduleFeatureAPI; AppModel dependencies are explicit. |
 | External-system boundary | Sendable LaunchRepository isolates native URLSession and private transport decoding. |
 | Async commands/lifetimes | Feature and ViewModel refresh are directly awaitable; managed screen Task lives only in ViewModel. |
 | Required ordering | Latest accepted request owns publication. Reversed successes/failures and cancellation are tested. |

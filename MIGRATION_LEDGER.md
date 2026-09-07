@@ -6,7 +6,7 @@ Current account-wide usage: 71% used / 29% remaining. Compared with the initial 
 
 ## Completed implementation
 
-- AppModel remains the composition root; one MainActor observable LaunchScheduleManager owns feature state.
+- AppModel remains the composition root; one MainActor observable LaunchScheduleFeature owns feature state.
 - Domain values are immutable/Sendable; transport payloads are private to the feature's repository.
 - Native async URLSession replaces NetworkManager and callbacks. The repository actor owns decoding and maps transport data to domain values.
 - MainActor replaces manual queue hops; Observation replaces Combine. The screen owns its ViewModel with State.
@@ -62,8 +62,8 @@ Historical callback checkpoint (superseded by the current status below). Origina
 | --- | --- | --- | --- | --- |
 | ContentView | Construct screen ViewModel | LaunchScheduleView StateObject | Same screen using State/Observation | Approved iOS 17 change later |
 | System | Assemble live dependencies | AppModel.live | AppModel.live | None for construction |
-| RocketLaunchCalender | Coordinate schedule refresh | LaunchScheduleManager | LaunchScheduleManager | Replace callback lifetime; fix guard |
-| LaunchScheduleViewModel | Select first returned launch | LaunchScheduleManager | LaunchScheduleManager | Preserve selection in async tests |
+| RocketLaunchCalender | Coordinate schedule refresh | LaunchScheduleFeature | LaunchScheduleFeature | Replace callback lifetime; fix guard |
+| LaunchScheduleViewModel | Select first returned launch | LaunchScheduleFeature | LaunchScheduleFeature | Preserve selection in async tests |
 | LaunchScheduleViewModel | UI values and publishing | LaunchScheduleViewModel | MainActor observable ViewModel | Async intent and managed task lifetime |
 | RocketLaunchAPI | Fetch/decode transport page | RocketLaunchAPI via LaunchRepository | Feature-owned network repository | Async URLSession, status/errors, cancellation |
 | NetworkManager | URLSession callback | NetworkManager | Network repository | Remove unnecessary wrapper during async conversion |
@@ -73,7 +73,7 @@ Historical callback checkpoint (superseded by the current status below). Origina
 
 1. Screen lifetime and adjacency: implementation/build checks passed. Root ContentView is stateless composition and needs no artificial ViewModel.
 2. Composition root: AppModel created with explicit dependency and live factory.
-3. Feature extraction: narrow LaunchScheduleFeature and LaunchRepository added; first-result selection belongs to the feature.
+3. Feature extraction: narrow LaunchScheduleFeatureAPI and LaunchRepository added; first-result selection belongs to the feature.
 4. Architecture milestone: IN PROGRESS, manual comparison and final boundary audit pending. Callback-era transport/domain types and screen-owned result are explicitly temporary. Do not label these the final template.
 5–6. Swift Concurrency/SwiftUI integration: NOT STARTED.
 7–10. Ownership, tests and execution audit: NOT COMPLETE; only relevant work will be applied. Audio/ticker requirements from Metro-specific examples are not applicable to this app.

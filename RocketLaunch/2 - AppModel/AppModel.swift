@@ -4,13 +4,13 @@ import Foundation
 @MainActor
 struct AppModel {
     static let shared = AppModel.live()
-    let launchSchedule: any LaunchScheduleFeature
+    let launchSchedule: any LaunchScheduleFeatureAPI
 
-    init(launchSchedule: any LaunchScheduleFeature) { self.launchSchedule = launchSchedule }
+    init(launchSchedule: any LaunchScheduleFeatureAPI) { self.launchSchedule = launchSchedule }
 
     static func live() -> AppModel {
         let endpoint = URL(string: "https://fdo.rocketlaunch.live/json/launches/next/5")!
         let repository = RocketLaunchAPI(session: .shared, endpoint: endpoint)
-        return AppModel(launchSchedule: LaunchScheduleManager(repository: repository))
+        return AppModel(launchSchedule: LaunchScheduleFeature(repository: repository))
     }
 }

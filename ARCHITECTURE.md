@@ -8,9 +8,9 @@ Status: Swift Concurrency implementation ready for final manual review. iOS 17+,
 1 - View
   RocketLaunchApp → ThemeManager
   ContentView → LaunchScheduleView (@State ViewModel)
-                        ↓ LaunchScheduleFeature
+                        ↓ LaunchScheduleFeatureAPI
 2 - AppModel
-  AppModel.live → LaunchScheduleManager (@MainActor, @Observable)
+  AppModel.live → LaunchScheduleFeature (@MainActor, @Observable)
                         ↓ LaunchRepository (Sendable)
                  RocketLaunchAPI (actor)
                         ↓ URLSession.data(from:)
@@ -22,9 +22,9 @@ AppModel assembles the one launch feature with explicit dependencies. Constructi
 
 ## Feature state and domain decisions
 
-LaunchScheduleManager owns one read-only observable state: idle, loading with an optional previous launch, loaded, empty, or failed with an optional previous launch. It chooses the first launch returned by the API. RocketLaunch.primaryMissionDescription represents the original first-mission rule. Missing mission descriptions are displayed as “None” by the ViewModel.
+LaunchScheduleFeature owns one read-only observable state: idle, loading with an optional previous launch, loaded, empty, or failed with an optional previous launch. It chooses the first launch returned by the API. RocketLaunch.primaryMissionDescription represents the original first-mission rule. Missing mission descriptions are displayed as “None” by the ViewModel.
 
-The ViewModel reads the feature's authoritative state through LaunchScheduleFeature, formats presentation values and error messages, and owns the screen's replaceable Task. It does not retain a second launch collection. Swift Observation tracks computed properties through the feature protocol.
+The ViewModel reads the feature's authoritative state through LaunchScheduleFeatureAPI, formats presentation values and error messages, and owns the screen's replaceable Task. It does not retain a second launch collection. Swift Observation tracks computed properties through the feature protocol.
 
 Domain values are immutable and Sendable. API payloads and CodingKeys remain private to RocketLaunchAPI.swift; only the required payload fields are decoded. Unknown estimated month/day/year values remain nil. Invalid values for required fields still fail decoding.
 
