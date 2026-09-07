@@ -10,7 +10,7 @@ struct AppModel {
     }
 
     static func live() -> AppModel {
-        let network = NetworkManager()
+        let network = NetworkManager(session: .shared)
         let repository = RocketLaunchAPI(networkManager: network)
         return AppModel(launchSchedule: LaunchScheduleManager(repository: repository))
     }

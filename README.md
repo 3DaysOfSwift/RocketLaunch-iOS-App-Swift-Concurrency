@@ -51,17 +51,30 @@ The current app has no local launch cache or multi-provider aggregation. Its liv
 
 The current screen shows the launch details after a successful request. Visible error handling and refreshing after success are still part of the migration work described above.
 
-## Verification
+## Tests
 
-The callback architecture checkpoint builds for a generic iOS device. Eight external characterisation checks were run against both the original starter and this checkpoint, including controlled responses that reproduce the legacy refresh and stale-response defects. The migration ledger records that evidence; the external runner is not included in this repository.
+`RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
 
-This repository includes five decoding regression checks covering complete dates, a null day, entirely unknown dates, omitted date components and malformed component types. Run them on a Mac with Xcode and Python 3 installed:
+The 22 XCTest cases cover:
+
+- AppModel construction and independent application graphs.
+- Launch selection, empty responses and repository failures.
+- ViewModel initial state, displayed values, failure recovery and retained results.
+- JSON decoding with complete, null, omitted and malformed date components.
+- The real networking/decoding boundary using an isolated URLSession and controlled responses.
+- Existing refresh overlap and stale-response defects, explicitly labelled as legacy characterisation tests. Their expectations will change when the approved fixes are implemented.
+
+Tests are grouped into `View model tests`, `AppModel tests`, shared `Test Support` and `Fixtures`. They do not contact the live API or mutate `AppModel.shared`.
+
+The iOS app and test bundle build successfully. All 22 tests have passed on macOS using the same test files and the actual Model/ViewModel sources. An iOS simulator test run remains to be recorded.
+
+When a simulator is unavailable, run the host checks on a Mac with Xcode and Python 3:
 
 ```bash
-python3 Tests/LaunchDecoding/run.py
+python3 Tests/run-host-tests.py
 ```
 
-The checks compile the application’s real decoding types and use the bundled JSON fixture. They require no live API connection. They are standalone checks, not an Xcode test target or a replacement for manual iOS testing.
+This creates a temporary Swift package from the current sources and executes the same XCTest suite. It does not run SwiftUI screens or replace manual iOS regression testing.
 
 ## Following the migration
 

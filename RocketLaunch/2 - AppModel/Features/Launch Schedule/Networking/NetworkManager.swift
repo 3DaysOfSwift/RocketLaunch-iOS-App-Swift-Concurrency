@@ -8,9 +8,14 @@
 import Foundation
 
 struct NetworkManager {
+    let session: URLSession
+
+    init(session: URLSession) {
+        self.session = session
+    }
     
     func fetchData(from url: URL, completion: @escaping (Data?) -> ()) {
-        let task = URLSession.shared.dataTask(with: url) { data, response, error in
+        let task = session.dataTask(with: url) { data, response, error in
             completion(data)
         }
 

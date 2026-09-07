@@ -51,3 +51,14 @@ Checkpoint usage report: 67% used / 33% remaining. Reported account-wide change 
 ## Live baseline defect correction — 2026-09-07
 
 User confirmed the app launches in the simulator, but the downloaded response failed decoding a null estimated day. Corrected optionality of LaunchDate month/day/year under explicit user authorization. Preserved original archive and Original project. Five decoding regression checks added inside this Git repository; complete legacy behaviour checks remain available outside it. This is an existing defect exposed by manual validation, not a key-name mismatch. Git initialization was performed by the user; no remote created or commit made by the assistant.
+
+## Xcode test-target checkpoint — 2026-09-07
+
+- Added the hosted `RocketLaunchTests` iOS target, target dependency, generated test Info.plist, test resource membership and shared RocketLaunch scheme. Cmd-U now includes the test target.
+- Migrated the five standalone JSON checks into XCTest. Added 17 cases for feature, ViewModel, composition and real networking boundaries, for 22 total.
+- Added explicit URLSession injection in NetworkManager; AppModel.live continues using URLSession.shared. This changes testability, not live request behaviour.
+- Defect characterisation cases are labelled as transitional evidence, not acceptance of broken behaviour. Replace these assertions when the approved concurrency/error-state fixes land.
+- Generic iOS device `build-for-testing` passed with signing disabled. This verifies both app and test compilation/linking.
+- Same 22 XCTest cases passed on macOS through Tests/run-host-tests.py, with no live network and zero failures. The runner copies current production Model/ViewModel sources into an ephemeral package; it does not create a competing implementation.
+- iOS simulator execution remains unavailable to this process. The user can run the shared scheme with Cmd-U. No iOS runtime result is claimed.
+- Concurrency migration remains pending; this checkpoint supplies its regression protection. No deployment target or product behaviour change was introduced here.

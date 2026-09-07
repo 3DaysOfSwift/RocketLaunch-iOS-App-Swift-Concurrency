@@ -51,3 +51,20 @@ Manual result: PENDING. Simulator services are inaccessible from the current exe
 The user ran the callback checkpoint on iPhone Air Simulator and reported a decoding failure at result[0].est_date.day. The retrieved RocketLaunch.live response contains null day values and, for some launches, null month/day/year. The user explicitly requested correction. LaunchDate now accepts nullable/omitted date components while retaining type errors for malformed values. No dates are invented.
 
 Regression: `python3 Tests/LaunchDecoding/run.py` checks complete dates, null day, all-null components, omitted components and invalid types. Three cases reproduced the failure before the fix; all five pass afterwards. Live screen verification after this fix remains pending.
+
+## XCTest protection — 2026-09-07
+
+The earlier standalone decoding runner has been replaced by `RocketLaunchTests/AppModel tests/Launch Schedule/LaunchDecodingTests.swift`. Run all tests in Xcode with Cmd-U or on macOS with `python3 Tests/run-host-tests.py`.
+
+| Requirement/defect | In-repository protection |
+| --- | --- |
+| BEH-001/002 | LaunchScheduleViewModelTests.testInitialStateDoesNotStartNetworking; LaunchScheduleManagerTests.testConstructionDoesNotFetch |
+| BEH-003 | LaunchScheduleManagerTests.testFirstReturnedLaunchIsSelected; RocketLaunchAPITests.testDecodesResponseThroughRealNetworkingBoundary |
+| BEH-004 | LaunchScheduleManagerTests.testFirstReturnedLaunchIsSelected; LaunchScheduleViewModelTests.testRefreshPublishesLaunchNameAndMission |
+| BEH-005 | LaunchScheduleViewModelTests.testFailureLeavesInitialStateAvailableForRetry; testFailureAfterSuccessRetainsDisplayedLaunch |
+| DEF-001 | LaunchScheduleManagerTests.testLegacyRefreshGuardAllowsOverlappingRequests |
+| DEF-002 | LaunchScheduleViewModelTests.testLegacyOlderResponseCanOverwriteNewerResponse |
+| DEF-003 | LaunchScheduleViewModelTests.testLegacyEmptyResponseEntersReceivedStateWithPlaceholders |
+| DEF-007 | LaunchDecodingTests (five cases); RocketLaunchAPITests.testNullDatesDecodeThroughTheRepository |
+
+All 22 XCTest cases passed on macOS. The iOS test bundle builds successfully. BEH-006/007 remain manual screen checks, and iOS simulator execution is not yet recorded.
