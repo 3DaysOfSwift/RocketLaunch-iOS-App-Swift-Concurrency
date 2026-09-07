@@ -8,11 +8,11 @@ The project began as a starter pack. Its unfinished behaviour and real defects g
 
 ## Migration status
 
-**The migration is in progress.** The current checkpoint establishes the AppModel architecture while retaining completion handlers, `DispatchQueue.main.async`, `ObservableObject` and `@Published`. It currently supports iOS 15.2 and later.
+**The Swift Concurrency implementation is ready for final review.** The app now targets **iOS 17 and later**, uses **Swift 6 with complete concurrency checking**, and uses Apple’s Observation framework.
 
-The next stage targets iOS 17, Swift Concurrency and Apple’s Observation framework. Managed refresh lifetimes, stale-response protection, and clear empty/error/retry states are approved improvements that have not yet been implemented. Nullable estimated launch dates have already been corrected and covered by regression checks.
+Refresh uses native asynchronous URLSession networking, actor-owned decoding and MainActor-owned feature state. A new screen refresh cancels its previous Task, and the feature rejects obsolete results before publication. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
 
-This repository is a teaching application under development, not a completed App Store release.
+All 35 XCTest cases pass on iPhone Air Simulator (iOS 26.2) and macOS. The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
 
 ## The architectural sentence
 
@@ -20,11 +20,11 @@ This repository is a teaching application under development, not a completed App
 
 That sentence is also the folder structure. Open `RocketLaunch.xcodeproj` in Xcode and the first distinction is between `1 - View` and `2 - AppModel`:
 
-- **1 - View** contains SwiftUI and presentation state. `LaunchScheduleView` owns its tightly coupled `LaunchScheduleViewModel` using `@StateObject` at this callback checkpoint.
+- **1 - View** contains SwiftUI and presentation state. `LaunchScheduleView` owns its tightly coupled `@Observable` `LaunchScheduleViewModel` using `@State`.
 - **2 - AppModel** contains the composition root and the launch feature: its API, manager, data types, repository contract and networking implementation.
 - **3 - App Resources** contains the app’s assets and sample JSON.
 
-`AppModel.live()` assembles the dependencies without starting a request. The ViewModel asks the narrow `LaunchScheduleFeature` to refresh. `LaunchScheduleManager` selects the first returned launch, while `RocketLaunchAPI` retrieves and decodes the response through `NetworkManager`. The ViewModel prepares values for the screen.
+`AppModel.live()` assembles the dependencies without starting a request. The ViewModel asks the narrow `LaunchScheduleFeature` to refresh. `LaunchScheduleManager` selects the first returned launch, while the `RocketLaunchAPI` actor retrieves and decodes the response using `URLSession.data(from:)`. The ViewModel prepares values for the screen.
 
 The architecture follows the principles used by [Trend](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency). Read the [AppModel iOS Application Template](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency/blob/main/APPMODEL_IOS_APPLICATION_TEMPLATE.md) for the target architecture and [ARCHITECTURE.md](ARCHITECTURE.md) for this project’s current implementation and transitional boundaries.
 
@@ -49,24 +49,25 @@ The current app has no local launch cache or multi-provider aggregation. Its liv
 3. Select an iPhone simulator or configure your development team and bundle identifier to run on a device.
 4. Build and run, then tap **Refresh**.
 
-The current screen shows the launch details after a successful request. Visible error handling and refreshing after success are still part of the migration work described above.
+The screen retains the last launch during refresh or failure, displays a recoverable error when needed, and offers Refresh or Try Again. An empty response has its own message.
 
 ## Tests
 
 `RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
 
-The 22 XCTest cases cover:
+The 35 XCTest cases cover:
 
 - AppModel construction and independent application graphs.
 - Launch selection, empty responses and repository failures.
 - ViewModel initial state, displayed values, failure recovery and retained results.
 - JSON decoding with complete, null, omitted and malformed date components.
 - The real networking/decoding boundary using an isolated URLSession and controlled responses.
-- Existing refresh overlap and stale-response defects, explicitly labelled as legacy characterisation tests. Their expectations will change when the approved fixes are implemented.
+- Cancellation of real URLSession requests, stale-response rejection, Task replacement and cancellation when the screen owner disappears or is released.
+- Shared Observation updates and theme selection.
 
 Tests are grouped into `View model tests`, `AppModel tests`, shared `Test Support` and `Fixtures`. They do not contact the live API or mutate `AppModel.shared`.
 
-The iOS app and test bundle build successfully. All 22 tests have passed on macOS using the same test files and the actual Model/ViewModel sources. An iOS simulator test run remains to be recorded.
+The iOS app and test bundle build successfully. All 35 tests passed in Xcode on iPhone Air (iOS 26.2) and on macOS using the same test files and actual Model/ViewModel sources.
 
 When a simulator is unavailable, run the host checks on a Mac with Xcode and Python 3:
 
@@ -82,7 +83,8 @@ The migration separates architecture changes, concurrency conversion and intenti
 
 - [Behaviour contract](MIGRATION_BEHAVIOUR_CONTRACT.md) — preserved behaviour, approved changes and the manual regression checklist.
 - [Migration ledger](MIGRATION_LEDGER.md) — completed checkpoints, temporary responsibilities and remaining verification.
-- [Concurrency inventory](CONCURRENCY_INVENTORY.md) — callback lifetimes, ordering problems and planned replacements.
+- [Concurrency inventory](CONCURRENCY_INVENTORY.md) — implemented execution, cancellation and ordering guarantees.
+- [Migration review](MIGRATION_REVIEW.md) — architecture audit and remaining acceptance checks.
 
 The original starter uses one launch API. Task groups or additional actors will only be introduced when the application has a concrete need for them.
 

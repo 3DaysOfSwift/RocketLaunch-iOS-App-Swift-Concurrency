@@ -2,20 +2,19 @@ import XCTest
 @testable import RocketLaunch
 
 final class AppModelTests: XCTestCase {
-    func testRetainsProvidedFeatureWithoutStartingWork() {
+    @MainActor func testRetainsProvidedFeatureWithoutStartingWork() async {
         let feature = ControlledLaunchFeature()
         let appModel = AppModel(launchSchedule: feature)
-        XCTAssertTrue((appModel.launchSchedule as? ControlledLaunchFeature) === feature)
-        XCTAssertTrue(feature.completions.isEmpty)
+        XCTAssertTrue(appModel.launchSchedule === feature)
+        XCTAssertEqual(feature.refreshCount, 0)
     }
-
-    func testIndependentApplicationGraphsDoNotShareFeatureRequests() {
+    @MainActor func testIndependentApplicationGraphsDoNotShareFeatureRequests() async {
         let firstFeature = ControlledLaunchFeature()
         let secondFeature = ControlledLaunchFeature()
         let first = AppModel(launchSchedule: firstFeature)
         _ = AppModel(launchSchedule: secondFeature)
-        first.launchSchedule.refresh { _ in }
-        XCTAssertEqual(firstFeature.completions.count, 1)
-        XCTAssertTrue(secondFeature.completions.isEmpty)
+        await first.launchSchedule.refresh()
+        XCTAssertEqual(firstFeature.refreshCount, 1)
+        XCTAssertEqual(secondFeature.refreshCount, 0)
     }
 }

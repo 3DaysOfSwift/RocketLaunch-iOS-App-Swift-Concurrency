@@ -1,4 +1,6 @@
 import Foundation
+import Observation
+import XCTest
 @testable import RocketLaunch
 
 private final class FixtureBundle {}
@@ -15,7 +17,6 @@ enum LaunchFixtures {
         }
         return try Data(contentsOf: url)
     }
-
     static func data(estimatedDate: [String: Any]) throws -> Data {
         var page = try JSONSerialization.jsonObject(with: data()) as! [String: Any]
         var launches = page["result"] as! [[String: Any]]
@@ -23,22 +24,59 @@ enum LaunchFixtures {
         page["result"] = launches
         return try JSONSerialization.data(withJSONObject: page)
     }
+    static func launches() throws -> [RocketLaunch] { try RocketLaunchAPI.decodeResponse(data()) }
+}
 
-    static func launches() throws -> [RocketLaunch] {
-        try JSONDecoder().decode(SearchResultsPage.self, from: data()).result
+/// Deliberately ignores cancellation until the test releases a response. This
+/// verifies publication safety even when external work cannot stop immediately.
+actor ControlledLaunchRepository: LaunchRepository {
+    private var pending: [Int: CheckedContinuation<[RocketLaunch], any Error>] = [:]
+    private(set) var requestCount = 0
+    private let onRequest: @Sendable (Int) -> Void
+    init(onRequest: @escaping @Sendable (Int) -> Void = { _ in }) { self.onRequest = onRequest }
+    func fetchUpcomingLaunches() async throws -> [RocketLaunch] {
+        let index = requestCount
+        requestCount += 1
+        return try await withCheckedThrowingContinuation { continuation in
+            pending[index] = continuation
+            onRequest(index)
+        }
+    }
+    func complete(_ index: Int, with result: Result<[RocketLaunch], any Error>) {
+        guard let continuation = pending.removeValue(forKey: index) else { preconditionFailure("No pending request") }
+        continuation.resume(with: result)
     }
 }
 
-final class ControlledLaunchRepository: LaunchRepository {
-    private(set) var completions: [(Result<[RocketLaunch], RocketLaunchAPIError>) -> Void] = []
-    func fetchUpcomingLaunches(completion: @escaping (Result<[RocketLaunch], RocketLaunchAPIError>) -> Void) {
-        completions.append(completion)
-    }
-}
-
+@MainActor @Observable
 final class ControlledLaunchFeature: LaunchScheduleFeature {
-    private(set) var completions: [(Result<RocketLaunch?, RocketLaunchAPIError>) -> Void] = []
-    func refresh(completion: @escaping (Result<RocketLaunch?, RocketLaunchAPIError>) -> Void) {
-        completions.append(completion)
+    private(set) var state: LaunchScheduleState = .idle
+    private(set) var refreshCount = 0
+    func setState(_ state: LaunchScheduleState) { self.state = state }
+    func refresh() async { refreshCount += 1 }
+}
+
+@MainActor
+final class LifecycleFeature: LaunchScheduleFeature {
+    let state: LaunchScheduleState = .idle
+    var pending: [CheckedContinuation<Void, Never>] = []
+    var cancellations: [Int: Bool] = [:]
+    var onRequest: (Int) -> Void = { _ in }
+    var onFinish: (Int) -> Void = { _ in }
+    func refresh() async {
+        let index = pending.count
+        await withCheckedContinuation { continuation in
+            pending.append(continuation)
+            onRequest(index)
+        }
+        cancellations[index] = Task.isCancelled
+        onFinish(index)
     }
+    func complete(_ index: Int) { pending[index].resume() }
+}
+
+@MainActor
+func waitFor(_ expectations: [XCTestExpectation], file: StaticString = #filePath, line: UInt = #line) async {
+    let result = await XCTWaiter.fulfillment(of: expectations, timeout: 3)
+    XCTAssertEqual(result, .completed, file: file, line: line)
 }

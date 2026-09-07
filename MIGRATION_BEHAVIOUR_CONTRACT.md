@@ -1,70 +1,45 @@
 # Rocket Launch — behaviour contract
 
-Status: callback architecture checkpoint; concurrency migration not started.
-Date: 2026-09-07, Asia/Bangkok.
+Date: 2026-09-07, Asia/Bangkok. Status: implementation and automated checks passed; remaining manual recovery checks and developer acceptance pending.
 
-Scope: one existing RocketLaunch.live endpoint, next-launch display. No multi-provider aggregation, persistence, new screens or App Store submission work.
+## Scope and approved changes
 
-## Approved decisions
+One existing RocketLaunch.live endpoint and its next-launch display are retained. The user approved iOS 17/Observation and corrections to refresh, stale responses, empty results and error/retry handling. The later nullable-date decoding fix was explicitly requested after running the callback app. No multi-provider aggregation, automatic launch loading, persistence or App Store submission work is included.
 
-The user approved iOS 17 and Observation, and fixes to refresh, stale-response, empty-result and error/retry defects on 2026-09-07. These are intentional changes for the next phase, not claims about legacy behaviour. The current callback checkpoint still supports iOS 15.2.
+The supplied archive and original sources are preserved outside this Git repository in the local migration pack. Callback checkpoints are retained there, including Pass-04-Callback-With-Tests.zip. The original built and its baseline checks passed, including tests exposing defects; these did not declare the defects desirable.
 
-## Preserved behaviour
+## Preserved requirements
 
-| ID | Plain-English requirement | Legacy evidence | Evidence status | Baseline | Replacement protection | Post-migration result | Manual regression | Difference and approval |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| BEH-001 | A newly created screen has not received a launch and uses None placeholders. | LaunchScheduleViewModel initial state | Inferred | Pass | Characterisation/main.swift | Callback checkpoint pass | Pending | None |
-| BEH-002 | Constructing the application objects does not initiate networking. | System and ViewModel initializers | Inferred | Pass | Characterisation/main.swift | Callback checkpoint pass | Pending | None |
-| BEH-003 | Refresh requests the existing launch endpoint. | NetworkManager and RocketLaunchAPI | Inferred | Pass, intercepted URLSession | Characterisation/main.swift | Callback checkpoint pass | Live API pending | None |
-| BEH-004 | A nonempty success displays the first returned launch and its first mission description. | ViewModel result.first and missions.first | Inferred | Pass | Characterisation/main.swift | Callback checkpoint pass | Pending | Selection moved into feature |
-| BEH-005 | A network failure does not publish a successful result. | ViewModel failure branch | Inferred | Pass | Characterisation/main.swift | Callback checkpoint pass | Pending | Visible error/retry improvement approved for next phase |
-| BEH-006 | The initial screen offers Get Next Rocket Launch and a Refresh button. | LaunchScheduleView | Unprotected | Source inspected | Manual checklist | Same view conditional retained | Pending | None |
-| BEH-007 | A loaded screen shows Next Launch, Name and Mission. | LaunchScheduleView | Unprotected | Source inspected | Manual checklist | Same view text retained | Pending | None |
+| ID | Requirement | Legacy evidence/status | Baseline | Replacement protection | Current result | Manual evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| BEH-001 | Initial state has no launch and uses None for missing display values. | ViewModel; inferred | Pass | testInitialStateDoesNotStartNetworking | Pass | Initial heading/button observed in Simulator |
+| BEH-002 | Construction performs no network request. | System/ViewModel initializers; inferred | Pass | testConstructionDoesNotFetch; AppModelTests | Pass | Screen remained idle before Refresh |
+| BEH-003 | Refresh requests the existing launch endpoint. | API source; inferred | Pass with fixture | testDecodesResponseThroughRealAsyncNetworkingBoundary | Pass | Live API result loaded on iPhone Air |
+| BEH-004 | Display the first returned launch and first mission description. | Legacy result.first/missions.first; inferred | Pass | testRefreshLoadsFirstReturnedLaunch; ViewModel loaded/fallback tests | Pass | Name: TBD / Mission: None displayed from live response |
+| BEH-005 | Failed refresh must not replace a good result with false success. | Legacy failure branch; inferred | Pass | testFailureRetainsLastLaunchAndRetryCanReplaceIt | Pass, now with visible recovery | Offline/retry screen check pending |
+| BEH-006 | Initial screen offers a Refresh action. | Legacy View; inferred | Source inspected | SwiftUI source plus manual smoke | Pass | Codex, 2026-09-07, iPhone Air/iOS 26.2 |
+| BEH-007 | Loaded screen shows Next Launch, Name and Mission. | Legacy View; inferred | Source inspected | ViewModel tests plus manual smoke | Pass | Codex, 2026-09-07, iPhone Air/iOS 26.2 |
 
-## Existing defects exposed
+## Existing defects exposed and approved corrections
 
-| ID | Observed legacy behaviour | Evidence | Current checkpoint | Approved next behaviour |
-| --- | --- | --- | --- | --- |
-| DEF-001 | Refresh guard resets before callback completion; requests overlap. | Deterministic characterisation test | Reproduced | Define a managed refresh lifetime |
-| DEF-002 | An older response can overwrite a newer response. | Controlled reverse completion test | Reproduced | Obsolete results must not publish |
-| DEF-003 | Empty response enters success state with None placeholders. | Empty JSON response test | Reproduced | Honest empty state with retry |
-| DEF-004 | Errors print only; HTTP status and transport errors are discarded. | NetworkManager and ViewModel source | Preserved | Meaningful errors and visible recovery |
-| DEF-005 | Refresh is absent after success. | View conditional source | Preserved | Refresh available after success |
-| DEF-006 | Parent constructs the ViewModel inside body. | ContentView source | Fixed at ownership checkpoint | Screen owns stable StateObject; later State with Observation |
+| ID | Original defect | Approved correction | Evidence/result |
+| --- | --- | --- | --- |
+| DEF-001 | Refresh guard reset before request finished. | Screen replaces its previous Task; newest feature request owns publication. | Managed-task replacement test passes |
+| DEF-002 | Older response could overwrite newer data. | Check operation identity and cancellation before publication. | Reversed-success, reversed-failure and cancelled-success tests pass |
+| DEF-003 | Empty response entered success with placeholder content. | Explicit empty state, no invented launch, Refresh remains available. | Feature/API/ViewModel empty tests pass; manual empty screen pending |
+| DEF-004 | Errors/status discarded or printed only. | Preserve transport errors; reject failed HTTP status; publish classified recoverable failure. | API HTTP/transport/invalid-data tests and feature classification pass; manual error/retry pending |
+| DEF-005 | Refresh disappeared after success. | Keep Refresh button after load; show Try Again on failure. | Repeated live simulator refresh passed; manual offline recovery pending |
+| DEF-006 | Parent constructed ViewModel inside body. | Screen owns State model; initializers remain cheap; deinit cancels work. | Owner-release/lifecycle tests pass; live screen works |
+| DEF-007 | Null estimated date components failed decoding. | Preserve unknown components as nil; reject malformed types. | Five decoding regressions and repository null-date test pass |
 
-No current legacy defect is promoted into a permanent product requirement. All automated results here are macOS executions of the real Foundation/SwiftUI ViewModel sources with URLProtocol fixtures; they are not iOS UI tests or proof the live API works.
+Cancellation restores the last settled state without displaying a cancellation error. A replacement cancelled before completion does not allow an older superseded result to publish. App-store readiness, global multi-window deduplication and real-device performance guarantees are not asserted.
 
-## Manual comparison required
+## Test and manual record
 
-Open Original/RocketLaunch.xcodeproj and Migrated/RocketLaunch.xcodeproj in turn on the same simulator/device. Do not run both concurrently against the same app installation.
+- macOS: 35 identical XCTest cases passed under Swift 6.
+- iPhone Air Simulator, iOS 26.2: 35 XCTest cases passed in Xcode at 12:29 Bangkok time on 2026-09-07; zero failures.
+- Manual simulator: Codex observed idle screen, clicked Refresh, observed live result and clicked Refresh again after success. Screenshot reviewed for the screen layout. Date: 2026-09-07.
+- Earlier user check: callback app launched, but null-date decoding failed; defect was fixed and regression-tested before this concurrency phase.
+- Pending: manual offline → visible error → reconnect → retry; manual empty response; large Dynamic Type/VoiceOver and physical-device responsiveness review.
 
-1. Fresh launch: check initial text and Refresh button; no automatic request.
-2. Tap Refresh on a working network: compare Next Launch, Name and Mission.
-3. Relaunch without connectivity: confirm the app stays on its initial state after failure.
-4. Return online and retry: confirm a successful result can appear.
-5. Record tester, date, device/OS, project version and results below. Live failures may indicate an API/schema problem and must be investigated, not treated as migration regressions automatically.
-
-Manual result: PENDING. Simulator services are inaccessible from the current execution environment. Device builds are successful with signing disabled; no device execution is claimed.
-
-## DEF-007 — nullable estimated launch dates (2026-09-07)
-
-The user ran the callback checkpoint on iPhone Air Simulator and reported a decoding failure at result[0].est_date.day. The retrieved RocketLaunch.live response contains null day values and, for some launches, null month/day/year. The user explicitly requested correction. LaunchDate now accepts nullable/omitted date components while retaining type errors for malformed values. No dates are invented.
-
-Regression: `python3 Tests/LaunchDecoding/run.py` checks complete dates, null day, all-null components, omitted components and invalid types. Three cases reproduced the failure before the fix; all five pass afterwards. Live screen verification after this fix remains pending.
-
-## XCTest protection — 2026-09-07
-
-The earlier standalone decoding runner has been replaced by `RocketLaunchTests/AppModel tests/Launch Schedule/LaunchDecodingTests.swift`. Run all tests in Xcode with Cmd-U or on macOS with `python3 Tests/run-host-tests.py`.
-
-| Requirement/defect | In-repository protection |
-| --- | --- |
-| BEH-001/002 | LaunchScheduleViewModelTests.testInitialStateDoesNotStartNetworking; LaunchScheduleManagerTests.testConstructionDoesNotFetch |
-| BEH-003 | LaunchScheduleManagerTests.testFirstReturnedLaunchIsSelected; RocketLaunchAPITests.testDecodesResponseThroughRealNetworkingBoundary |
-| BEH-004 | LaunchScheduleManagerTests.testFirstReturnedLaunchIsSelected; LaunchScheduleViewModelTests.testRefreshPublishesLaunchNameAndMission |
-| BEH-005 | LaunchScheduleViewModelTests.testFailureLeavesInitialStateAvailableForRetry; testFailureAfterSuccessRetainsDisplayedLaunch |
-| DEF-001 | LaunchScheduleManagerTests.testLegacyRefreshGuardAllowsOverlappingRequests |
-| DEF-002 | LaunchScheduleViewModelTests.testLegacyOlderResponseCanOverwriteNewerResponse |
-| DEF-003 | LaunchScheduleViewModelTests.testLegacyEmptyResponseEntersReceivedStateWithPlaceholders |
-| DEF-007 | LaunchDecodingTests (five cases); RocketLaunchAPITests.testNullDatesDecodeThroughTheRepository |
-
-All 22 XCTest cases passed on macOS. The iOS test bundle builds successfully. BEH-006/007 remain manual screen checks, and iOS simulator execution is not yet recorded.
+The test suite deterministically exercises failures/empty states without depending on the public service. Those tests do not replace the pending manual checks. Overall migration acceptance remains open until the developer reviews the result and the required manual checks are recorded.

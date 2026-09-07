@@ -1,18 +1,12 @@
-//
-//  RocketLaunchApp.swift
-//  RocketLaunch
-//
-//  Created by 3DaysOfSwift.com 06/12/2023.
-//
-
 import SwiftUI
 
 @main
 struct RocketLaunchApp: App {
+    @State private var themeManager = ThemeManager()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView().environment(themeManager)
         }
     }
 }
-

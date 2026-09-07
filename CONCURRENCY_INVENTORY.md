@@ -1,11 +1,18 @@
-# Concurrency inventory
+# Concurrency inventory — migrated implementation
 
-| Legacy mechanism | Existing guarantee/problem | Planned replacement | Required verification |
-| --- | --- | --- | --- |
-| URLSession.dataTask completion | One request; task handle discarded; errors/status lost | Native async URLSession data API | Real request cancellation, HTTP errors, decoding and failure |
-| DispatchQueue.main.async | Publish UI-facing result on main queue | MainActor state and directly awaitable feature command | Strict compiler checks and ViewModel result tests |
-| isRefreshing plus defer | Flag cleared on synchronous return; no actual deduplication | Explicit refresh lifetime and request identity | Overlap, cancellation and stale-response tests |
-| Unmanaged overlapping refresh | Completion order decides final displayed launch | Newest accepted refresh wins | Controlled reversed completions |
-| ObservableObject/Published | Combine UI observation, no actor isolation | Observable feature and ViewModel on MainActor | Observation tests and iOS manual regression |
+| Legacy mechanism | Replacement and owner | Evidence |
+| --- | --- | --- |
+| URLSession.dataTask callback, discarded handle | Native async URLSession.data(from:) in RocketLaunchAPI actor | API success/error tests; testTaskCancellationStopsRealURLSessionRequest |
+| DispatchQueue.main.async | MainActor isolation for observable feature and ViewModel | Swift 6 / complete checking; iOS tests |
+| Ineffective isRefreshing/defer guard | ViewModel-owned replaceable Task plus feature request identity | testNewScreenRefreshCancelsPreviousTask; testOlderSuccessCannotOverwriteNewerSuccess |
+| Completion-order publication | Latest accepted request owns state; cancellation checked before publication | Older-success/older-failure and cancelled-success tests |
+| ObservableObject/Published | Observable feature, ViewModel and theme; State-owned screen model | Observation tests and live simulator refresh |
+| Discarded transport errors/status | Throw native transport error; explicit HTTP and decoding failures | API tests; feature failure-classification test |
 
-No DispatchGroup, semaphore, barrier or multi-provider parallelism exists in this starter. No task group or actor-per-provider will be invented solely to match course prose. Networking/decode execution ownership will be established from the actual compiler settings during migration.
+JSON decoding and domain mapping run synchronously on the repository actor after native asynchronous I/O. They do not run on the MainActor. An actor is not a dedicated thread. There is no app-level local cache, live observer, audio timer, persistence transaction or independent provider fan-out to migrate.
+
+The only production Task handle belongs to LaunchScheduleViewModel. It is replaced on refresh and cancelled on disappearance/deinit. Directly awaited feature commands inherit their caller's cancellation. The feature also rejects obsolete responses across different callers without claiming to cancel every other caller's network Task.
+
+The remaining checked continuations and locks are test fixtures, deliberately controlling operation order. No production @unchecked Sendable, callback continuation, GCD scheduling, blocking wait or detached Task remains.
+
+Build settings: iOS 17.0, SWIFT_VERSION=6.0, SWIFT_STRICT_CONCURRENCY=complete for both configurations and targets. Xcode simulator execution passed all 35 tests. The restricted shell's nested macro sandbox required a one-command compiler option for device/Release verification; this option was not saved in project settings. Normal Xcode builds/tests passed without it.

@@ -1,8 +1,51 @@
+# Current migration status — 2026-09-07
+
+Swift Concurrency/Observation implementation is ready for final review. Original archive and callback checkpoints remain preserved. App and tests now target iOS 17 and Swift 6 with complete concurrency checks. The user has not yet signed off the completed migration.
+
+Current account-wide usage: 71% used / 29% remaining. Compared with the initial 66% used baseline, the rounded change is 5 percentage points across all account activity, not an exact per-migration credit charge.
+
+## Completed implementation
+
+- AppModel remains the composition root; one MainActor observable LaunchScheduleManager owns feature state.
+- Domain values are immutable/Sendable; transport payloads are private to the feature's repository.
+- Native async URLSession replaces NetworkManager and callbacks. The repository actor owns decoding and maps transport data to domain values.
+- MainActor replaces manual queue hops; Observation replaces Combine. The screen owns its ViewModel with State.
+- Request identity prevents stale publication. The ViewModel owns/cancels replaceable Tasks and does not retain itself through the pending operation.
+- Empty/error/retry states and refresh-after-success are implemented as approved. Successful content remains available during refresh/failure. Cancellation restores settled state.
+- UI palette is explicitly owned by AppColourTheme/ThemeManager, with a development-only alternate palette.
+
+## Phase audit
+
+| Pass | Status and evidence |
+| --- | --- |
+| 1–4: ownership and architecture | Implemented; callback baseline/characterisation checkpoint preserved. User ran callback app and reported decoding defect, then authorized continuation after repair. |
+| 5–6: Model/UI concurrency | Implemented and tested; native async API, explicit actors, real cancellation and stale-response tests. |
+| 7–8: feature/test folders | Implemented; feature owns networking/domain files; six focused XCTest suites plus shared fixtures. |
+| 9–10: cooperative execution | Source/isolation audit and runtime tests passed. No audio/ticker/caching work applies. Physical-device profiling is pending; no measured performance improvement claimed. |
+| 12: Observation | Approved and implemented; iOS 17 minimum, observable feature/ViewModel/theme, State-owned ViewModel, protocol observation and lifetime tests pass. |
+| 13–15: execution/concurrency review | Repository actor owns decode; MainActor performs short state/presentation work. Reviewed overlap, failure, cancellation, owner destruction and preserved content. Tests pass. Additional manual recovery/profiling remains pending. |
+| 16: final iterative review | OPEN for developer acceptance and remaining manual checks. No new concrete implementation defect identified in the current audit. |
+
+## Verification
+
+- All 35 XCTest cases passed on macOS with Swift 6.
+- All 35 passed in Xcode on iPhone Air, iOS 26.2 (12:29 Bangkok, 2026-09-07).
+- Generic iOS device test build and Release app build passed.
+- The shell initially blocked nested Apple macro sandbox execution. A temporary compiler invocation flag enabled device/Release verification inside the existing execution environment. No sandbox or checking override was written to project settings. Normal Xcode simulator builds/tests passed.
+- Manual live API smoke: idle → Refresh → displayed next launch; Refresh remained available and subsequent requests completed. Screen screenshot reviewed.
+- Pending: manual offline/recovery and empty screens; accessibility/device profiling; developer final review. See MIGRATION_REVIEW.md.
+
+No Git commit, push or official final feature report has been created in this phase. The feature report remains the post-acceptance handover required by the skill.
+
+---
+
+# Earlier checkpoint history
+
 # Migration ledger
 
 ## Status
 
-Migration started; callback architecture checkpoint ready for manual comparison. No Swift Concurrency conversion is claimed. Original archive retained with SHA-256. No Git commit created.
+Historical callback checkpoint (superseded by the current status below). Original archive retained with SHA-256. No Git commit created.
 
 ## Verification
 

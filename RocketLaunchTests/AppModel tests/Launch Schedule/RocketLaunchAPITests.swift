@@ -2,50 +2,50 @@ import XCTest
 @testable import RocketLaunch
 
 final class RocketLaunchAPITests: XCTestCase {
-    func testDecodesResponseThroughRealNetworkingBoundary() throws {
-        let launches = try LaunchFixtures.launches()
-        check(response: .init(data: try LaunchFixtures.data())) { result in
-            XCTAssertEqual(try result.get().map(\.id), launches.map(\.id))
-        }
+    func testDecodesResponseThroughRealAsyncNetworkingBoundary() async throws {
+        let expected = try LaunchFixtures.launches()
+        let actual = try await fetch(.init(data: LaunchFixtures.data()))
+        XCTAssertEqual(actual, expected)
     }
-
-    func testMalformedResponseReachesCallerAsDecodingFailure() {
-        check(response: .init(data: Data("not JSON".utf8))) { result in
-            guard case .failure(.decodingFailure) = result else {
-                return XCTFail("Expected decoding failure")
-            }
-        }
+    func testMalformedResponseIsInvalidData() async throws {
+        do { _ = try await fetch(.init(data: Data("not JSON".utf8))); XCTFail("Expected failure") }
+        catch { XCTAssertEqual(error as? LaunchRepositoryError, .invalidData) }
     }
-
-    func testTransportFailureReachesCaller() {
-        check(response: .init(error: URLError(.notConnectedToInternet))) { result in
-            guard case .failure(.networkingError) = result else {
-                return XCTFail("Expected networking error")
-            }
-        }
+    func testTransportErrorIsPreserved() async throws {
+        do { _ = try await fetch(.init(error: URLError(.notConnectedToInternet))); XCTFail("Expected failure") }
+        catch { XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet) }
     }
-
-    func testNullDatesDecodeThroughTheRepository() throws {
+    func testHTTPFailureIsRejectedEvenWithDecodableBody() async throws {
+        do { _ = try await fetch(.init(data: LaunchFixtures.data(), statusCode: 503)); XCTFail("Expected failure") }
+        catch { XCTAssertEqual(error as? LaunchRepositoryError, .httpStatus(503)) }
+    }
+    func testEmptyLaunchArrayIsValid() async throws {
+        let launches = try await fetch(.init(data: Data(#"{"result":[]}"#.utf8)))
+        XCTAssertTrue(launches.isEmpty)
+    }
+    func testNullDatesDecodeThroughTheRepository() async throws {
         let data = try LaunchFixtures.data(estimatedDate: ["month": NSNull(), "day": NSNull(), "year": NSNull()])
-        check(response: .init(data: data)) { result in
-            let launch = try XCTUnwrap(result.get().first)
-            XCTAssertNil(launch.est_date.day)
-            XCTAssertNil(launch.est_date.month)
-            XCTAssertNil(launch.est_date.year)
-        }
+        let launches = try await fetch(.init(data: data))
+        let launch = try XCTUnwrap(launches.first)
+        XCTAssertNil(launch.estimatedDate.day)
+        XCTAssertNil(launch.estimatedDate.month)
+        XCTAssertNil(launch.estimatedDate.year)
     }
-
-    private func check(response: StubURLProtocol.Response, assertions: @escaping (Result<[RocketLaunch], RocketLaunchAPIError>) throws -> Void) {
-        let (session, identifier) = StubURLProtocol.session(response: response)
-        defer { session.invalidateAndCancel(); StubURLProtocol.remove(identifier) }
-        let api = RocketLaunchAPI(networkManager: NetworkManager(session: session))
-        let completed = expectation(description: "Repository completes exactly once")
-        completed.assertForOverFulfill = true
-        api.fetchUpcomingLaunches { result in
-            do { try assertions(result) }
-            catch { XCTFail("Unexpected result: \(error)") }
-            completed.fulfill()
-        }
-        wait(for: [completed], timeout: 3)
+    @MainActor func testTaskCancellationStopsRealURLSessionRequest() async throws {
+        let started = expectation(description: "request starts")
+        let stopped = expectation(description: "request stops")
+        let (session, id) = StubURLProtocol.session(response: .init(waitsForCancellation: true, onStart: { started.fulfill() }, onStop: { stopped.fulfill() }))
+        defer { session.invalidateAndCancel(); StubURLProtocol.remove(id) }
+        let api = RocketLaunchAPI(session: session, endpoint: URL(string: "https://example.invalid/launches")!)
+        let task = Task { try await api.fetchUpcomingLaunches() }
+        await waitFor([started]); task.cancel()
+        do { _ = try await task.value; XCTFail("Expected cancellation") }
+        catch { XCTAssertTrue(error is CancellationError || (error as? URLError)?.code == .cancelled) }
+        await waitFor([stopped])
+    }
+    private func fetch(_ response: StubURLProtocol.Response) async throws -> [RocketLaunch] {
+        let (session, id) = StubURLProtocol.session(response: response)
+        defer { session.invalidateAndCancel(); StubURLProtocol.remove(id) }
+        return try await RocketLaunchAPI(session: session, endpoint: URL(string: "https://example.invalid/launches")!).fetchUpcomingLaunches()
     }
 }

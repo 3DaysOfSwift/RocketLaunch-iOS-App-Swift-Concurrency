@@ -3,31 +3,31 @@ import XCTest
 
 final class LaunchDecodingTests: XCTestCase {
     func testCompleteResponseDecodesAllLaunches() throws {
-        let page = try JSONDecoder().decode(SearchResultsPage.self, from: LaunchFixtures.data())
-        XCTAssertEqual(page.result.count, 5)
-        XCTAssertEqual(page.result.first?.name, "Starlink-126 (6-33)")
+        let page = try RocketLaunchAPI.decodeResponse(LaunchFixtures.data())
+        XCTAssertEqual(page.count, 5)
+        XCTAssertEqual(page.first?.name, "Starlink-126 (6-33)")
     }
 
     func testNullDayPreservesKnownMonthAndYear() throws {
         let page = try decode(["month": 9, "day": NSNull(), "year": 2026])
-        XCTAssertNil(page.result[0].est_date.day)
-        XCTAssertEqual(page.result[0].est_date.month, 9)
-        XCTAssertEqual(page.result[0].est_date.year, 2026)
+        XCTAssertNil(page[0].estimatedDate.day)
+        XCTAssertEqual(page[0].estimatedDate.month, 9)
+        XCTAssertEqual(page[0].estimatedDate.year, 2026)
     }
 
     func testEntirelyUnknownDateDoesNotDiscardLaunch() throws {
         let page = try decode(["month": NSNull(), "day": NSNull(), "year": NSNull()])
-        XCTAssertNil(page.result[0].est_date.month)
-        XCTAssertNil(page.result[0].est_date.day)
-        XCTAssertNil(page.result[0].est_date.year)
-        XCTAssertEqual(page.result[0].name, "Starlink-126 (6-33)")
+        XCTAssertNil(page[0].estimatedDate.month)
+        XCTAssertNil(page[0].estimatedDate.day)
+        XCTAssertNil(page[0].estimatedDate.year)
+        XCTAssertEqual(page[0].name, "Starlink-126 (6-33)")
     }
 
     func testOmittedDateComponentsDecodeAsUnknown() throws {
         let page = try decode([:])
-        XCTAssertNil(page.result[0].est_date.month)
-        XCTAssertNil(page.result[0].est_date.day)
-        XCTAssertNil(page.result[0].est_date.year)
+        XCTAssertNil(page[0].estimatedDate.month)
+        XCTAssertNil(page[0].estimatedDate.day)
+        XCTAssertNil(page[0].estimatedDate.year)
     }
 
     func testInvalidDateTypeRemainsADecodingError() throws {
@@ -38,7 +38,7 @@ final class LaunchDecodingTests: XCTestCase {
         }
     }
 
-    private func decode(_ date: [String: Any]) throws -> SearchResultsPage {
-        try JSONDecoder().decode(SearchResultsPage.self, from: LaunchFixtures.data(estimatedDate: date))
+    private func decode(_ date: [String: Any]) throws -> [RocketLaunch] {
+        try RocketLaunchAPI.decodeResponse(LaunchFixtures.data(estimatedDate: date))
     }
 }

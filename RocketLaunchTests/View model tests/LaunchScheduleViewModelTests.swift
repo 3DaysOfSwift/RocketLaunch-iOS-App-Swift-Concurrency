@@ -1,84 +1,105 @@
 import XCTest
+import Observation
 @testable import RocketLaunch
 
 final class LaunchScheduleViewModelTests: XCTestCase {
-    @MainActor func testInitialStateDoesNotStartNetworking() {
+    @MainActor func testInitialStateDoesNotStartNetworking() async {
         let feature = ControlledLaunchFeature()
         let viewModel = LaunchScheduleViewModel(feature: feature)
-        XCTAssertFalse(viewModel.receivedNextRocketLaunch)
+        XCTAssertFalse(viewModel.hasLaunch)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertFalse(viewModel.isEmpty)
+        XCTAssertNil(viewModel.errorMessage)
         XCTAssertEqual(viewModel.launchName, "None")
-        XCTAssertEqual(viewModel.mission, "None")
-        XCTAssertTrue(feature.completions.isEmpty)
+        XCTAssertEqual(feature.refreshCount, 0)
     }
-
-    @MainActor func testRefreshPublishesLaunchNameAndMission() async throws {
+    @MainActor func testAsyncIntentIsDirectlyAwaitable() async {
+        let feature = ControlledLaunchFeature()
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        await viewModel.refresh()
+        XCTAssertEqual(feature.refreshCount, 1)
+    }
+    @MainActor func testLoadedValuesReadAuthoritativeFeatureState() async throws {
         let feature = ControlledLaunchFeature()
         let viewModel = LaunchScheduleViewModel(feature: feature)
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
-        viewModel.refresh()
-        XCTAssertEqual(feature.completions.count, 1)
-        feature.completions[0](.success(launch))
-        await drainMainQueue()
-        XCTAssertTrue(viewModel.receivedNextRocketLaunch)
+        feature.setState(.loaded(launch))
+        XCTAssertTrue(viewModel.hasLaunch)
         XCTAssertEqual(viewModel.launchName, launch.name)
-        XCTAssertEqual(viewModel.mission, launch.missions.first?.description ?? "None")
+        XCTAssertEqual(viewModel.mission, launch.primaryMissionDescription)
     }
-
-    @MainActor func testFailureLeavesInitialStateAvailableForRetry() async {
+    @MainActor func testMissingMissionHasPresentationFallback() async {
         let feature = ControlledLaunchFeature()
         let viewModel = LaunchScheduleViewModel(feature: feature)
-        viewModel.refresh()
-        feature.completions[0](.failure(.networkingError))
-        await drainMainQueue()
-        XCTAssertFalse(viewModel.receivedNextRocketLaunch)
-        viewModel.refresh()
-        XCTAssertEqual(feature.completions.count, 2)
+        feature.setState(.loaded(RocketLaunch(id: 1, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil))))
+        XCTAssertEqual(viewModel.mission, "None")
     }
-
-    @MainActor func testFailureAfterSuccessRetainsDisplayedLaunch() async throws {
+    @MainActor func testEmptyAndLoadingStatesAreDistinct() async {
+        let feature = ControlledLaunchFeature()
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        feature.setState(.loading(previous: nil))
+        XCTAssertTrue(viewModel.isLoading); XCTAssertFalse(viewModel.isEmpty)
+        feature.setState(.empty)
+        XCTAssertTrue(viewModel.isEmpty); XCTAssertFalse(viewModel.isLoading); XCTAssertFalse(viewModel.hasLaunch)
+    }
+    @MainActor func testRecoverableFailureRetainsLaunchAndExposesMessage() async throws {
         let feature = ControlledLaunchFeature()
         let viewModel = LaunchScheduleViewModel(feature: feature)
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
-        viewModel.refresh()
-        feature.completions[0](.success(launch))
-        await drainMainQueue()
-        viewModel.refresh()
-        feature.completions[1](.failure(.networkingError))
-        await drainMainQueue()
-        XCTAssertTrue(viewModel.receivedNextRocketLaunch)
+        feature.setState(.failed(.offline, previous: launch))
+        XCTAssertTrue(viewModel.hasLaunch)
+        XCTAssertNotNil(viewModel.errorMessage)
         XCTAssertEqual(viewModel.launchName, launch.name)
     }
-
-    // Characterises DEF-003; the async migration will introduce an honest empty state.
-    @MainActor func testLegacyEmptyResponseEntersReceivedStateWithPlaceholders() async {
-        let feature = ControlledLaunchFeature()
-        let viewModel = LaunchScheduleViewModel(feature: feature)
-        viewModel.refresh()
-        feature.completions[0](.success(nil))
-        await drainMainQueue()
-        XCTAssertTrue(viewModel.receivedNextRocketLaunch)
-        XCTAssertEqual(viewModel.launchName, "None")
-        XCTAssertEqual(viewModel.mission, "None")
+    @MainActor func testTwoViewModelsObserveTheSameFeatureThroughItsProtocol() async throws {
+        let shared = ControlledLaunchFeature()
+        let first = LaunchScheduleViewModel(feature: shared)
+        let second = LaunchScheduleViewModel(feature: shared)
+        let firstChanged = expectation(description: "first observes")
+        let secondChanged = expectation(description: "second observes")
+        withObservationTracking { _ = first.launchName } onChange: { firstChanged.fulfill() }
+        withObservationTracking { _ = second.launchName } onChange: { secondChanged.fulfill() }
+        let launch = try XCTUnwrap(LaunchFixtures.launches().first)
+        shared.setState(.loaded(launch))
+        await waitFor([firstChanged, secondChanged])
+        XCTAssertEqual(first.launchName, launch.name)
+        XCTAssertEqual(second.launchName, launch.name)
     }
-
-    // Characterises DEF-002 with explicitly controlled completion order, without sleeps.
-    @MainActor func testLegacyOlderResponseCanOverwriteNewerResponse() async throws {
-        let feature = ControlledLaunchFeature()
+    @MainActor func testNewScreenRefreshCancelsPreviousTask() async {
+        let feature = LifecycleFeature()
+        let first = expectation(description: "first starts")
+        let second = expectation(description: "second starts")
+        let finished = expectation(description: "both finish"); finished.expectedFulfillmentCount = 2
+        feature.onRequest = { index in (index == 0 ? first : second).fulfill() }
+        feature.onFinish = { _ in finished.fulfill() }
         let viewModel = LaunchScheduleViewModel(feature: feature)
-        let launches = try LaunchFixtures.launches()
-        viewModel.refresh()
-        viewModel.refresh()
-        feature.completions[1](.success(launches[1]))
-        await drainMainQueue()
-        XCTAssertEqual(viewModel.launchName, launches[1].name)
-        feature.completions[0](.success(launches[0]))
-        await drainMainQueue()
-        XCTAssertEqual(viewModel.launchName, launches[0].name)
+        viewModel.requestRefresh(); await waitFor([first])
+        viewModel.requestRefresh(); await waitFor([second])
+        feature.complete(0); feature.complete(1); await waitFor([finished])
+        XCTAssertEqual(feature.cancellations[0], true)
+        XCTAssertEqual(feature.cancellations[1], false)
     }
-
-    private func drainMainQueue() async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async { continuation.resume() }
-        }
+    @MainActor func testScreenDisappearanceCancelsRefresh() async {
+        let feature = LifecycleFeature()
+        let started = expectation(description: "starts")
+        let finished = expectation(description: "finishes")
+        feature.onRequest = { _ in started.fulfill() }; feature.onFinish = { _ in finished.fulfill() }
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        viewModel.requestRefresh(); await waitFor([started])
+        viewModel.cancelRefresh(); feature.complete(0); await waitFor([finished])
+        XCTAssertEqual(feature.cancellations[0], true)
+    }
+    @MainActor func testOwnerReleaseCancelsWithoutTaskRetainingViewModel() async {
+        let feature = LifecycleFeature()
+        let started = expectation(description: "starts")
+        let finished = expectation(description: "finishes")
+        feature.onRequest = { _ in started.fulfill() }; feature.onFinish = { _ in finished.fulfill() }
+        var viewModel: LaunchScheduleViewModel? = LaunchScheduleViewModel(feature: feature)
+        weak var weakViewModel = viewModel
+        viewModel?.requestRefresh(); await waitFor([started])
+        viewModel = nil
+        XCTAssertNil(weakViewModel)
+        feature.complete(0); await waitFor([finished])
+        XCTAssertEqual(feature.cancellations[0], true)
     }
 }

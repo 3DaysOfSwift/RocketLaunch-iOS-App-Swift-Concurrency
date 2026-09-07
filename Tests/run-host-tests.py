@@ -18,16 +18,17 @@ with tempfile.TemporaryDirectory(prefix="rocketlaunch-host-tests-") as directory
     # Include the real Model sources and each screen's real ViewModel.
     sources = list((root / "RocketLaunch/2 - AppModel").rglob("*.swift"))
     sources += list((root / "RocketLaunch/1 - View").rglob("*ViewModel.swift"))
+    sources += list((root / "RocketLaunch/1 - View/Theme").rglob("*.swift"))
     for source in sources:
         destination = production / source.relative_to(root / "RocketLaunch")
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
     shutil.copytree(root / "RocketLaunchTests", package / "Tests/RocketLaunchTests")
-    (package / "Package.swift").write_text('''// swift-tools-version: 5.9
+    (package / "Package.swift").write_text('''// swift-tools-version: 6.0
 import PackageDescription
 let package = Package(
     name: "RocketLaunchHostChecks",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v14)],
     targets: [
         .target(name: "RocketLaunch"),
         .testTarget(name: "RocketLaunchTests", dependencies: ["RocketLaunch"],
