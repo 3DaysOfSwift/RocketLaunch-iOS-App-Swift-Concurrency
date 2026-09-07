@@ -1,3 +1,7 @@
+## Notification-effect lifetime validation
+
+98 macOS host tests pass. The iOS app and test bundle build successfully. The regression verifies that a new refresh fetches and commits newer data while an older notification effect is suspended, then checks obsolete-alert cleanup. Delivery-dependent assertions observe reminder status separately from download completion. This revision has not been run in the simulator or on a physical device.
+
 # Current validation: shared launch and reminder actor
 
 97 host XCTest cases pass against the real Model/ViewModel sources. The iOS application and test target build successfully. The current simulator run is pending because the Mac was locked; earlier simulator counts below describe earlier revisions.

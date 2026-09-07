@@ -29,6 +29,7 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         var waiters: [UUID: CheckedContinuation<Void, Never>]
     }
     private var requests: [LaunchSourceID: Request] = [:]
+    private var reminderEffectTasks: [UUID: Task<Void, Never>] = [:]
 
     init(repository: any LaunchRepository) {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
@@ -165,13 +166,26 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
             } else { sources[index].phase = .failed(Self.failure(for: error)) }
         }
         updateNextLaunch()
-        requests[source]?.previous = sources[index]
-        await withTaskGroup(of: Void.self) { group in
-            for effect in effects { group.addTask { _ = try? await self.deliverReminder(effect, askPermission: false) } }
-        }
-        guard let finished = requests[source], finished.id == id else { return }
+        // Download ownership ends with the atomic model commit. Notification delivery
+        // has its own lifetime and cannot keep subsequent refreshes joined to old data.
         requests[source] = nil
-        for waiter in finished.waiters.values { waiter.resume() }
+        startReminderEffects(effects)
+        for waiter in request.waiters.values { waiter.resume() }
+    }
+
+    private func startReminderEffects(_ effects: [ReminderEffect]) {
+        guard !effects.isEmpty else { return }
+        let id = UUID()
+        // Retain the model until these external effects settle and stale IDs are
+        // cleaned up. Screen cancellation must not abandon committed reminder intent.
+        reminderEffectTasks[id] = Task {
+            await withTaskGroup(of: Void.self) { group in
+                for effect in effects {
+                    group.addTask { _ = try? await self.deliverReminder(effect, askPermission: false) }
+                }
+            }
+            self.reminderEffectTasks[id] = nil
+        }
     }
 
     /// Stored output is recalculated only on model events, never in a View getter.

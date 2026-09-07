@@ -12,7 +12,7 @@ The project began as a starter pack. Its unfinished behaviour and real defects g
 
 Refresh uses native asynchronous URLSession networking, actor-owned decoding and business state, delivered as immutable snapshots to MainActor ViewModels. Repeated refreshes share active provider work, and canceled request identities prevent late results from being published. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
 
-All 97 current XCTest cases pass on macOS. The iOS app and test bundle build; simulator execution of this refactor remains pending because the Mac was locked. The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
+All 98 current XCTest cases pass on macOS. The iOS app and test bundle build; simulator execution of this refactor remains pending because the Mac was locked. The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
 
 ## The architectural sentence
 
@@ -57,7 +57,7 @@ The screen retains the last launch during refresh or failure, displays a recover
 
 `RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
 
-The 97 XCTest cases cover:
+The 98 XCTest cases cover:
 
 - AppModel construction and independent application graphs.
 - Launch selection, empty responses and repository failures.
@@ -69,7 +69,7 @@ The 97 XCTest cases cover:
 
 Tests are grouped into `View model tests`, `AppModel tests`, shared `Test Support` and `Fixtures`. They do not contact the live API or mutate `AppModel.shared`.
 
-The iOS app and test bundle build successfully. All 97 current tests passed on macOS using actual Model/ViewModel sources. Previous iPhone Air tests belong to the preceding architecture revision; this refactor still needs simulator execution.
+The iOS app and test bundle build successfully. All 98 current tests passed on macOS using actual Model/ViewModel sources. Previous iPhone Air tests belong to the preceding architecture revision; this refactor still needs simulator execution.
 
 When a simulator is unavailable, run the host checks on a Mac with Xcode and Python 3:
 

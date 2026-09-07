@@ -96,3 +96,7 @@ The notification client coalesces permission requests. Refresh effects may conti
 Validation: 97 host XCTest cases pass. The iOS app and test bundle build successfully with Swift 6 complete concurrency checking. The preceding two-actor suite's obsolete API tests were replaced with 19 unified reminder tests and four shared-request tests, while existing relevant tests remain/adapt to the new policies. Current simulator execution was blocked by the locked Mac. No physical-device delivery or performance benchmark is claimed.
 
 Reevaluation: the three recorded boundary defects are addressed by current-data lookup and shared request ownership, rather than more cross-actor revision patches. The core business decision is now one actor transaction; external side effects remain explicitly versioned. Architecture and concurrency guides have been updated, including the diagram. Simulator regression and real notification verification remain open.
+
+### Separate download lifetime from notification effects
+
+Review found that completed downloads remained registered while notification delivery suspended, causing new refreshes to join old data. Provider completion now releases request ownership after the atomic model commit. Separately owned notification task batches preserve identity checks and cleanup. Regression coverage requests a newer schedule while older notification delivery is suspended and verifies that only the latest notification remains.

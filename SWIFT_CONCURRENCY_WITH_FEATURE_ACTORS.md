@@ -236,7 +236,7 @@ The implemented application has:
 - Concurrent provider retrieval with independent publication and failure handling.
 - Main-actor UI preferences, formatting and small presentation filters.
 
-The shared-actor revision has **97 passing macOS host tests**. The iOS application and test bundle build successfully with Swift 6 and complete concurrency checking. Tests cover ID-based saves, stale detail values, desired state before suspension, late notification cleanup, unknown times, capacity, persistence compatibility, shared requests, cancellation recovery, actor boundaries and progressive UI publication. Earlier two-feature tests were replaced where their contracts no longer exist; tests now exercise the unified public API.
+The shared-actor revision has **98 passing macOS host tests**. The iOS application and test bundle build successfully with Swift 6 and complete concurrency checking. Tests cover ID-based saves, stale detail values, desired state before suspension, late notification cleanup, unknown times, capacity, persistence compatibility, shared requests, cancellation recovery, actor boundaries and progressive UI publication. Earlier two-feature tests were replaced where their contracts no longer exist; tests now exercise the unified public API.
 
 The Mac was locked during this pass, so the updated suite has not been executed in the iPhone simulator. Previous simulator and live-provider checks belong to the preceding revision, not this refactor. Physical-device notification delivery and Instruments profiling remain open.
 This establishes that the intended boundaries work in the tested implementation. It is not an Instruments benchmark, a guarantee of zero UI stalls, or evidence that every hardware core is being used. Device responsiveness, large datasets, expensive formatting and notification delivery remain matters for targeted validation.
@@ -256,3 +256,9 @@ That is the intent of **Modern iOS Architecture 26: Swift Concurrency with Featu
 - [Provider behavior and limitations](MULTI_PROVIDER_DESIGN.md)
 - [Migration decisions and verification](MIGRATION_LEDGER.md)
 - [Migration cleanup lessons](MIGRATION_CLEANUP_NOTES.md)
+
+### Refresh completion and notification delivery
+
+A provider refresh completes after committing launch data and desired reminder state. It removes its active request and resumes callers without awaiting notification delivery. The feature owns separate task batches for those effects; each batch uses a task group and removes its handle when finished. These tasks retain the model until delivery and obsolete-notification cleanup settle. Screen cancellation does not cancel committed reminder intent. New downloads still respect provider cooldowns and share genuinely active downloads.
+
+Reminder snapshots report pending, scheduled or failed delivery independently of refresh completion. Direct user saves still await their own delivery result.

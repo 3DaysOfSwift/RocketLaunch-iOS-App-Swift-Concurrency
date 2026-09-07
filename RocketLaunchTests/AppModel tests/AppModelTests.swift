@@ -181,6 +181,44 @@ final class UnifiedReminderTests: XCTestCase {
         await feature.refresh()
         return (feature, repository)
     }
+    private func waitForScheduledReminder(_ feature: LaunchScheduleFeature) async {
+        let scheduled = expectation(description: "latest reminder scheduled")
+        let observer = Task {
+            for await value in await feature.reminderSnapshots() {
+                if value.reminders.first?.status == .scheduled { scheduled.fulfill(); return }
+            }
+        }
+        await fulfillment(of: [scheduled], timeout: 2)
+        observer.cancel()
+    }
+
+    func testNewRefreshDownloadsWhilePreviousNotificationIsSuspended() async throws {
+        let started = expectation(description: "reschedule suspended")
+        let client = ControlledNotifications(hold: 2) { _ in started.fulfill() }
+        let (feature, repository) = await model([launch(3600)], client: client)
+        try await feature.setReminder(for: launch().id, minutesBefore: 5)
+        await repository.set([launch(7200)])
+        let first = Task { await feature.refresh() }
+        await fulfillment(of: [started], timeout: 2)
+        await repository.set([launch(10800)])
+        let refreshed = expectation(description: "new download completes before old notification")
+        let second = Task { await feature.refresh(); refreshed.fulfill() }
+        await fulfillment(of: [refreshed], timeout: 2)
+        let snapshot = await feature.snapshot
+        XCTAssertEqual(snapshot.sources.first?.launches.first, launch(10800))
+        await client.finish()
+        await first.value
+        await second.value
+        let settled = expectation(description: "obsolete notification cleaned up")
+        await client.onNextCancel { settled.fulfill() }
+        await fulfillment(of: [settled], timeout: 2)
+        await waitForScheduledReminder(feature)
+        let desired = await feature.reminderSnapshot
+        let active = await client.active
+        XCTAssertEqual(desired.reminders.first?.launch, launch(10800))
+        XCTAssertEqual(active, Set(desired.reminders.map(\.notificationID)))
+    }
+
     func testTimePassingDuringSchedulingCannotConfirmExpiredReminder() async throws {
         let clock = TestClock(now)
         let started = expectation(description: "scheduling waits")
@@ -247,6 +285,7 @@ final class UnifiedReminderTests: XCTestCase {
         await client.finish()
         let outcome = try await save.value
         XCTAssertEqual(outcome, .superseded)
+        await waitForScheduledReminder(feature)
         let current = await feature.reminderSnapshot
         XCTAssertEqual(current.reminders.first?.launch, launch(7200))
         XCTAssertEqual(current.reminders.first?.status, .scheduled)
@@ -263,8 +302,11 @@ final class UnifiedReminderTests: XCTestCase {
         await repository.set([launch(7200)])
         let updating = Task { await feature.refresh() }
         await fulfillment(of: [started], timeout: 2)
-        // Cancel only the refresh waiter. Its already committed desired state remains.
-        updating.cancel(); await updating.value
+        // Refresh must finish even though its notification delivery is suspended.
+        let refreshed = expectation(description: "refresh completes before notification")
+        let completion = Task { await updating.value; refreshed.fulfill() }
+        await fulfillment(of: [refreshed], timeout: 2)
+        completion.cancel()
         await repository.set([launch(3600)]); await feature.refresh()
         await client.finish()
         // Wait until the older effect has completed cleanup using the client callback.
@@ -272,6 +314,7 @@ final class UnifiedReminderTests: XCTestCase {
         await client.onNextCancel { settled.fulfill() }
         // onNextCancel also fires immediately if cancellation already happened twice.
         await fulfillment(of: [settled], timeout: 2)
+        await waitForScheduledReminder(feature)
         let current = await feature.reminderSnapshot
         XCTAssertEqual(current.reminders.first?.launch, launch(3600))
         XCTAssertEqual(current.reminders.first?.status, .scheduled)
@@ -346,7 +389,7 @@ final class UnifiedReminderTests: XCTestCase {
         let id = launch().id
         let first = Task { try await feature.setReminder(for: id, minutesBefore: 15) }
         await fulfillment(of: [started], timeout: 2)
-        await repository.set([launch(10800)]); await feature.refresh(); await client.finish(fail: true)
+        await repository.set([launch(10800)]); await feature.refresh(); await waitForScheduledReminder(feature); await client.finish(fail: true)
         let outcome = try await first.value
         XCTAssertEqual(outcome, .superseded)
         let value = await feature.reminderSnapshot

@@ -61,3 +61,9 @@ Launch and reminder streams are separate immutable projections of one actor. Eac
 ## Verification
 
 97 host XCTest cases pass against real Model/ViewModel sources. The iOS app and test bundle build with Swift 6 complete concurrency checking. This revision's simulator execution is pending because the Mac was locked. Earlier live checks loaded RocketLaunch.Live and Launch Library with independent SpaceX failure. Test clients validate notification identities and cleanup, not physical-device alert delivery. Instruments responsiveness measurements remain separate validation work.
+
+### Refresh completion and notification delivery
+
+A provider refresh completes after committing launch data and desired reminder state. It removes its active request and resumes callers without awaiting notification delivery. The feature owns separate task batches for those effects; each batch uses a task group and removes its handle when finished. These tasks retain the model until delivery and obsolete-notification cleanup settle. Screen cancellation does not cancel committed reminder intent. New downloads still respect provider cooldowns and share genuinely active downloads.
+
+Reminder snapshots report pending, scheduled or failed delivery independently of refresh completion. Direct user saves still await their own delivery result.
