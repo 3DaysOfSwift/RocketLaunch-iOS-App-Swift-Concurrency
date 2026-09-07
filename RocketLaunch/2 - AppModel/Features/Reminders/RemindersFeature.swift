@@ -6,7 +6,7 @@ protocol RemindersFeatureAPI: AnyObject, Sendable {
     func snapshots() async -> AsyncStream<RemindersSnapshot>
     func save(_ launch: RocketLaunch, minutesBefore: Int) async throws
     func remove(_ id: String) async
-    func reconcile(_ launches: [RocketLaunch], source: LaunchSourceID?, revision: UInt64?) async
+    func reconcile(_ update: LaunchSourceUpdate) async
 }
 
 actor RemindersFeature: RemindersFeatureAPI {
@@ -61,13 +61,17 @@ actor RemindersFeature: RemindersFeatureAPI {
         try await schedule(launch, minutesBefore: minutesBefore, askPermission: true)
     }
 
-    private func schedule(_ launch: RocketLaunch, minutesBefore: Int, askPermission: Bool) async throws {
+    private func schedule(_ launch: RocketLaunch, minutesBefore: Int, askPermission: Bool, update: LaunchSourceUpdate? = nil) async throws {
+        let occupied = Set(reminders.map(\.id)).union(operations.keys)
+        // Even a replacement with an unknown time supersedes the older operation.
         let token = UUID(); operations[launch.id] = token
         defer { if operations[launch.id] == token { operations[launch.id] = nil } }
         guard let time = launch.details.plannedTime else { throw ReminderError.unknownTime }
         let fireDate = time.addingTimeInterval(-Double(minutesBefore) * 60)
         guard fireDate > now() else { throw ReminderError.tooLate }
-        guard reminders.count < 50 || reminders.contains(where: { $0.id == launch.id }) else { throw ReminderError.limit }
+        // Reserve a logical slot before awaiting the notification service. Replacements
+        // reuse their launch's slot; concurrent additions cannot both claim slot 50.
+        guard occupied.count < 50 || occupied.contains(launch.id) else { throw ReminderError.limit }
         let notificationID = "rocketlaunch." + token.uuidString
         do {
             try await client.schedule(id: notificationID, title: launch.name, date: fireDate, askPermission: askPermission)
@@ -75,7 +79,10 @@ actor RemindersFeature: RemindersFeatureAPI {
             if operations[launch.id] == token { operations[launch.id] = nil }
             throw error
         }
-        guard operations[launch.id] == token else { await client.cancel(notificationID); return }
+        guard operations[launch.id] == token, isCurrent(update) else {
+            await client.cancel(notificationID)
+            return
+        }
         operations[launch.id] = nil
         let old = reminders.first(where: { $0.id == launch.id })
         reminders.removeAll { $0.id == launch.id }
@@ -93,20 +100,24 @@ actor RemindersFeature: RemindersFeatureAPI {
     }
 
     private var sourceRevisions: [LaunchSourceID: UInt64] = [:]
-    func reconcile(_ launches: [RocketLaunch], source: LaunchSourceID? = nil, revision: UInt64? = nil) async {
+    private func isCurrent(_ update: LaunchSourceUpdate?) -> Bool {
+        guard let update else { return true } // An explicit user command has its own operation token.
+        return sourceRevisions[update.source] == update.revision
+    }
+
+    func reconcile(_ update: LaunchSourceUpdate) async {
         loadIfNeeded()
-        if let source, let revision {
-            guard revision > (sourceRevisions[source] ?? 0) else { return }
-            sourceRevisions[source] = revision
-        }
-        for launch in launches {
-            // Re-check after each suspension: another source refresh can supersede this one.
-            if let source, let revision, sourceRevisions[source] != revision { return }
+        guard sourceRevisions[update.source].map({ update.revision > $0 }) ?? true else { return }
+        sourceRevisions[update.source] = update.revision
+        for launch in update.launches where launch.source == update.source {
+            // A newer response supersedes this entire reconciliation, including a
+            // suspended reschedule when the newer time matches the saved reminder.
+            guard isCurrent(update) else { return }
             guard let old = reminders.first(where: { $0.id == launch.id }),
                   old.launch.details.plannedTime != launch.details.plannedTime else { continue }
-            do { try await schedule(launch, minutesBefore: old.minutesBefore, askPermission: false) }
+            do { try await schedule(launch, minutesBefore: old.minutesBefore, askPermission: false, update: update) }
             catch {
-                guard operations[launch.id] == nil,
+                guard isCurrent(update), operations[launch.id] == nil,
                       let index = reminders.firstIndex(where: { $0.id == launch.id && $0.notificationID == old.notificationID && $0.launch == old.launch }) else { continue }
                 reminders[index].issue = "Launch time changed. Open this launch to set a new reminder."
                 reminders[index].launch = launch

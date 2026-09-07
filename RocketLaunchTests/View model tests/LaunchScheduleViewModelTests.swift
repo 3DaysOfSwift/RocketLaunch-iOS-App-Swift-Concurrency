@@ -3,6 +3,21 @@ import Observation
 @testable import RocketLaunch
 
 final class LaunchScheduleViewModelTests: XCTestCase {
+    @MainActor func testNewViewModelDoesNotRefreshAnAlreadyLoadedFeature() async throws {
+        let feature = ControlledLaunchFeature()
+        feature.setState(.loaded(try LaunchFixtures.launches()[0]))
+        let checked = expectation(description: "Feature evaluated initial load")
+        feature.onInitialLoad = { checked.fulfill() }
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        defer { viewModel.cancelRefresh(); viewModel.stopObserving() }
+        XCTAssertEqual(viewModel.snapshot.state, .idle)
+        viewModel.loadIfNeeded()
+        await waitFor([checked])
+        XCTAssertEqual(feature.refreshCount, 0)
+        await viewModel.synchronize()
+        XCTAssertTrue(viewModel.hasLaunch)
+    }
+
     @MainActor func testCountryIsTheLaunchLocationAndMissingMissionIsExplicit() async throws {
         let feature = ControlledLaunchFeature()
         let viewModel = LaunchScheduleViewModel(feature: feature)

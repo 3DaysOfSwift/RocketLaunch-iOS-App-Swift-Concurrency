@@ -72,7 +72,7 @@ final class RemindersAndBrowsingTests: XCTestCase {
         try await feature.save(launch(), minutesBefore: 15)
         let projection7 = await feature.snapshot
         let original = projection7.reminders[0].notificationID
-        await feature.reconcile([launch(10800)])
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 1, launches: [launch(10800)]))
         let projection8 = await feature.snapshot
         XCTAssertEqual(projection8.reminders[0].fireDate, now.addingTimeInterval(9900))
         let projection9 = await feature.snapshot
@@ -81,7 +81,7 @@ final class RemindersAndBrowsingTests: XCTestCase {
         XCTAssertEqual(scheduled.map(\.askPermission), [true, false])
         let projection10 = await feature.snapshot
         let updated = projection10.reminders[0].notificationID
-        await feature.reconcile([launch(nil)])
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 2, launches: [launch(nil)]))
         let projection11 = await feature.snapshot
         XCTAssertNotNil(projection11.reminders[0].issue)
         let canceled = await client.canceled
@@ -186,6 +186,35 @@ private actor SuspendedNotifications: LaunchNotificationClient {
 
 @MainActor
 final class ActorSnapshotTests: XCTestCase {
+    func testUnchangedClockDoesNotPublishAnotherRevision() async {
+        let feature = LaunchScheduleFeature(repository: SequenceLaunchRepository([[]]))
+        let initial = await feature.snapshot
+        await feature.updateNextLaunch()
+        let stillInitial = await feature.snapshot
+        XCTAssertEqual(stillInitial, initial)
+        await feature.refresh()
+        let loaded = await feature.snapshot
+        for _ in 0..<10 { await feature.updateNextLaunch() }
+        let unchanged = await feature.snapshot
+        XCTAssertEqual(unchanged, loaded)
+    }
+
+    func testCooldownExpiryPublishesEvenWithoutNewLaunches() async {
+        let clock = TestClock(Date(timeIntervalSince1970: 2_000_000_000))
+        let feature = LaunchScheduleFeature(sources: [.init(id: .launchLibrary, repository: SequenceLaunchRepository([[]]), minimumRefreshInterval: 300)], now: { clock.read() })
+        await feature.refresh()
+        let loaded = await feature.snapshot
+        clock.advance(60)
+        await feature.updateNextLaunch()
+        let unchanged = await feature.snapshot
+        XCTAssertEqual(unchanged, loaded)
+        clock.advance(240)
+        await feature.updateNextLaunch()
+        let expired = await feature.snapshot
+        XCTAssertNil(expired.sources.first?.nextRefreshAt)
+        XCTAssertGreaterThan(expired.revision, loaded.revision)
+    }
+
     func testEachSubscriberReceivesInitialAndFinalSnapshots() async {
         let feature = LaunchScheduleFeature(repository: SequenceLaunchRepository([[]]))
         let firstStream = await feature.snapshots()
@@ -209,6 +238,7 @@ final class ActorSnapshotTests: XCTestCase {
         let stream = await feature.snapshots()
         var iterator = stream.makeAsyncIterator()
         _ = await iterator.next()
+        await feature.refresh()
         for _ in 0..<10 { await feature.updateNextLaunch() }
         let expected = await feature.snapshot
         let received = await iterator.next()
@@ -257,8 +287,8 @@ final class ActorSnapshotTests: XCTestCase {
             return now
         })
         try await feature.save(launch(3600), minutesBefore: 5)
-        await feature.reconcile([launch(7200)], source: .rocketLaunchLive, revision: 3)
-        await feature.reconcile([launch(5400)], source: .rocketLaunchLive, revision: 2)
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 3, launches: [launch(7200)]))
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 2, launches: [launch(5400)]))
         let value = await feature.snapshot
         XCTAssertEqual(value.reminders.first?.launch.details.plannedTime, now.addingTimeInterval(7200))
     }
@@ -276,4 +306,150 @@ final class ActorSnapshotTests: XCTestCase {
         let removed = await iterator.next()
         XCTAssertEqual(removed?.reminders, [])
     }
+}
+
+
+@MainActor final class ReminderConcurrencyTests: XCTestCase {
+    func testNewerUnchangedRefreshSupersedesSuspendedReschedule() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ offset: Double, id: Int = 1) -> RocketLaunch {
+            .init(id: id, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(offset)))
+        }
+        let started = expectation(description: "Reschedule suspended")
+        let client = SuspendingNotificationClient(suspendAt: 2) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        try await feature.save(launch(3600), minutesBefore: 5)
+        let older = Task { await feature.reconcile(.init(source: .rocketLaunchLive, revision: 2, launches: [launch(7200)])) }
+        await fulfillment(of: [started], timeout: 2)
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 3, launches: [launch(3600)]))
+        await client.finish()
+        await older.value
+        let value = await feature.snapshot
+        XCTAssertEqual(value.reminders.first?.launch.details.plannedTime, now.addingTimeInterval(3600), "Newest source says original time, but pending older reschedule must not overwrite it")
+        let active = await client.activeIDs
+        XCTAssertEqual(active, Set(value.reminders.map(\.notificationID)))
+    }
+    func testNewerUnknownTimeCancelsBothAlertsDuringSuspendedReschedule() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ offset: Double?, id: Int = 1) -> RocketLaunch {
+            .init(id: id, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: offset.map { now.addingTimeInterval($0) }))
+        }
+        let started = expectation(description: "Reschedule suspended")
+        let client = SuspendingNotificationClient(suspendAt: 2) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        try await feature.save(launch(3600), minutesBefore: 5)
+        let older = Task { await feature.reconcile(.init(source: .rocketLaunchLive, revision: 2, launches: [launch(7200)])) }
+        await fulfillment(of: [started], timeout: 2)
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 3, launches: [launch(nil)]))
+        await client.finish()
+        await older.value
+        let value = await feature.snapshot
+        XCTAssertNil(value.reminders.first?.launch.details.plannedTime)
+        XCTAssertNotNil(value.reminders.first?.issue)
+        let active = await client.activeIDs
+        XCTAssertTrue(active.isEmpty)
+
+    }
+    func testNewerChangedRefreshSupersedesSuspendedReschedule() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ offset: Double, id: Int = 1) -> RocketLaunch {
+            .init(id: id, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(offset)))
+        }
+        let started = expectation(description: "Reschedule suspended")
+        let client = SuspendingNotificationClient(suspendAt: 2) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        try await feature.save(launch(3600), minutesBefore: 5)
+        let older = Task { await feature.reconcile(.init(source: .rocketLaunchLive, revision: 2, launches: [launch(7200)])) }
+        await fulfillment(of: [started], timeout: 2)
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 3, launches: [launch(10800)]))
+        await client.finish()
+        await older.value
+        let value = await feature.snapshot
+        XCTAssertEqual(value.reminders.first?.launch.details.plannedTime, now.addingTimeInterval(10800), "Newest source says original time, but pending older reschedule must not overwrite it")
+        let active = await client.activeIDs
+        XCTAssertEqual(active, Set(value.reminders.map(\.notificationID)))
+    }
+    func testObsoleteSchedulingFailureDoesNotMarkLatestReminderAsFailed() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ offset: Double, id: Int = 1) -> RocketLaunch {
+            .init(id: id, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(offset)))
+        }
+        let started = expectation(description: "Reschedule suspended")
+        let client = SuspendingNotificationClient(suspendAt: 2) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        try await feature.save(launch(3600), minutesBefore: 5)
+        let older = Task { await feature.reconcile(.init(source: .rocketLaunchLive, revision: 2, launches: [launch(7200)])) }
+        await fulfillment(of: [started], timeout: 2)
+        await feature.reconcile(.init(source: .rocketLaunchLive, revision: 3, launches: [launch(3600)]))
+        await client.finish(failing: true)
+        await older.value
+        let value = await feature.snapshot
+        XCTAssertEqual(value.reminders.first?.launch.details.plannedTime, now.addingTimeInterval(3600), "Newest source says original time, but pending older reschedule must not overwrite it")
+        XCTAssertNil(value.reminders.first?.issue)
+        let active = await client.activeIDs
+        XCTAssertEqual(active, Set(value.reminders.map(\.notificationID)))
+    }
+    func testConcurrentSavesRespectCapacity() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ id: Int) -> RocketLaunch {
+            .init(id: id, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(3600)))
+        }
+        let started = expectation(description: "50th save suspended")
+        let client = SuspendingNotificationClient(suspendAt: 50) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        for id in 1...49 { try await feature.save(launch(id), minutesBefore: 5) }
+        let first = Task { try await feature.save(launch(50), minutesBefore: 5) }
+        await fulfillment(of: [started], timeout: 2)
+        do { try await feature.save(launch(51), minutesBefore: 5) } catch ReminderError.limit { }
+        await client.finish()
+        try await first.value
+        let value = await feature.snapshot
+        XCTAssertEqual(value.reminders.count, 50)
+        let active = await client.activeIDs
+        XCTAssertEqual(active, Set(value.reminders.map(\.notificationID)))
+    }
+
+    func testFailedPendingAdditionReleasesItsReservedSlot() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ id: Int) -> RocketLaunch {
+            .init(id: id, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: now.addingTimeInterval(3600)))
+        }
+        let started = expectation(description: "50th save suspended")
+        let client = SuspendingNotificationClient(suspendAt: 50) { started.fulfill() }
+        let feature = RemindersFeature(client: client, now: { now })
+        for id in 1...49 { try await feature.save(launch(id), minutesBefore: 5) }
+        let first = Task { try await feature.save(launch(50), minutesBefore: 5) }
+        await fulfillment(of: [started], timeout: 2)
+        do { try await feature.save(launch(51), minutesBefore: 5) } catch ReminderError.limit { }
+        await client.finish(failing: true)
+        do { try await first.value; XCTFail("Expected scheduling failure") } catch ReminderError.denied { }
+        try await feature.save(launch(51), minutesBefore: 5)
+        let value = await feature.snapshot
+        XCTAssertEqual(value.reminders.count, 50)
+        let active = await client.activeIDs
+        XCTAssertEqual(active, Set(value.reminders.map(\.notificationID)))
+    }
+}
+private actor SuspendingNotificationClient: LaunchNotificationClient {
+    let suspendAt: Int
+    let started: @Sendable () -> Void
+    private(set) var activeIDs: Set<String> = []
+    private(set) var canceled: [String] = []
+    var calls = 0
+    var continuation: CheckedContinuation<Void, any Error>?
+    init(suspendAt: Int, started: @escaping @Sendable () -> Void) { self.suspendAt = suspendAt; self.started = started }
+    func schedule(id: String, title: String, date: Date, askPermission: Bool) async throws {
+        activeIDs.insert(id)
+        calls += 1
+        if calls == suspendAt {
+            do { try await withCheckedThrowingContinuation { continuation in self.continuation = continuation; started() } }
+            catch { activeIDs.remove(id); throw error }
+        }
+    }
+    func finish(failing: Bool = false) {
+        if failing { continuation?.resume(throwing: ReminderError.denied) }
+        else { continuation?.resume() }
+        continuation = nil
+    }
+    func cancel(_ id: String) async { activeIDs.remove(id); canceled.append(id) }
 }

@@ -57,6 +57,7 @@ final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
     func updateNextLaunch() {}
     private(set) var state: LaunchScheduleState = .idle
     private(set) var refreshCount = 0
+    var onInitialLoad: () -> Void = {}
     private var revision: UInt64 = 0
     private var observers: [UUID: AsyncStream<LaunchScheduleSnapshot>.Continuation] = [:]
     var snapshot: LaunchScheduleSnapshot {
@@ -73,6 +74,10 @@ final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
     func setState(_ state: LaunchScheduleState) {
         self.state = state; revision += 1
         for observer in observers.values { observer.yield(snapshot) }
+    }
+    func loadIfNeeded() async {
+        if case .idle = state { await refresh() }
+        onInitialLoad()
     }
     func refresh() async { refreshCount += 1 }
 }
@@ -93,6 +98,7 @@ final class LifecycleFeature: LaunchScheduleFeatureAPI {
     var cancellations: [Int: Bool] = [:]
     var onRequest: (Int) -> Void = { _ in }
     var onFinish: (Int) -> Void = { _ in }
+    func loadIfNeeded() async { await refresh() }
     func refresh() async {
         let index = pending.count
         await withCheckedContinuation { continuation in

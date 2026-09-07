@@ -3,6 +3,40 @@ import Observation
 @testable import RocketLaunch
 
 final class LaunchScheduleFeatureTests: XCTestCase {
+    @MainActor func testConcurrentInitialLoadsShareOneRequestAndLoadedStateIsRetained() async {
+        let began = expectation(description: "Initial request")
+        let repository = ControlledLaunchRepository { _ in began.fulfill() }
+        let feature = LaunchScheduleFeature(repository: repository)
+        let first = Task { await feature.loadIfNeeded() }
+        await waitFor([began])
+        await feature.loadIfNeeded()
+        let pendingCount = await repository.requestCount
+        XCTAssertEqual(pendingCount, 1)
+        await repository.complete(0, with: .success([]))
+        await first.value
+        await feature.loadIfNeeded()
+        let settledCount = await repository.requestCount
+        XCTAssertEqual(settledCount, 1)
+    }
+
+    @MainActor func testCanceledInitialLoadCanBeRetried() async {
+        let began = expectation(description: "Initial request")
+        let retryBegan = expectation(description: "Retry request")
+        let repository = ControlledLaunchRepository { index in (index == 0 ? began : retryBegan).fulfill() }
+        let feature = LaunchScheduleFeature(repository: repository)
+        let first = Task { await feature.loadIfNeeded() }
+        await waitFor([began])
+        first.cancel()
+        await repository.complete(0, with: .failure(CancellationError()))
+        await first.value
+        let retry = Task { await feature.loadIfNeeded() }
+        await waitFor([retryBegan])
+        await repository.complete(1, with: .success([]))
+        await retry.value
+        let value = await feature.snapshot
+        XCTAssertEqual(value.state, .empty)
+    }
+
     @MainActor func testConstructionDoesNotFetch() async {
         let repository = ControlledLaunchRepository()
         let launchSchedule = LaunchScheduleFeature(repository: repository)

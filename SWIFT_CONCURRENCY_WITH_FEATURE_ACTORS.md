@@ -184,6 +184,8 @@ Its feature API exposes both a current snapshot and a stream of snapshots. The p
 
 Newest-value buffering is suitable for current screen state. It would be inappropriate for a stream of payments, analytics events or commands where every item must be processed. RocketLaunch's change journal is part of authoritative feature state, so a later snapshot still contains retained changes even if an intermediate snapshot was skipped.
 
+LaunchScheduleFeature suppresses publications when the complete snapshot is unchanged. Clock processing still publishes meaningful changes, including cooldown expiry and changed upcoming eligibility. The actor also owns loadIfNeeded, avoiding a duplicate initial fetch when a newly created ViewModel has not received its first snapshot.
+
 ViewModels reject older revisions. This protects against a delayed stream value arriving after a newer direct snapshot read. Subscription generation IDs also prevent a canceled consumer from publishing into a restarted observation session.
 
 ## 10. Structured work and owned long-lived tasks
@@ -225,6 +227,12 @@ RocketLaunch uses several identities for different purposes:
 | Source revision sent to reminders | An older launch update undoing newer reconciliation |
 | Notification operation ID | A suspended schedule operation restoring a removed or replaced reminder |
 
+A reminder reschedule illustrates why these checks belong after suspension as well as before it. Suppose the saved time is T1, an update starts scheduling T2, and a newer update restores T1 before scheduling finishes. Comparing the latest update with saved state is insufficient: both say T1, but the old T2 operation is still in flight. RocketLaunch rechecks the source revision immediately before committing the scheduled replacement. An obsolete success cancels its own new notification; an obsolete failure cannot mark the current reminder as failed.
+
+Capacity is another actor invariant that must survive suspension. With 49 saved reminders, two concurrent additions must not both claim the final slot. RemindersFeature counts saved IDs together with pending operation IDs, reserving capacity before awaiting the notification client. A replacement uses its existing launch's slot, and failure releases the reservation.
+
+The public reconciliation API accepts one Sendable LaunchSourceUpdate, containing a required source, revision and launch values. This keeps ordering metadata attached to the data it describes.
+
 Cancellation is cooperative. Code checks it at appropriate boundaries; it is not proof that a remote operation or system side effect has been undone. State acceptance and side-effect reconciliation remain explicit responsibilities.
 
 ## 12. KISS keeps the architecture teachable
@@ -262,7 +270,7 @@ The implemented application has:
 - Concurrent provider retrieval with independent publication and failure handling.
 - Main-actor UI preferences, formatting and small presentation filters.
 
-As verified on 7 September 2026, all **77 tests passed on macOS and iPhone Air Simulator running iOS 26.2**. Coverage includes off-main feature processing, main-actor observable publication, progressive results, independent subscriptions, latest-snapshot buffering, stale requests, cancellation and reminder ordering. Live verification loaded five RocketLaunch.Live records and 50 Launch Library records while the SpaceX integration failed independently.
+As verified on 7 September 2026, all **88 tests passed on macOS and iPhone Air Simulator running iOS 26.2**. Coverage includes off-main feature processing, main-actor observable publication, progressive results, independent subscriptions, latest-snapshot buffering, stale requests, cancellation and reminder ordering. Eleven regression tests added in the cleanup pass cover suspended rescheduling, stale failures, unknown times, pending capacity and failure release, initial-load ownership/retry, and clock/cooldown publication. Earlier live verification loaded five RocketLaunch.Live records and 50 Launch Library records while the SpaceX integration failed independently.
 
 This establishes that the intended boundaries work in the tested implementation. It is not an Instruments benchmark, a guarantee of zero UI stalls, or evidence that every hardware core is being used. Device responsiveness, large datasets, expensive formatting and notification delivery remain matters for targeted validation.
 

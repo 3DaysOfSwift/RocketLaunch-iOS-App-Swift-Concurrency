@@ -29,15 +29,17 @@ Every publication has a monotonically increasing revision. ViewModels reject old
 
 The root owns the two observable ViewModels. They own their stream-consumer tasks, capture themselves weakly inside long-lived loops, stop observing on root disappearance and cancel on deinitialization. Each stream termination schedules a short actor cleanup task to remove its continuation; this is not an independently running business operation. Ending one subscriber does not end the others or cancel source work.
 
-Refresh tasks remain ViewModel-owned and replaceable. The root lifecycle owns the awaitable clock-monitor task. Tab switches do not dispose of these shared owners. A bounded foreground clock-update task is also retained and canceled by the schedule ViewModel.
+The ViewModel delegates loadIfNeeded to the feature, which checks its authoritative source state and marks an initial load in progress before awaiting provider work. A fresh ViewModel cannot trigger another initial download merely because its first snapshot has not arrived. An entirely canceled initial load can be retried. Refresh tasks remain ViewModel-owned and replaceable. The root lifecycle owns the awaitable clock-monitor task. Tab switches do not dispose of these shared owners. A bounded foreground clock-update task is also retained and canceled by the schedule ViewModel.
 
 ## Refresh and ordering
 
 A structured task group starts the configured sources concurrently. Each source commits and publishes as it completes; the UI does not await the slowest source before displaying available results. Ordinary errors are isolated per provider. Stale request IDs cannot overwrite newer data, and canceled requests restore their last settled source snapshot.
 
-Operator groups rebuild only on accepted data changes. Clock events recompute time-sensitive upcoming/Next results without rebuilding operator groups. Next prefers precise future launches from non-failed sources and retains explicitly labelled undated/elapsed fallbacks. Failed source caches remain available with failure attribution in browse screens. Cross-source duplicates are not silently reconciled.
+Operator groups rebuild only on accepted data changes. Clock events recompute time-sensitive upcoming/Next results without rebuilding operator groups. An unchanged complete snapshot is not republished. Expired cooldowns are cleared as meaningful state changes so refresh controls update even when launch data is unchanged. Next prefers precise future launches from non-failed sources and retains explicitly labelled undated/elapsed fallbacks. Failed source caches remain available with failure attribution in browse screens. Cross-source duplicates are not silently reconciled.
 
-After a source commit, AppModel's Sendable callback passes the source, publication revision and launch values to the reminders actor. That actor rejects older source revisions and rechecks them after suspension between records. Individual notification operation IDs protect replacement/removal when notification scheduling is suspended.
+After a source commit, AppModel's Sendable callback passes one LaunchSourceUpdate containing the source, publication revision and launch values to the reminders actor. That actor rejects older source revisions, checks them between records, and checks freshness again after notification scheduling returns, before committing the replacement. A superseded request cancels only its newly scheduled notification. The error path also checks freshness before changing a reminder or canceling its old alert. Individual operation IDs independently protect user replacement/removal.
+
+The reminder capacity rule counts saved launch IDs together with pending operation IDs. A pending addition reserves its slot before suspension; replacements reuse the same launch's slot. Completion, failure and removal release reservations without clearing a newer operation's token.
 
 ## Presentation
 
@@ -53,6 +55,6 @@ Changes retains up to 100 time/mission changes detected between downloads during
 
 ## Verification
 
-77 XCTest cases pass on macOS and iPhone Air Simulator (iOS 26.2), covering decoding, cancellation, stale results, independent providers, reminder persistence and ordering, stream replay/coalescing, independent subscribers, ViewModel observation and incremental delivery. Runtime checks exercise feature calculations away from the main thread and observable publication on MainActor. The iOS simulator application builds successfully; live data loaded from RocketLaunch.Live and Launch Library while SpaceX failed independently.
+88 XCTest cases pass on macOS and iPhone Air Simulator (iOS 26.2), covering decoding, cancellation, stale results, independent providers, reminder persistence and ordering, stream replay/coalescing, independent subscribers, ViewModel observation and incremental delivery. Runtime checks exercise feature calculations away from the main thread and observable publication on MainActor. The iOS simulator application builds successfully; live data loaded from RocketLaunch.Live and Launch Library while SpaceX failed independently.
 
 These checks establish behavior and execution boundaries, not a measured frame-rate improvement or guaranteed parallel utilization of CPU cores. Device performance profiling and notification delivery remain separate validation work.

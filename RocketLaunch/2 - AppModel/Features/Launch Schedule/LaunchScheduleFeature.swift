@@ -3,6 +3,7 @@ import Foundation
 protocol LaunchScheduleFeatureAPI: AnyObject, Sendable {
     var snapshot: LaunchScheduleSnapshot { get async }
     func snapshots() async -> AsyncStream<LaunchScheduleSnapshot>
+    func loadIfNeeded() async
     func refresh() async
     func refresh(source: LaunchSourceID) async
     func updateNextLaunch() async
@@ -15,7 +16,7 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     private(set) var operators: [LaunchOperator] = []
     private(set) var nextLaunch: RocketLaunch?
     private(set) var updates: [LaunchUpdate] = []
-    private let onRefresh: @Sendable (LaunchSourceID, UInt64, [RocketLaunch]) async -> Void
+    private let onRefresh: @Sendable (LaunchSourceUpdate) async -> Void
     private let configurations: [LaunchSourceConfiguration]
     private let now: @Sendable () -> Date
     private var requests: [LaunchSourceID: UUID] = [:]
@@ -25,12 +26,15 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
     }
 
-    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, onRefresh: @escaping @Sendable (LaunchSourceID, UInt64, [RocketLaunch]) async -> Void = { _, _, _ in }) {
+    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, onRefresh: @escaping @Sendable (LaunchSourceUpdate) async -> Void = { _ in }) {
         precondition(Set(sources.map(\.id)).count == sources.count)
         self.configurations = sources; self.now = now; self.onRefresh = onRefresh
         self.sources = sources.map { LaunchSourceSnapshot(id: $0.id) }
+        self.lastPublished = .init(revision: 0, state: .idle, nextLaunch: nil, sources: self.sources, operators: [], upcomingLaunches: [], updates: [])
     }
 
+    private var initialLoadInProgress = false
+    private var lastPublished: LaunchScheduleSnapshot?
     private var revision: UInt64 = 0
     private var upcomingLaunches: [RocketLaunch] = []
     private var observers: [UUID: AsyncStream<LaunchScheduleSnapshot>.Continuation] = [:]
@@ -51,11 +55,22 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     }
     private func removeObserver(_ id: UUID) { observers[id] = nil }
     private func publish() {
+        guard snapshot != lastPublished else { return }
         revision += 1
         let value = snapshot
+        lastPublished = value
         for observer in observers.values { observer.yield(value) }
     }
     deinit { for observer in observers.values { observer.finish() } }
+
+    /// The feature makes the initial-load decision before its first suspension.
+    func loadIfNeeded() async {
+        guard !Task.isCancelled, !initialLoadInProgress,
+              sources.allSatisfy({ $0.phase == .idle }) else { return }
+        initialLoadInProgress = true
+        defer { initialLoadInProgress = false }
+        await refresh()
+    }
 
     /// Each child commits independently; the first response can populate the UI.
     func refresh() async {
@@ -90,7 +105,7 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
             updateNextLaunch()
             // A later request must roll back to this committed result while reminders update.
             rollback[source] = sources[index]
-            await onRefresh(source, revision, launches)
+            await onRefresh(.init(source: source, revision: revision, launches: launches))
         } catch {
             guard requests[source] == id else { return }
             if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
@@ -104,10 +119,17 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
 
     /// Stored output is recalculated only on model events, never in a View getter.
     func updateNextLaunch() {
-        upcomingLaunches = LaunchScheduleSnapshot.upcoming(from: sources.flatMap(\.launches), now: now())
+        let currentTime = now()
+        // Expiring a cooldown is a meaningful UI change, even when launches did not change.
+        for index in sources.indices {
+            if let deadline = sources[index].nextRefreshAt, deadline <= currentTime {
+                sources[index].nextRefreshAt = nil
+            }
+        }
+        upcomingLaunches = LaunchScheduleSnapshot.upcoming(from: sources.flatMap(\.launches), now: currentTime)
         let eligible = sources.filter { if case .failed = $0.phase { return false }; return true }.flatMap(\.launches)
-            .filter { $0.source != .spaceX || ($0.details.sortTime ?? .distantPast) >= now() }
-        let future = eligible.filter { ($0.details.plannedTime ?? .distantPast) >= now() }
+            .filter { $0.source != .spaceX || ($0.details.sortTime ?? .distantPast) >= currentTime }
+        let future = eligible.filter { ($0.details.plannedTime ?? .distantPast) >= currentTime }
         nextLaunch = future.min { $0.details.plannedTime! < $1.details.plannedTime! }
             ?? eligible.first(where: { $0.details.plannedTime == nil }) ?? eligible.first
         if let nextLaunch { state = sources.contains(where: { $0.phase == .loading }) ? .loading(previous: nextLaunch) : .loaded(nextLaunch) }
@@ -200,6 +222,13 @@ enum LaunchSourceID: String, Sendable, Codable, CaseIterable, Identifiable {
         case .spaceX: "SpaceX API"
         }
     }
+}
+
+/// One accepted provider response, with the revision that orders its reconciliation.
+struct LaunchSourceUpdate: Sendable {
+    let source: LaunchSourceID
+    let revision: UInt64
+    let launches: [RocketLaunch]
 }
 
 struct LaunchSourceConfiguration: Sendable {

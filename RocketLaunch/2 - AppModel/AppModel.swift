@@ -24,8 +24,8 @@ struct AppModel {
             .init(id: .rocketLaunchLive, repository: repository),
             .init(id: .launchLibrary, repository: library, minimumRefreshInterval: 300),
             .init(id: .spaceX, repository: spaceX, minimumRefreshInterval: 60)
-        ], onRefresh: { source, revision, launches in
-            await reminders.reconcile(launches, source: source, revision: revision)
+        ], onRefresh: { update in
+            await reminders.reconcile(update)
         }), reminders: reminders)
     }
 }

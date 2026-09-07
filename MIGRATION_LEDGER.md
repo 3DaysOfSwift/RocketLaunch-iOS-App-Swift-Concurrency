@@ -125,3 +125,18 @@ Supersedes the operator-per-tab layout with Next, Upcoming, Operators, Updates a
 Developer approved moving business features off MainActor. Converted LaunchScheduleFeature and RemindersFeature into actors with Sendable async protocols, immutable versioned snapshots and independent bounded AsyncStream subscriptions. Observable ViewModels now hold presentation snapshots and own subscription tasks. Moved reminder loading/encoding/UserDefaults work into its actor, moved upcoming eligibility/ordering out of BrowseViewModel, and separated operator rebuilding from clock events. Source revision checks protect cross-actor reminder reconciliation. Existing tests were adapted to async snapshots without removing their behavior assertions; seven new tests cover stream and actor boundaries (77 host tests passing). Live Simulator loaded both working providers and preserved independent SpaceX failure.
 
 Actor-feature validation, 2026-09-07: all 77 XCTest cases passed in Xcode on iPhone Air Simulator (iOS 26.2), as well as in the macOS host runner. This supersedes earlier MainActor-feature descriptions; ARCHITECTURE.md and CONCURRENCY_INVENTORY.md describe the current actor/snapshot implementation. Performance profiling and physical-device notification delivery are not claimed by these checks.
+
+## Concurrency cleanup completed — 7 September 2026
+
+All six recorded items are resolved:
+
+- Reminder reconciliation checks source freshness at the post-suspension commit and failure boundaries. Superseded successful scheduling cancels its own notification; a newer unchanged time preserves the existing valid alert. New unknown times invalidate pending replacements and cancel outdated alerts.
+- Reminder capacity includes pending additions, with reservations released on completion, failure or removal. Replacement and removal tokens remain independent of source revisions.
+- LaunchScheduleFeature owns loadIfNeeded and guards the initial operation before suspension. A fresh ViewModel delegates this decision instead of relying on its initial empty projection.
+- Unchanged schedule snapshots are not published. Clock handling explicitly publishes cooldown expiry so retry controls do not become stuck.
+- The unused operator tabTitle helper was removed.
+- LaunchSourceUpdate keeps required source, revision and launch values together in the reconciliation API.
+
+Validation: 88 XCTest cases passed on macOS and in Xcode on iPhone Air Simulator (iOS 26.2). This includes the two previously failing races and nine further regression cases. The iOS application builds successfully with Swift 6 and complete concurrency checking. Test notification clients verify final active notification IDs and obsolete-request cleanup; no physical-device notification delivery is claimed.
+
+Reevaluation: these fixes preserve the existing AppModel composition, ordinary feature actors, structured provider fan-out and MainActor presentation snapshots. The recorded defects are resolved without adding detached tasks or a generic messaging framework. Runtime boundary and progressive-publication tests still pass. This review establishes the tested ordering and ownership guarantees, not universal freedom from races or measured UI performance. Instruments profiling and physical-device notification delivery remain separate validation work.

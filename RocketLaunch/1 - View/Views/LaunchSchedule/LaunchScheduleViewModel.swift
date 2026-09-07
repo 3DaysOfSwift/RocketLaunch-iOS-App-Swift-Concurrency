@@ -54,14 +54,10 @@ final class LaunchScheduleViewModel {
     var timingNote: String { detail.timingNote }
     func loadIfNeeded() {
         startObserving()
-        guard refreshTask == nil, case .idle = snapshot.state else { return }
-        requestRefresh()
+        guard refreshTask == nil else { return }
+        startRefresh(onlyIfNeeded: true)
     }
     var operators: [LaunchOperator] { snapshot.operators }
-    func tabTitle(for launchOperator: LaunchOperator) -> String {
-        let name = launchOperator.name
-        return name.count > 12 ? String(name.prefix(10)) + "…" : name
-    }
     var currentLaunch: RocketLaunch? { snapshot.state.launch }
     var updates: [LaunchUpdate] { snapshot.updates }
     var sources: [LaunchSourceSnapshot] { snapshot.sources }
@@ -137,12 +133,17 @@ final class LaunchScheduleViewModel {
             }
             return
         }
+        startRefresh(onlyIfNeeded: false)
+    }
+
+    private func startRefresh(onlyIfNeeded: Bool) {
         refreshTask?.cancel()
         let id = UUID()
         refreshID = id
         let feature = feature
         refreshTask = Task { [weak self] in
-            await feature.refresh()
+            if onlyIfNeeded { await feature.loadIfNeeded() }
+            else { await feature.refresh() }
             let value = await feature.snapshot
             if !Task.isCancelled { self?.apply(value) }
             guard self?.refreshID == id else { return }
