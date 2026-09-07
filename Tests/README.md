@@ -1,6 +1,6 @@
 ## Notification-effect lifetime validation
 
-98 macOS host tests pass. The iOS app and test bundle build successfully. The regression verifies that a new refresh fetches and commits newer data while an older notification effect is suspended, then checks obsolete-alert cleanup. Delivery-dependent assertions observe reminder status separately from download completion. This revision has not been run in the simulator or on a physical device.
+98 macOS host tests pass. The iOS app and test bundle build successfully. The regression verifies that a new refresh fetches and commits newer data while an older notification effect is suspended, then checks obsolete-alert cleanup. Delivery-dependent assertions observe reminder status separately from download completion. The teaching pass subsequently ran all 98 tests on the iPhone Air simulator (iOS 26.2). Physical-device checks remain open; see ../TEACHING_VALIDATION.md.
 
 # Current validation: shared launch and reminder actor
 

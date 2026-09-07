@@ -25,7 +25,7 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     private struct Request {
         let id: UUID
         let task: Task<Void, Never>
-        var previous: LaunchSourceSnapshot
+        let previous: LaunchSourceSnapshot
         var waiters: [UUID: CheckedContinuation<Void, Never>]
     }
     private var requests: [LaunchSourceID: Request] = [:]
@@ -147,7 +147,7 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         waiter.resume()
     }
 
-    private func completeRefresh(source: LaunchSourceID, id: UUID, result: Result<[RocketLaunch], any Error>) async {
+    private func completeRefresh(source: LaunchSourceID, id: UUID, result: Result<[RocketLaunch], any Error>) {
         guard let request = requests[source], request.id == id,
               let index = sources.firstIndex(where: { $0.id == source }) else { return }
         var effects: [ReminderEffect] = []

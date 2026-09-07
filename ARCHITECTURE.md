@@ -46,7 +46,7 @@ The UI sends a source-qualified launch ID and 5, 15 or 60 minutes of lead time. 
 
 Successful source commits synchronously update desired reminders before any notification await. Timing changes prepare a new notification identity; invalid timing flags the record and cancels the old alert. External scheduling happens afterward. An effect confirms delivery only if its notification identity is still current. Obsolete success cleans up its own alert; obsolete failure cannot mark a newer record failed. Removal deletes desired state before canceling externally.
 
-ReminderSaveOutcome.saved confirms delivery of that revision. Superseded means a newer desired state or removal replaced it; it does not mean the initial desired state was never stored. The UI explains this and shows pending, scheduled and failed delivery honestly. Failed desired records are retained for retry/removal and count toward capacity. Existing storage is backward compatible; an interrupted pending record is flagged on reload. Permission requests originate from user saves, including replacements while that intent is still active; background refresh alone does not prompt.
+ReminderSaveOutcome.saved confirms that iOS accepted scheduling of that revision; it does not confirm alert delivery. Superseded means a newer desired state or removal replaced it; it does not mean the initial desired state was never stored. The UI explains this and shows pending, scheduled and failed delivery honestly. Failed desired records are retained for retry/removal and count toward capacity. Existing storage is backward compatible; an interrupted pending record is flagged on reload. Permission requests originate from user saves, including replacements while that intent is still active; background refresh alone does not prompt.
 
 ## Request lifetime and cooldown
 
@@ -60,10 +60,12 @@ Launch and reminder streams are separate immutable projections of one actor. Eac
 
 ## Verification
 
-97 host XCTest cases pass against real Model/ViewModel sources. The iOS app and test bundle build with Swift 6 complete concurrency checking. This revision's simulator execution is pending because the Mac was locked. Earlier live checks loaded RocketLaunch.Live and Launch Library with independent SpaceX failure. Test clients validate notification identities and cleanup, not physical-device alert delivery. Instruments responsiveness measurements remain separate validation work.
+98 host XCTest cases pass against real Model/ViewModel sources. The iOS app and test bundle build with Swift 6 complete concurrency checking. All 98 tests also passed in Xcode on the iPhone Air simulator (iOS 26.2) on 7 September 2026. Earlier live checks loaded RocketLaunch.Live and Launch Library with independent SpaceX failure. Test clients validate notification identities and cleanup, not physical-device alert delivery. Instruments responsiveness measurements remain separate validation work.
 
 ### Refresh completion and notification delivery
 
 A provider refresh completes after committing launch data and desired reminder state. It removes its active request and resumes callers without awaiting notification delivery. The feature owns separate task batches for those effects; each batch uses a task group and removes its handle when finished. These tasks retain the model until delivery and obsolete-notification cleanup settle. Screen cancellation does not cancel committed reminder intent. New downloads still respect provider cooldowns and share genuinely active downloads.
 
 Reminder snapshots report pending, scheduled or failed delivery independently of refresh completion. Direct user saves still await their own delivery result.
+
+Teaching sequence: [Three-day teaching guide](TEACHING_GUIDE.md). Validation evidence and device exercises: [Teaching validation](TEACHING_VALIDATION.md).

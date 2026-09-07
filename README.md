@@ -117,3 +117,9 @@ Launch details expose HTTP(S) watch links only when supplied by a provider. Rock
 ## Colour themes
 
 Choose from System, Midnight, Ocean, Forest, Sunset, Nebula, Lunar and Crimson. Open Settings using the gear on Next and choose a theme from the dropdown, or double-tap Next to cycle through all eight. The selected theme is saved between launches. System follows the device appearance; Midnight, Nebula and Crimson use dark appearance and the other named palettes use light appearance.
+
+## Teaching this architecture
+
+Follow the [three-day teaching guide](TEACHING_GUIDE.md) for the lesson sequence, exercises and the boundaries of this template. See [validation evidence](TEACHING_VALIDATION.md) for completed checks and remaining device work.
+
+Latest teaching validation: **98 host tests and 98 iPhone Air simulator tests passed** on 7 September 2026. A simulator launch trace was captured; physical-device lifecycle checks and responsiveness analysis remain open. See [the dated validation record](TEACHING_VALIDATION.md).

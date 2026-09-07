@@ -27,7 +27,7 @@ struct LaunchReminder: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-/// Saved confirms this notification; superseded means newer desired state replaced it.
+/// Saved confirms accepted scheduling, not alert delivery; superseded means newer desired state replaced it.
 enum ReminderSaveOutcome: Equatable, Sendable { case saved, superseded }
 
 enum ReminderError: Error { case unknownTime, tooLate, denied, limit, launchUnavailable, invalidLeadTime }

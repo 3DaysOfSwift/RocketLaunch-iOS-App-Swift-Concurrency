@@ -83,3 +83,7 @@ Reevaluation: the three recorded boundary defects are addressed by current-data 
 Review found that completed downloads remained registered while notification delivery suspended, causing new refreshes to join old data. Provider completion now releases request ownership after the atomic model commit. Separately owned notification task batches preserve identity checks and cleanup. Regression coverage requests a newer schedule while older notification delivery is suspended and verifies that only the latest notification remains.
 
 Validation: 98 host tests passed, including the suspended-notification/new-refresh regression. iOS build-for-testing succeeded. Simulator/device execution and Instruments profiling remain outstanding. Re-evaluation confirms provider request lifetime now ends at the model commit and notification effects retain independent ownership through cleanup.
+
+### Teaching pass
+
+Made the model commit synchronous and its saved request state immutable. Added TEACHING_GUIDE.md and TEACHING_VALIDATION.md. Verified 98 host tests and 98 iPhone Air simulator tests. Captured a simulator launch trace through Instruments; no responsiveness benchmark claimed. Physical-device notification and restart reconciliation validation remain open.

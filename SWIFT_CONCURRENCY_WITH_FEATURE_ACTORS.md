@@ -182,7 +182,7 @@ The feature explicitly owns one Task per active provider request. Each task call
 
 ViewModels retain their UI task handles and ignore repeated refresh taps while the same command is active. Root disappearance cancels those callers and their snapshot subscriptions. loadIfNeeded joins loading sources and requests idle sources, preserving completed caches. Tab changes retain the root owners. Snapshot tasks capture ViewModels weakly between values.
 
-Not every task is structurally nested: shared provider requests, UI event tasks, observation consumers and the notification client's shared permission request have explicit owners. Short stream-termination tasks remove their continuation on the actor. No detached tasks or blocking waits are used.
+Not every task is structurally nested: shared provider requests, UI event tasks, observation consumers, reminder effect batches and the notification client's shared permission request have explicit owners. Short stream-termination tasks remove their continuation on the actor. No detached tasks or blocking waits are used.
 
 ## 11. Make the model decision before suspension
 
@@ -238,7 +238,7 @@ The implemented application has:
 
 The shared-actor revision has **98 passing macOS host tests**. The iOS application and test bundle build successfully with Swift 6 and complete concurrency checking. Tests cover ID-based saves, stale detail values, desired state before suspension, late notification cleanup, unknown times, capacity, persistence compatibility, shared requests, cancellation recovery, actor boundaries and progressive UI publication. Earlier two-feature tests were replaced where their contracts no longer exist; tests now exercise the unified public API.
 
-The Mac was locked during this pass, so the updated suite has not been executed in the iPhone simulator. Previous simulator and live-provider checks belong to the preceding revision, not this refactor. Physical-device notification delivery and Instruments profiling remain open.
+The teaching validation pass on 7 September 2026 ran all 98 tests successfully on the iPhone Air simulator (iOS 26.2), through Xcode 26.2. These tests use controlled notification clients; they do not exercise real system permission dialogs or alert delivery. Physical-device notification delivery and Instruments profiling remain open.
 This establishes that the intended boundaries work in the tested implementation. It is not an Instruments benchmark, a guarantee of zero UI stalls, or evidence that every hardware core is being used. Device responsiveness, large datasets, expensive formatting and notification delivery remain matters for targeted validation.
 
 ## 15. The architectural conclusion
@@ -262,3 +262,5 @@ That is the intent of **Modern iOS Architecture 26: Swift Concurrency with Featu
 A provider refresh completes after committing launch data and desired reminder state. It removes its active request and resumes callers without awaiting notification delivery. The feature owns separate task batches for those effects; each batch uses a task group and removes its handle when finished. These tasks retain the model until delivery and obsolete-notification cleanup settle. Screen cancellation does not cancel committed reminder intent. New downloads still respect provider cooldowns and share genuinely active downloads.
 
 Reminder snapshots report pending, scheduled or failed delivery independently of refresh completion. Direct user saves still await their own delivery result.
+
+Teaching sequence: [Three-day teaching guide](TEACHING_GUIDE.md). Validation evidence and device exercises: [Teaching validation](TEACHING_VALIDATION.md).
