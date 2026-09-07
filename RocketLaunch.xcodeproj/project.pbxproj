@@ -587,6 +587,7 @@
 			"children" = (
 				"4DD8FD02250B1B0B036B1878",
 				"71DCC2F5E5B68050A7A30C8A",
+				"66876FA3E22A3B2FFDE6B00A",
 				"6C2E8C87E034E94C41A37804",
 				"6CEFBA188D76B1BB677E11F8",
 			);
@@ -613,10 +614,9 @@
 		};
 		"6C2E8C87E034E94C41A37804" = {
 			"isa" = "PBXGroup";
-			"path" = "Networking";
+			"path" = "RocketLaunchAPI";
 			"sourceTree" = "<group>";
 			"children" = (
-				"66876FA3E22A3B2FFDE6B00A",
 				"DB71FDC981BB48D015DEE9EC",
 			);
 		};

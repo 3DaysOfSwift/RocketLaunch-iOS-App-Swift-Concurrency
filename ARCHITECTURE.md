@@ -58,3 +58,7 @@ The screen has loading, empty and error states and always offers refresh/retry. 
 RocketLaunchTests contains 35 XCTest cases grouped by ViewModel, feature, repository/decoding, AppModel and theme responsibilities. Fixtures and isolated URLSession instances avoid the real API during tests. Test-only unchecked Sendable declarations are limited to URLProtocol and a lock-protected response store; production uses actor isolation and immutable Sendable values.
 
 All 35 cases passed on macOS and in Xcode on iPhone Air, iOS 26.2. The device test bundle and Release app build passed. Live simulator smoke testing confirmed initial state, successful fetch, displayed launch/mission and refresh after success. Empty/error/retry/cancellation logic has deterministic test coverage; manual offline/recovery, large Dynamic Type, VoiceOver and physical-device profiling are not claimed complete. See MIGRATION_REVIEW.md.
+
+### API placement
+
+`2 - AppModel/Features/Launch Schedule/RocketLaunchAPI` contains the concrete RocketLaunchAPI actor and its private transport payloads. This API belongs to the Launch Schedule feature. The LaunchRepository contract sits directly in `Features/Launch Schedule`. AppModel composes the two; the feature manager depends on the contract rather than the concrete API.
