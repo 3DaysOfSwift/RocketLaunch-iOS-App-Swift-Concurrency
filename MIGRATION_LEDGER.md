@@ -47,3 +47,7 @@ Migration started; callback architecture checkpoint ready for manual comparison.
 2026-09-07 before migration implementation: 66% weekly allowance used / 34% remaining. Percentages are account-wide, rounded reports, not per-project credits. Concurrent work prevents exact attribution.
 
 Checkpoint usage report: 67% used / 33% remaining. Reported account-wide change since the start is 1 percentage point; this is rounded and not an exact migration credit cost.
+
+## Live baseline defect correction — 2026-09-07
+
+User confirmed the app launches in the simulator, but the downloaded response failed decoding a null estimated day. Corrected optionality of LaunchDate month/day/year under explicit user authorization. Preserved original archive and Original project. Five decoding regression checks added inside this Git repository; complete legacy behaviour checks remain available outside it. This is an existing defect exposed by manual validation, not a key-name mismatch. Git initialization was performed by the user; no remote created or commit made by the assistant.

@@ -45,3 +45,9 @@ Open Original/RocketLaunch.xcodeproj and Migrated/RocketLaunch.xcodeproj in turn
 5. Record tester, date, device/OS, project version and results below. Live failures may indicate an API/schema problem and must be investigated, not treated as migration regressions automatically.
 
 Manual result: PENDING. Simulator services are inaccessible from the current execution environment. Device builds are successful with signing disabled; no device execution is claimed.
+
+## DEF-007 — nullable estimated launch dates (2026-09-07)
+
+The user ran the callback checkpoint on iPhone Air Simulator and reported a decoding failure at result[0].est_date.day. The retrieved RocketLaunch.live response contains null day values and, for some launches, null month/day/year. The user explicitly requested correction. LaunchDate now accepts nullable/omitted date components while retaining type errors for malformed values. No dates are invented.
+
+Regression: `python3 Tests/LaunchDecoding/run.py` checks complete dates, null day, all-null components, omitted components and invalid types. Three cases reproduced the failure before the fix; all five pass afterwards. Live screen verification after this fix remains pending.

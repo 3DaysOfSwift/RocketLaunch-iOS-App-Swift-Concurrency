@@ -42,10 +42,10 @@ struct Mission: Decodable {
 }
 
 struct LaunchDate: Decodable {
-    let month: Int
-    let day: Int
-    let year: Int
-    // let quarter: Int?
+    // The API can omit or null individual components when the date is uncertain.
+    let month: Int?
+    let day: Int?
+    let year: Int?
 }
 
 struct Tag: Decodable {
