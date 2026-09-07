@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View { LaunchScheduleView() }
+    @Environment(ThemeManager.self) private var themeManager
+    var body: some View {
+        NavigationStack { LaunchScheduleView() }
+            .tint(themeManager.selected.accent)
+    }
 }
 
-#Preview {
-    ContentView().environment(ThemeManager())
-}
+#Preview { ContentView().environment(ThemeManager()) }

@@ -12,7 +12,7 @@ The project began as a starter pack. Its unfinished behaviour and real defects g
 
 Refresh uses native asynchronous URLSession networking, actor-owned decoding and MainActor-owned feature state. A new screen refresh cancels its previous Task, and the feature rejects obsolete results before publication. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
 
-All 35 XCTest cases pass on iPhone Air Simulator (iOS 26.2) and macOS. The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
+All 40 XCTest cases pass on macOS; the previous 35-test suite also passed on iPhone Air Simulator (iOS 26.2). The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
 
 ## The architectural sentence
 
@@ -30,7 +30,7 @@ The architecture follows the principles used by [Trend](https://github.com/3Days
 
 ## Launch data
 
-The app makes one request to the [RocketLaunch.live upcoming-launch endpoint](https://fdo.rocketlaunch.live/json/launches/next/5). It displays the first launch returned by that API and the description of its first mission, falling back to “None” when that description is unavailable.
+The app makes one request to the [RocketLaunch.live upcoming-launch endpoint](https://fdo.rocketlaunch.live/json/launches/next/5). It displays the first launch returned by that API, including planned time, provider, vehicle, launch-site country and mission purpose. Unpublished details are labelled explicitly.
 
 Estimated dates may be incomplete. The decoding model accepts unknown month, day and year values without inventing dates or rejecting an otherwise valid launch.
 
@@ -47,7 +47,7 @@ The current app has no local launch cache or multi-provider aggregation. Its liv
 
 2. Open `RocketLaunch.xcodeproj` in Xcode.
 3. Select an iPhone simulator or configure your development team and bundle identifier to run on a device.
-4. Build and run, then tap **Refresh**.
+4. Build and run; the screen loads automatically. Use **Refresh schedule** to update it.
 
 The screen retains the last launch during refresh or failure, displays a recoverable error when needed, and offers Refresh or Try Again. An empty response has its own message.
 
@@ -55,7 +55,7 @@ The screen retains the last launch during refresh or failure, displays a recover
 
 `RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
 
-The 35 XCTest cases cover:
+The 40 XCTest cases cover:
 
 - AppModel construction and independent application graphs.
 - Launch selection, empty responses and repository failures.
@@ -91,3 +91,7 @@ The original starter uses one launch API. Task groups or additional actors will 
 ## 3 Days of Swift Concurrency
 
 Explore the training program at [3DaysOfSwiftConcurrency.com](https://www.3daysofswiftconcurrency.com) and the related projects on [3DaysOfSwift](https://github.com/3DaysOfSwift).
+
+## App experience
+
+RocketLaunch is completely free, with no in-app purchases. One screen automatically loads the next launch and answers when, who, launch country and mission purpose. Planned times appear in the device’s local time; estimated dates and unpublished details stay explicit. Manual refresh and retry are available, and About opens as a sheet. Data by RocketLaunch.Live.

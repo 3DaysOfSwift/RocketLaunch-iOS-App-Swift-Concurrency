@@ -12,6 +12,45 @@ final class LaunchScheduleViewModel {
 
     var launchName: String { feature.state.launch?.name ?? String(localized: "None") }
     var mission: String { feature.state.launch?.primaryMissionDescription ?? String(localized: "None") }
+    var launchTitle: String {
+        guard let name = feature.state.launch?.name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              name.uppercased() != "TBD" else { return String(localized: "Mission to be announced") }
+        return name
+    }
+    var missionSummary: String {
+        guard let description = feature.state.launch?.details.missionDescription ?? feature.state.launch?.primaryMissionDescription,
+              !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return String(localized: "Mission details haven’t been published yet. Check back closer to launch.")
+        }
+        return description
+    }
+    var provider: String { known(feature.state.launch?.details.provider) }
+    var vehicle: String { known(feature.state.launch?.details.vehicle) }
+    var country: String { known(feature.state.launch?.details.country) }
+    var site: String { known(feature.state.launch?.details.site) }
+    var launchTime: String {
+        guard let details = feature.state.launch?.details else { return String(localized: "To be announced") }
+        if let date = details.plannedTime {
+            return date.formatted(date: .abbreviated, time: .shortened)
+        }
+        return known(details.estimatedDateLabel)
+    }
+    var timingNote: String {
+        guard let date = feature.state.launch?.details.plannedTime else {
+            return String(localized: "Estimated date · Exact time not announced")
+        }
+        if date < Date() { return String(localized: "Scheduled time has passed · Awaiting an updated schedule") }
+        return String(localized: "Your local time · Schedule may change")
+    }
+    private func known(_ value: String?) -> String {
+        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              value.uppercased() != "TBD" else { return String(localized: "To be announced") }
+        return value
+    }
+    func loadIfNeeded() {
+        guard refreshTask == nil, case .idle = feature.state else { return }
+        requestRefresh()
+    }
     var hasLaunch: Bool { feature.state.launch != nil }
     var isLoading: Bool {
         if case .loading = feature.state { return true }

@@ -43,3 +43,7 @@ Cancellation restores the last settled state without displaying a cancellation e
 - Pending: manual offline → visible error → reconnect → retry; manual empty response; large Dynamic Type/VoiceOver and physical-device responsiveness review.
 
 The test suite deterministically exercises failures/empty states without depending on the public service. Those tests do not replace the pending manual checks. Overall migration acceptance remains open until the developer reviews the result and the required manual checks are recorded.
+
+## Product revision: fully free launch utility (2026-09-07)
+
+The developer superseded the tabbed/IAP direction: no paid offering. The UI now starts loading when shown, rather than requiring an initial button tap (supersedes BEH-006). ViewModel construction itself still starts no networking. Missing UI values use explicit unpublished/unknown text rather than “None” (updates BEH-001 presentation). The first returned launch remains authoritative; provider, vehicle, launch-site country, mission purpose and planned/estimated time are now displayed. Source timestamps with minute, second or fractional-second precision are supported. About is an information sheet.

@@ -3,6 +3,24 @@ import Observation
 @testable import RocketLaunch
 
 final class LaunchScheduleViewModelTests: XCTestCase {
+    @MainActor func testCountryIsTheLaunchLocationAndMissingMissionIsExplicit() throws {
+        let feature = ControlledLaunchFeature()
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        feature.setState(.loaded(try LaunchFixtures.launches()[3]))
+        XCTAssertEqual(viewModel.country, "China")
+        XCTAssertEqual(viewModel.provider, "China")
+        XCTAssertEqual(viewModel.launchTitle, "Mission to be announced")
+        XCTAssertTrue(viewModel.missionSummary.contains("haven’t been published"))
+    }
+
+    @MainActor func testEstimatedTimeDoesNotPresentAnExactLocalTime() throws {
+        let feature = ControlledLaunchFeature()
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        feature.setState(.loaded(try LaunchFixtures.launches()[2]))
+        XCTAssertEqual(viewModel.launchTime, "Dec 08")
+        XCTAssertTrue(viewModel.timingNote.contains("Exact time not announced"))
+    }
+
     @MainActor func testInitialStateDoesNotStartNetworking() async {
         let feature = ControlledLaunchFeature()
         let viewModel = LaunchScheduleViewModel(feature: feature)

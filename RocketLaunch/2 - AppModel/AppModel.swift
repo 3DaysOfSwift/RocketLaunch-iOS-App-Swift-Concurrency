@@ -1,6 +1,6 @@
 import Foundation
 
-/// Constructs the shared graph. Loading is an explicit user action in this app.
+/// Constructs the shared graph. The screen requests an initial load when it appears.
 @MainActor
 struct AppModel {
     static let shared = AppModel.live()

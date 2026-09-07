@@ -30,6 +30,8 @@
 		C5AC034AAAE9C2E0236B94CA /* AppColourTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0708E9DA54F15EB2B22F4235 /* AppColourTheme.swift */; };
 		F5ED04DC95EFAC57323D87BD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7C17D993347D966D584C1CBD /* Assets.xcassets */; };
 		F6058977FFEB8E6858DBBD67 /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CDAEEE334939E0FB3E5EDFC /* AppModelTests.swift */; };
+		C71295EF9F333CF055E11A17 /* AppPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C931B54B8C8C0797125440; };
+		5900175C78A56AE96FD7AA37 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2EA7DB1A9044D47551CE4CA; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,6 +70,8 @@
 		B51B06C03E02E5BDBDB6ED9C /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		C9518104C8BA894B42782132 /* RocketLaunchAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RocketLaunchAPITests.swift; sourceTree = "<group>"; };
 		DB71FDC981BB48D015DEE9EC /* RocketLaunchAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RocketLaunchAPI.swift; sourceTree = "<group>"; };
+		D2C931B54B8C8C0797125440 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPresentation.swift; sourceTree = "<group>"; };
+		D2EA7DB1A9044D47551CE4CA = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -202,6 +206,8 @@
 			isa = PBXGroup;
 			children = (
 				59BF3C8797FBE4A3A23CF1AC /* LaunchSchedule */,
+				AA8ACBD186B991A40F505A85,
+				2D2C9E90B57E87F89DFBC817,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -271,6 +277,8 @@
 			path = "1 - View";
 			sourceTree = "<group>";
 		};
+		2D2C9E90B57E87F89DFBC817 = {isa = PBXGroup; children = (D2C931B54B8C8C0797125440,); path = Shared; sourceTree = "<group>"; };
+		AA8ACBD186B991A40F505A85 = {isa = PBXGroup; children = (D2EA7DB1A9044D47551CE4CA,); path = About; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -381,6 +389,8 @@
 				4D2FA66A637E666D17D05682 /* LaunchScheduleViewModel.swift in Sources */,
 				210F0EFB74899257C00AF13A /* AppModel.swift in Sources */,
 				650D1F72675866403091D9B5 /* LaunchScheduleFeature.swift in Sources */,
+				5900175C78A56AE96FD7AA37,
+				C71295EF9F333CF055E11A17,
 				BFCB555EF76613F20AC19FED /* LaunchRepository.swift in Sources */,
 				4F4ED4B5F2B6530219B555D6 /* RocketLaunchAPI.swift in Sources */,
 				351A6003F48EF35CC5ABBB85 /* RocketLaunchDataTypes.swift in Sources */,
