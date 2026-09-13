@@ -1,125 +1,55 @@
-![3 Days of Swift Concurrency — learn async/await, tasks and actors in Swift](readme-images/3DaysOfSwift-Concurrency-Header.png)
+![3 Days of Swift Concurrency](readme-images/3DaysOfSwift-Concurrency-Header.png)
 
-# Rocket Launch
+# RocketLaunch
 
-Rocket Launch is a small SwiftUI app that retrieves upcoming launches and displays the next launch’s name and mission. It is a working migration example for [3 Days of Swift Concurrency](https://www.3daysofswiftconcurrency.com): taking an existing callback-based iOS application towards explicit feature ownership and cooperative Swift Concurrency.
+A free SwiftUI launch-schedule app and teaching resource for [3 Days of Swift Concurrency](https://www.3daysofswiftconcurrency.com). It targets iOS 17+, uses Observation and Swift 6 complete concurrency checking, and separates presentation from actor-owned business state.
 
-The project began as a starter pack. Its unfinished behaviour and real defects give us concrete problems to investigate, protect with tests and improve through a documented migration.
+## Run and test
 
-## Migration status
+1. Open `Swift Concurrency Project/RocketLaunch.xcodeproj` in Xcode 26.2 or later.
+2. Select the **RocketLaunch** scheme and an iPhone simulator.
+3. Press **⌘R** to run or **⌘U** to run the unit tests. For a physical device, configure your development team and bundle identifier.
 
-**The Swift Concurrency implementation is ready for final review.** The app now targets **iOS 17 and later**, uses **Swift 6 with complete concurrency checking**, and uses Apple’s Observation framework.
+From the repository root, you can also run:
 
-Refresh uses native asynchronous URLSession networking, actor-owned decoding and business state, delivered as immutable snapshots to MainActor ViewModels. Repeated refreshes share active provider work, and canceled request identities prevent late results from being published. Loading, empty and error states are explicit; refresh/retry remains available after success or failure.
+```sh
+xcodebuild -project "Swift Concurrency Project/RocketLaunch.xcodeproj" -scheme RocketLaunch -destination 'platform=iOS Simulator,name=iPhone Air' test
+```
 
-All 98 current XCTest cases pass on macOS. The iOS app and test bundle build; simulator execution of this refactor remains pending because the Mac was locked. The live launch flow has been checked in the simulator. Final manual recovery/accessibility checks and developer acceptance remain open; this is not an App Store release.
+Choose an installed simulator name if iPhone Air is unavailable. The supported test entry point is the Xcode test target; there is no separate host-test runner in this repository. Tests use controlled repositories, sessions and clocks rather than live API responses.
 
-## The architectural sentence
-
-Read [Swift Concurrency with Feature Actors — Modern iOS Architecture 26](SWIFT_CONCURRENCY_WITH_FEATURE_ACTORS.md) for the full design rationale, team rules, runtime model and implementation guidance.
+## Architecture
 
 `View → MainActor ViewModel → async Feature API → Feature actor → API actor`
 
-That sentence is also the folder structure. Open `RocketLaunch.xcodeproj` in Xcode and the first distinction is between `1 - View` and `2 - AppModel`:
+- **1 - View:** SwiftUI, themed presentation and observable main-actor view models.
+- **2 - AppModel:** dependency construction, authoritative launch/reminder state, source caches and APIs.
+- **3 - App Resources:** icon assets, sample JSON, privacy manifest and offline privacy policy.
 
-- **1 - View** contains SwiftUI and presentation state. The root `ContentView` owns its shared `@Observable` `LaunchScheduleViewModel` using `@State`.
-- **2 - AppModel** contains the composition root and the launch feature: its asynchronous API, actor, data types, repository contract and networking implementation.
-- **3 - App Resources** contains the app’s assets and sample JSON.
+AppModel constructs dependencies without downloading data. The feature owns mutable business state and sends complete immutable Sendable snapshots to its view models. Provider refreshes overlap and publish independently. Shared requests have explicit owners, cancellation-aware waiters and identities that reject obsolete results. Task groups are structured concurrency; shared request and effect tasks have explicitly managed lifetimes.
 
-`AppModel.live()` assembles the dependencies without starting a request. The ViewModel asks the narrow `LaunchScheduleFeatureAPI` to refresh. `LaunchScheduleFeature` stores each source’s list, groups launches by operator and selects the next candidate, while the `RocketLaunchAPI` actor retrieves and decodes the response using `URLSession.data(from:)`. The feature publishes complete Sendable snapshots through independent AsyncStreams. The ViewModel observes those snapshots and prepares values for the screen. Reminders use the same actor/snapshot boundary, including off-main persistence.
-
-The architecture follows the principles used by [Trend](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency). Read the [AppModel iOS Application Template](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency/blob/main/APPMODEL_IOS_APPLICATION_TEMPLATE.md) for the target architecture and [ARCHITECTURE.md](ARCHITECTURE.md) for this project’s current implementation and transitional boundaries.
-
-## Launch data
-
-The app fetches RocketLaunch.Live’s next five launches, Launch Library 2’s next 50, and up to 50 from the community SpaceX API. The sources start concurrently and publish independently. Each source has its own in-memory cache and explicit failure state. Operator lists retain source attribution; cross-source duplicates and conflicting schedules are not silently reconciled.
-
-Estimated dates may be incomplete. The decoding model accepts unknown month, day and year values without inventing dates or rejecting an otherwise valid launch.
-
-The current app merges three sources into operator lists and a stored Next result. Its caches are in memory only; fresh results require the external APIs and a working network connection. The bundled `TestData.json` is a test fixture, not an automatic offline fallback.
-
-## Running
-
-1. Clone this repository:
-
-   ```bash
-   git clone https://github.com/3DaysOfSwift/RocketLaunch-iOS-App-Swift-Concurrency.git
-   cd RocketLaunch-iOS-App-Swift-Concurrency
-   ```
-
-2. Open `RocketLaunch.xcodeproj` in Xcode.
-3. Select an iPhone simulator or configure your development team and bundle identifier to run on a device.
-4. Build and run; the screen loads automatically. Use **Refresh schedule** to update it.
-
-The screen retains the last launch during refresh or failure, displays a recoverable error when needed, and offers Refresh or Try Again. An empty response has its own message.
-
-## Tests
-
-`RocketLaunchTests` is an iOS unit-test target included in the shared **RocketLaunch** scheme. Select an iPhone simulator and press **⌘U** (Product → Test).
-
-The 98 XCTest cases cover:
-
-- AppModel construction and independent application graphs.
-- Launch selection, empty responses and repository failures.
-- ViewModel initial state, displayed values, failure recovery and retained results.
-- JSON decoding with complete, null, omitted and malformed date components.
-- The real networking/decoding boundary using an isolated URLSession and controlled responses.
-- Cancellation of real URLSession requests, stale-response rejection, shared requests and cancellation when the screen owner disappears or is released.
-- Shared Observation updates and theme selection.
-
-Tests are grouped into `View model tests`, `AppModel tests`, shared `Test Support` and `Fixtures`. They do not contact the live API or mutate `AppModel.shared`.
-
-The iOS app and test bundle build successfully. All 98 current tests passed on macOS using actual Model/ViewModel sources. Previous iPhone Air tests belong to the preceding architecture revision; this refactor still needs simulator execution.
-
-When a simulator is unavailable, run the host checks on a Mac with Xcode and Python 3:
-
-```bash
-python3 Tests/run-host-tests.py
-```
-
-This creates a temporary Swift package from the current sources and executes the same XCTest suite. It does not run SwiftUI screens or replace manual iOS regression testing.
-
-## Following the migration
-
-The migration separates architecture changes, concurrency conversion and intentional product improvements. Existing defects are recorded explicitly rather than silently becoming requirements for the new implementation.
-
-- [Behaviour contract](MIGRATION_BEHAVIOUR_CONTRACT.md) — preserved behaviour, approved changes and the manual regression checklist.
-- [Migration ledger](MIGRATION_LEDGER.md) — completed checkpoints, temporary responsibilities and remaining verification.
-- [Concurrency inventory](CONCURRENCY_INVENTORY.md) — implemented execution, cancellation and ordering guarantees.
-- [Migration review](MIGRATION_REVIEW.md) — architecture audit and remaining acceptance checks.
-
-The original starter used one launch API. The current app uses a task group for independent providers and feature actors for business processing; the migration ledger records that progression.
-
-## 3 Days of Swift Concurrency
-
-Explore the training program at [3DaysOfSwiftConcurrency.com](https://www.3daysofswiftconcurrency.com) and the related projects on [3DaysOfSwift](https://github.com/3DaysOfSwift).
+Read [Architecture](Swift%20Concurrency%20Project/ARCHITECTURE.md) and [Swift Concurrency with Feature Actors](Swift%20Concurrency%20Project/SWIFT_CONCURRENCY_WITH_FEATURE_ACTORS.md). This follows the model/view separation used in [Trend](https://github.com/3DaysOfSwift/Trend-iOS-App-Swift-Concurrency).
 
 ## App experience
 
-RocketLaunch is completely free, with no in-app purchases. Five fixed tabs provide Next, Upcoming, Operators, Changes and Reminders. Next gives a short overview with detail and watch links when supplied. Upcoming filters by operator, launch country and search; Operators filters by name and launch country. Source failures and previous cached data remain visible with independent refresh controls. Operator lists populate as each source returns. Planned times appear in local time; estimates remain explicit.
+Five tabs provide **Next**, **Upcoming**, **Operators**, **Changes** and **Reminders**. Next shows the earliest precise future launch, or an eligible record with uncertain timing when no precise future launch is available. Elapsed precise launches cannot become Next, even when the final cached launch expires. Upcoming supports filters and search. Records retain source attribution; duplicate launches from different sources are not silently reconciled.
 
-Launch Library refresh attempts have a five-minute cooldown within the running app. The community SpaceX API is also enabled as a third source. See [MULTI_PROVIDER_DESIGN.md](MULTI_PROVIDER_DESIGN.md) for the progressive refresh behavior and current limits.
+Changes records up to 100 schedule/mission changes detected between downloads during the session. It is not a news feed. Reminders are requested by source-qualified launch ID, use the current model record, and expose pending, scheduled and failed delivery. They are reconciled when the app refreshes; there is no background polling or push server. Notification delivery depends on iOS settings.
 
-## Community SpaceX source
+Settings offers eight colour themes. Double-tap Next to cycle through them. The selected theme and reminder records persist locally; launch caches are in memory. The bundled sample JSON is not an automatic offline fallback.
 
-SpaceXAPI implements the documented v5 POST /launches/query endpoint and requests populated rocket/launchpad names. It is the community r-spacex project, not an official SpaceX service. It has its own memory cache, a 20-second request timeout, a 60-second refresh cooldown and independent failure state. Its status is available from Next’s data-source sheet, Upcoming and the SpaceX operator screen. A failed SpaceX request does not prevent other sources publishing.
+## Three providers, including an intentional failure example
 
-Past or undated SpaceX schedule records may be browsed in its source-labelled cache but cannot become Next. A response containing only outdated records is labelled accordingly. Country is left unknown when absent from the launchpad schema; rocket-manufacturer country is not substituted. Decoding respects date precision. The archived service’s current availability and data freshness must not be inferred from successful fixture tests.
+RocketLaunch.Live supplies its next five launches, Launch Library requests fifty, and the community SpaceX API requests up to fifty. Each provider has independent cache, loading, cooldown and failure state. Launch Library has a five-minute refresh cooldown; SpaceX has a sixty-second cooldown and twenty-second timeout.
 
-## Schedule updates and reminders
+**SpaceX stays enabled deliberately as a real-world failure-handling example.** It failed during the 13 September 2026 review while the other two providers succeeded. A failed source must not prevent usable results from appearing. The community service is not official SpaceX, and its availability or data freshness is not guaranteed. SpaceX also appears as an operator in data supplied by other providers. Fixture tests do not establish live-service health.
 
-Changes keeps the latest 100 time or mission changes detected between successive downloads from the same source during this session. The initial download establishes the baseline; it does not create artificial updates. Changes is not a news feed or a background monitor.
+## Teaching and validation
 
-LaunchScheduleFeature owns both launch data and persisted desired reminders, with an injected local-notification client. Screens request reminders by launch ID and lead time. Pending, scheduled and failed delivery are explicit. Users choose 5, 15 or 60 minutes before an exact future launch time. Permission is requested only after Set reminder. Successful source refreshes reconcile changed times, replace the associated notification, or cancel it and flag the record when timing becomes uncertain. Reminders use source-qualified launch IDs; selecting duplicate records from different providers can create separate reminders. There is no background polling or server push. Delivery remains subject to system notification settings.
+Start with the [Day 1 guide](TEACHING_GUIDE.md). See the [dated validation record](TEACHING_VALIDATION.md) for completed checks and remaining release work. The full reference implementation includes advanced request-sharing and reminder policies; students do not need to learn all of these before tracing one complete feature.
 
-Launch details expose HTTP(S) watch links only when supplied by a provider. RocketLaunch.Live launch-page links are labelled as information, not watch links.
+## Privacy and release status
 
-## Colour themes
+An offline privacy policy is available from About and Settings; its repository copy is [PRIVACY.md](PRIVACY.md). The app bundles a required-reason manifest for its app-owned UserDefaults access.
 
-Choose from System, Midnight, Ocean, Forest, Sunset, Nebula, Lunar and Crimson. Open Settings using the gear on Next and choose a theme from the dropdown, or double-tap Next to cycle through all eight. The selected theme is saved between launches. System follows the device appearance; Midnight, Nebula and Crimson use dark appearance and the other named palettes use light appearance.
-
-## Teaching this architecture
-
-Follow the [three-day teaching guide](TEACHING_GUIDE.md) for the lesson sequence, exercises and the boundaries of this template. See [validation evidence](TEACHING_VALIDATION.md) for completed checks and remaining device work.
-
-Latest teaching validation: **98 host tests and 98 iPhone Air simulator tests passed** on 7 September 2026. A simulator launch trace was captured; physical-device lifecycle checks and responsiveness analysis remain open. See [the dated validation record](TEACHING_VALIDATION.md).
+This is a teaching build, **not a declaration of App Store readiness**. Before submission, publish the policy at a stable public URL, configure App Store Connect privacy/support metadata, verify provider practices and terms, and complete physical-device, accessibility and distribution validation. SpaceX remains intentionally enabled for the lesson.

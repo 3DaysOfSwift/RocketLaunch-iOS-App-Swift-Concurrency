@@ -19,6 +19,10 @@ struct SettingsView: View {
                 Text("Double-tap the Next screen to cycle through the themes. Your choice is saved automatically. System follows your device’s appearance.")
             }
             .listRowBackground(themeManager.selected.surface)
+            Section("Privacy") {
+                NavigationLink("Privacy policy") { PrivacyPolicyView() }
+            }
+            .listRowBackground(themeManager.selected.surface)
             Section("Preview") {
                 VStack(alignment: .leading, spacing: 12) {
                     Label(themeManager.selected.name, systemImage: "sparkles").font(.headline)

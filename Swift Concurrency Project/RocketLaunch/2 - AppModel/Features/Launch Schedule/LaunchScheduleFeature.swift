@@ -198,11 +198,12 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
             }
         }
         upcomingLaunches = LaunchScheduleSnapshot.upcoming(from: sources.flatMap(\.launches), now: currentTime)
-        let eligible = sources.filter { if case .failed = $0.phase { return false }; return true }.flatMap(\.launches)
-            .filter { $0.source != .spaceX || ($0.details.sortTime ?? .distantPast) >= currentTime }
+        let eligible = LaunchScheduleSnapshot.upcoming(
+            from: sources.filter { if case .failed = $0.phase { return false }; return true }.flatMap(\.launches),
+            now: currentTime)
         let future = eligible.filter { ($0.details.plannedTime ?? .distantPast) >= currentTime }
         nextLaunch = future.min { $0.details.plannedTime! < $1.details.plannedTime! }
-            ?? eligible.first(where: { $0.details.plannedTime == nil }) ?? eligible.first
+            ?? eligible.first(where: { $0.details.plannedTime == nil })
         if let nextLaunch { state = sources.contains(where: { $0.phase == .loading }) ? .loading(previous: nextLaunch) : .loaded(nextLaunch) }
         else if sources.contains(where: { $0.phase == .loading }) { state = .loading(previous: state.launch) }
         else if let failure = sources.compactMap({ snapshot -> LaunchLoadFailure? in

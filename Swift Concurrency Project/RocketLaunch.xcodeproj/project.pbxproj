@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CA9200000000000000000004 /* PrivacyPolicy.txt in Resources */ = {isa = PBXBuildFile; fileRef = CA9200000000000000000003 /* PrivacyPolicy.txt */; };
+		CA9200000000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CA9200000000000000000001 /* PrivacyInfo.xcprivacy */; };
 		16C0A180733C0360412B7D8E /* LaunchScheduleViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E807A9D1C71066E900A6792 /* LaunchScheduleViewModelTests.swift */; };
 		210F0EFB74899257C00AF13A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F149E9826C3D5F239A29CF4 /* AppModel.swift */; };
 		226732CA8B4D451225510FE4 /* RocketLaunchAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9518104C8BA894B42782132 /* RocketLaunchAPITests.swift */; };
@@ -54,6 +56,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		CA9200000000000000000003 /* PrivacyPolicy.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = PrivacyPolicy.txt; sourceTree = "<group>"; };
+		CA9200000000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		0708E9DA54F15EB2B22F4235 /* AppColourTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColourTheme.swift; sourceTree = "<group>"; };
 		0C015E402B212A6600253DED /* RocketLaunch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RocketLaunch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F149E9826C3D5F239A29CF4 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -170,6 +174,8 @@
 			children = (
 				7C17D993347D966D584C1CBD /* Assets.xcassets */,
 				EA008485148EA7C256548083 /* Preview Content */,
+				CA9200000000000000000001 /* PrivacyInfo.xcprivacy */,
+				CA9200000000000000000003 /* PrivacyPolicy.txt */,
 				A960E0841A239C890B60CC2B /* TestData.json */,
 			);
 			path = "3 - App Resources";
@@ -459,6 +465,8 @@
 			files = (
 				F5ED04DC95EFAC57323D87BD /* Assets.xcassets in Resources */,
 				A711ECC14281D5A4A0D63017 /* Preview Assets.xcassets in Resources */,
+				CA9200000000000000000002 /* PrivacyInfo.xcprivacy in Resources */,
+				CA9200000000000000000004 /* PrivacyPolicy.txt in Resources */,
 				2D97C0DD7852443BA67149E5 /* TestData.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -155,7 +155,7 @@ extension LaunchScheduleViewModelTests {
         let feature = LaunchScheduleFeature(sources: [
             .init(id: .rocketLaunchLive, repository: a),
             .init(id: .launchLibrary, repository: b)
-        ])
+        ], now: { Date(timeIntervalSince1970: 1_700_000_000) }) // Before the fixture launch.
         let viewModel = LaunchScheduleViewModel(feature: feature)
         defer { viewModel.cancelRefresh(); viewModel.stopObserving() }
         viewModel.requestRefresh()

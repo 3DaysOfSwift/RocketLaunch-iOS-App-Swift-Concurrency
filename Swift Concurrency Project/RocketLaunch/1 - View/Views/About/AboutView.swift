@@ -32,6 +32,7 @@ struct AboutView: View {
                         }
                     }
                 }
+                NavigationLink("Privacy policy") { PrivacyPolicyView() }
                 Text("Made for the curious.").font(.footnote).foregroundStyle(.secondary)
             }.padding(20)
         }
@@ -39,5 +40,29 @@ struct AboutView: View {
         .foregroundStyle(themeManager.selected.foreground)
         .navigationTitle("About")
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+    }
+}
+
+/// Bundled policy remains accessible without a network connection.
+struct PrivacyPolicyView: View {
+    @Environment(ThemeManager.self) private var themeManager
+    private var policy: String {
+        guard let url = Bundle.main.url(forResource: "PrivacyPolicy", withExtension: "txt"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return "The privacy policy could not be loaded. Please consult the project’s PRIVACY.md document."
+        }
+        return text
+    }
+    var body: some View {
+        ScrollView {
+            Text(policy)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+                .padding(20)
+        }
+        .background(themeManager.selected.background)
+        .foregroundStyle(themeManager.selected.foreground)
+        .navigationTitle("Privacy policy")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

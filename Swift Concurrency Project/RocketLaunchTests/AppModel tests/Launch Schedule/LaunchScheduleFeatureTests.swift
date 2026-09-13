@@ -3,6 +3,39 @@ import Observation
 @testable import RocketLaunch
 
 final class LaunchScheduleFeatureTests: XCTestCase {
+    @MainActor func testElapsedLaunchCannotBecomeNext() async {
+        await verifyNextAfterTimePasses(initialOffset: -60, advance: 0)
+    }
+
+    @MainActor func testNextExpiresWhenClockPassesFinalCachedLaunch() async {
+        await verifyNextAfterTimePasses(initialOffset: 60, advance: 61)
+    }
+
+    @MainActor private func verifyNextAfterTimePasses(initialOffset: TimeInterval, advance: TimeInterval) async {
+        let clock = TestClock(Date(timeIntervalSince1970: 2_000_000_000))
+        let began = expectation(description: "request")
+        let repository = ControlledLaunchRepository { _ in began.fulfill() }
+        let launch = RocketLaunch(id: 123, name: "Clock boundary", missions: [],
+            estimatedDate: .init(month: nil, day: nil, year: nil),
+            details: .init(plannedTime: clock.read().addingTimeInterval(initialOffset)))
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], now: { clock.read() })
+        let request = Task { await feature.refresh() }
+        await waitFor([began])
+        await repository.complete(0, with: .success([launch]))
+        await request.value
+        if initialOffset > 0 {
+            let before = await feature.snapshot
+            XCTAssertEqual(before.nextLaunch?.id, launch.id)
+        }
+        clock.advance(advance)
+        await feature.updateNextLaunch()
+        let after = await feature.snapshot
+        XCTAssertNil(after.nextLaunch)
+        XCTAssertTrue(after.upcomingLaunches.isEmpty)
+        XCTAssertEqual(after.state, .empty)
+        XCTAssertEqual(after.sources[0].launches, [launch], "Expiry must not erase the provider cache")
+    }
+
     @MainActor func testConcurrentInitialLoadsShareOneRequestAndLoadedStateIsRetained() async {
         let began = expectation(description: "Initial request")
         let repository = ControlledLaunchRepository { _ in began.fulfill() }
@@ -104,7 +137,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let repository = ControlledLaunchRepository { index in
             [first, second, third][index].fulfill()
         }
-        let launchSchedule = LaunchScheduleFeature(repository: repository)
+        let launchSchedule = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }) // Before the December 2023 fixture launches.
         let launches = try LaunchFixtures.launches()
         let initial = Task { await launchSchedule.refresh() }
         await waitFor([first]); await repository.complete(0, with: .success([launches[0]])); await initial.value
@@ -125,7 +159,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let first = expectation(description: "first")
         let second = expectation(description: "second")
         let repository = ControlledLaunchRepository { index in (index == 0 ? first : second).fulfill() }
-        let launchSchedule = LaunchScheduleFeature(repository: repository)
+        let launchSchedule = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }) // Before the December 2023 fixture launches.
         let launches = try LaunchFixtures.launches()
         let old = Task { await launchSchedule.refresh() }; await waitFor([first])
         old.cancel(); await old.value
@@ -140,7 +175,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let first = expectation(description: "first")
         let second = expectation(description: "second")
         let repository = ControlledLaunchRepository { index in (index == 0 ? first : second).fulfill() }
-        let launchSchedule = LaunchScheduleFeature(repository: repository)
+        let launchSchedule = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }) // Before the December 2023 fixture launches.
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         let old = Task { await launchSchedule.refresh() }; await waitFor([first])
         old.cancel(); await old.value
