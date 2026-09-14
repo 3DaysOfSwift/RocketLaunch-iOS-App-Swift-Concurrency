@@ -7,18 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		16C0A180733C0360412B7D8E /* LaunchScheduleViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E807A9D1C71066E900A6792 /* LaunchScheduleViewModelTests.swift */; };
 		210F0EFB74899257C00AF13A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F149E9826C3D5F239A29CF4 /* AppModel.swift */; };
-		226732CA8B4D451225510FE4 /* RocketLaunchAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9518104C8BA894B42782132 /* RocketLaunchAPITests.swift */; };
 		2338D39EF5D218558C7916FA /* LaunchLibraryAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9AA865F333AFF8BBCF1CB7 /* LaunchLibraryAPI.swift */; };
-		2902723AF79DE76B3BE7F686 /* ThemeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75635FEFD990C35E2482197D /* ThemeManagerTests.swift */; };
 		2D814B9C3C735E2E39113D64 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A4359B32CE6C8CAC6B9ED3 /* ContentView.swift */; };
 		2D97C0DD7852443BA67149E5 /* TestData.json in Resources */ = {isa = PBXBuildFile; fileRef = A960E0841A239C890B60CC2B /* TestData.json */; };
 		351A6003F48EF35CC5ABBB85 /* RocketLaunchDataTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CEFBA188D76B1BB677E11F8 /* RocketLaunchDataTypes.swift */; };
 		368202433BCB394C59662CB7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F8AE0644CDB233F877BFC83 /* SettingsView.swift */; };
 		39CE8771AA39797646EC7338 /* LaunchDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723C2A0BF53D93A8DAB2A685 /* LaunchDecodingTests.swift */; };
 		3CB7B45425CB9DCB67D8A234 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B51B06C03E02E5BDBDB6ED9C /* ThemeManager.swift */; };
-		4A1E14875F4C651F2D31A00F /* LaunchScheduleFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BFD43D9F3FF9745D387E8B3 /* LaunchScheduleFeatureTests.swift */; };
 		4D2FA66A637E666D17D05682 /* LaunchScheduleViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A5C8BFB9265FBDFB7ED40B /* LaunchScheduleViewModel.swift */; };
 		4F4ED4B5F2B6530219B555D6 /* RocketLaunchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB71FDC981BB48D015DEE9EC /* RocketLaunchAPI.swift */; };
 		50F7307AE1F9BC19D6C6D5C3 /* BrowseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2CC0C13153D6DA54B7687B6 /* BrowseViewModel.swift */; };
@@ -32,7 +28,6 @@
 		9E9C591FFEE3B2A3822F3A1A /* RocketLaunchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA5E0B93EB63A3F674247A /* RocketLaunchApp.swift */; };
 		A711ECC14281D5A4A0D63017 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 796262C758B2DE50DEE95636 /* Preview Assets.xcassets */; };
 		A77192A88CC668C7B385A0D7 /* LaunchScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E8129612F8172D7763F3D5 /* LaunchScheduleView.swift */; };
-		AD314A2629F09C3736C3D237 /* StubURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39B014467475ABA93C9A0FB8 /* StubURLProtocol.swift */; };
 		BFCB555EF76613F20AC19FED /* LaunchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66876FA3E22A3B2FFDE6B00A /* LaunchRepository.swift */; };
 		C5AC034AAAE9C2E0236B94CA /* AppColourTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0708E9DA54F15EB2B22F4235 /* AppColourTheme.swift */; };
 		C71295EF9F333CF055E11A17 /* AppPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C931B54B8C8C0797125440 /* AppPresentation.swift */; };
@@ -61,9 +56,7 @@
 		0F149E9826C3D5F239A29CF4 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		14AFA0E60B1EDF5C4ED566A7 /* launch-response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "launch-response.json"; sourceTree = "<group>"; };
 		1F8AE0644CDB233F877BFC83 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		39B014467475ABA93C9A0FB8 /* StubURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubURLProtocol.swift; sourceTree = "<group>"; };
 		4CDAEEE334939E0FB3E5EDFC /* AppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelTests.swift; sourceTree = "<group>"; };
-		4E807A9D1C71066E900A6792 /* LaunchScheduleViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleViewModelTests.swift; sourceTree = "<group>"; };
 		57C37ACE8DE78CB7F8AD428D /* SpaceXAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceXAPI.swift; sourceTree = "<group>"; };
 		58A5C8BFB9265FBDFB7ED40B /* LaunchScheduleViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleViewModel.swift; sourceTree = "<group>"; };
 		5AA6D9F0BE450505C16EB3FC /* ReminderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderViewModel.swift; sourceTree = "<group>"; };
@@ -73,21 +66,18 @@
 		71DCC2F5E5B68050A7A30C8A /* LaunchScheduleFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleFeature.swift; sourceTree = "<group>"; };
 		723C2A0BF53D93A8DAB2A685 /* LaunchDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDecodingTests.swift; sourceTree = "<group>"; };
 		72E8129612F8172D7763F3D5 /* LaunchScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleView.swift; sourceTree = "<group>"; };
-		75635FEFD990C35E2482197D /* ThemeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManagerTests.swift; sourceTree = "<group>"; };
 		796262C758B2DE50DEE95636 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		7C17D993347D966D584C1CBD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8727599EBDD915AFBD1759E5 /* RocketLaunchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = RocketLaunchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		880D15A28EDF0CD06A0A0901 /* LaunchReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchReminders.swift; sourceTree = "<group>"; };
 		96320E21EBBF4D064BD23E03 /* BrowseViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseViews.swift; sourceTree = "<group>"; };
 		96FA0C1B57CF16F4D484B9E3 /* LaunchFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchFixtures.swift; sourceTree = "<group>"; };
-		9BFD43D9F3FF9745D387E8B3 /* LaunchScheduleFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleFeatureTests.swift; sourceTree = "<group>"; };
 		A2CC0C13153D6DA54B7687B6 /* BrowseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseViewModel.swift; sourceTree = "<group>"; };
 		A6A4359B32CE6C8CAC6B9ED3 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A960E0841A239C890B60CC2B /* TestData.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = TestData.json; sourceTree = "<group>"; };
 		B1CA5E0B93EB63A3F674247A /* RocketLaunchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RocketLaunchApp.swift; sourceTree = "<group>"; };
 		B51B06C03E02E5BDBDB6ED9C /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		C29A9ADF0C789F4AC1FFDD51 /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
-		C9518104C8BA894B42782132 /* RocketLaunchAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RocketLaunchAPITests.swift; sourceTree = "<group>"; };
 		CA9200000000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		CA9200000000000000000003 /* PrivacyPolicy.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = PrivacyPolicy.txt; sourceTree = "<group>"; };
 		D2C931B54B8C8C0797125440 /* AppPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPresentation.swift; sourceTree = "<group>"; };
@@ -155,7 +145,6 @@
 			isa = PBXGroup;
 			children = (
 				96FA0C1B57CF16F4D484B9E3 /* LaunchFixtures.swift */,
-				39B014467475ABA93C9A0FB8 /* StubURLProtocol.swift */,
 			);
 			path = "Test Support";
 			sourceTree = "<group>";
@@ -187,7 +176,6 @@
 				28019D8E9869DDAD5FF23F69 /* AppModel tests */,
 				3E9F07B4410DE7054B1C2489 /* Fixtures */,
 				12B7704C8A89F243543FDED1 /* Test Support */,
-				91DA622286FF2FEB3B87F3BD /* View model tests */,
 			);
 			path = RocketLaunchTests;
 			sourceTree = "<group>";
@@ -294,15 +282,6 @@
 			path = "Cached Launches";
 			sourceTree = "<group>";
 		};
-		91DA622286FF2FEB3B87F3BD /* View model tests */ = {
-			isa = PBXGroup;
-			children = (
-				4E807A9D1C71066E900A6792 /* LaunchScheduleViewModelTests.swift */,
-				75635FEFD990C35E2482197D /* ThemeManagerTests.swift */,
-			);
-			path = "View model tests";
-			sourceTree = "<group>";
-		};
 		997FF6857A644603B8F89379 /* Reminders */ = {
 			isa = PBXGroup;
 			children = (
@@ -357,8 +336,6 @@
 			isa = PBXGroup;
 			children = (
 				723C2A0BF53D93A8DAB2A685 /* LaunchDecodingTests.swift */,
-				9BFD43D9F3FF9745D387E8B3 /* LaunchScheduleFeatureTests.swift */,
-				C9518104C8BA894B42782132 /* RocketLaunchAPITests.swift */,
 			);
 			path = "Launch Schedule";
 			sourceTree = "<group>";
@@ -517,12 +494,7 @@
 			files = (
 				F6058977FFEB8E6858DBBD67 /* AppModelTests.swift in Sources */,
 				39CE8771AA39797646EC7338 /* LaunchDecodingTests.swift in Sources */,
-				4A1E14875F4C651F2D31A00F /* LaunchScheduleFeatureTests.swift in Sources */,
-				226732CA8B4D451225510FE4 /* RocketLaunchAPITests.swift in Sources */,
 				8B73DA98BAC6FA42E29D6A98 /* LaunchFixtures.swift in Sources */,
-				AD314A2629F09C3736C3D237 /* StubURLProtocol.swift in Sources */,
-				16C0A180733C0360412B7D8E /* LaunchScheduleViewModelTests.swift in Sources */,
-				2902723AF79DE76B3BE7F686 /* ThemeManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -595,8 +567,8 @@
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -651,8 +623,8 @@
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -668,6 +640,7 @@
 				DEVELOPMENT_TEAM = PLPUN94HL2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "GCD Legacy";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -679,11 +652,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.3DaysOfSwiftConcurrency.RocketLaunch;
+				PRODUCT_BUNDLE_IDENTIFIER = com.3DaysOfSwiftConcurrency.RocketLaunch.GCD;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -699,6 +672,7 @@
 				DEVELOPMENT_TEAM = PLPUN94HL2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "GCD Legacy";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -710,11 +684,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.3DaysOfSwiftConcurrency.RocketLaunch;
+				PRODUCT_BUNDLE_IDENTIFIER = com.3DaysOfSwiftConcurrency.RocketLaunch.GCD;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -726,16 +700,17 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = AE3J8T4WV6;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "RocketLaunch GCD";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.3DaysOfSwiftConcurrency.RocketLaunch.RocketLaunchTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swiftsimplified.rocketlaunch.gcd.RocketLaunchTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RocketLaunch.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RocketLaunch";
 			};
@@ -748,16 +723,17 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = AE3J8T4WV6;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "RocketLaunch GCD";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.3DaysOfSwiftConcurrency.RocketLaunch.RocketLaunchTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swiftsimplified.rocketlaunch.gcd.RocketLaunchTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RocketLaunch.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RocketLaunch";
 			};
