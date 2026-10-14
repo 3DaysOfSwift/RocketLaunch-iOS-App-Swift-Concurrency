@@ -12,7 +12,7 @@ struct ContentView: View {
             NavigationStack { LaunchScheduleView(viewModel: viewModel) }
                 .tabItem { Label("Next", systemImage: "clock") }.tag("next")
             NavigationStack { UpcomingView(viewModel: viewModel) }
-                .tabItem { Label("Upcoming", systemImage: "calendar") }.tag("upcoming")
+                .tabItem { Label("Schedule", systemImage: "calendar") }.tag("upcoming")
             NavigationStack { OperatorsView(viewModel: viewModel) }
                 .tabItem { Label("Operators", systemImage: "building.2") }.tag("operators")
             NavigationStack { UpdatesView(viewModel: viewModel) }

@@ -174,3 +174,53 @@ extension LaunchScheduleViewModelTests {
         await b.complete(0, with: .success([]))
     }
 }
+
+
+extension LaunchScheduleViewModelTests {
+    @MainActor func testCountdownAdvancesAndWaitsForScheduleAtDeadline() async {
+        let feature = ControlledLaunchFeature()
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let deadline = Date(timeIntervalSince1970: 2_000_000_000)
+        feature.setState(.loaded(countdownLaunch(at: deadline)))
+        await viewModel.synchronize()
+        XCTAssertEqual(viewModel.countdown(at: deadline.addingTimeInterval(-90_061)).clock, "01:01:01")
+        XCTAssertNotNil(viewModel.countdown(at: deadline.addingTimeInterval(-90_061)).days)
+        XCTAssertEqual(viewModel.countdown(at: deadline.addingTimeInterval(-1.1)).clock, "00:00:02")
+        XCTAssertEqual(viewModel.countdown(at: deadline.addingTimeInterval(-0.1)).clock, "00:00:01")
+        XCTAssertNil(viewModel.countdown(at: deadline).clock)
+        XCTAssertEqual(viewModel.countdown(at: deadline).status, "Awaiting update")
+        XCTAssertNil(viewModel.countdown(at: deadline.addingTimeInterval(60)).clock)
+        XCTAssertEqual(feature.refreshCount, 0, "A presentation tick must not start networking")
+    }
+
+    @MainActor func testEstimateDoesNotBecomeCountdownAndReplacementUpdatesDeadline() async {
+        let feature = ControlledLaunchFeature()
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        feature.setState(.loaded(countdownLaunch(at: nil, sortTime: now.addingTimeInterval(600))))
+        await viewModel.synchronize()
+        XCTAssertNil(viewModel.countdown(at: now).clock)
+        XCTAssertEqual(viewModel.countdown(at: now).status, "Time unconfirmed")
+        feature.setState(.loaded(countdownLaunch(at: now.addingTimeInterval(600))))
+        await viewModel.synchronize()
+        XCTAssertEqual(viewModel.countdown(at: now).clock, "00:10:00")
+        feature.setState(.loaded(countdownLaunch(at: now.addingTimeInterval(3_600))))
+        await viewModel.synchronize()
+        XCTAssertEqual(viewModel.countdown(at: now).clock, "01:00:00")
+    }
+
+    @MainActor func testMissingMissionDoesNotFillCompactCardWithPlaceholderParagraph() async {
+        let feature = ControlledLaunchFeature()
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        feature.setState(.loaded(countdownLaunch(at: nil)))
+        await viewModel.synchronize()
+        XCTAssertNil(viewModel.missionPreview)
+        XCTAssertFalse(viewModel.missionSummary.isEmpty, "The detail screen retains its explanation")
+    }
+
+    private func countdownLaunch(at date: Date?, sortTime: Date? = nil) -> RocketLaunch {
+        RocketLaunch(id: 99, name: "Mission", missions: [],
+            estimatedDate: .init(month: nil, day: nil, year: nil),
+            details: .init(plannedTime: date, sortTime: sortTime))
+    }
+}

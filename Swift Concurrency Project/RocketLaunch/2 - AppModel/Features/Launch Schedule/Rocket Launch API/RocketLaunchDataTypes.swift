@@ -63,3 +63,18 @@ func launchWebURL(_ value: String?) -> URL? {
           ["https", "http"].contains(url.scheme?.lowercased() ?? ""), url.host != nil else { return nil }
     return url
 }
+
+/// A scheduled time is not evidence of liftoff. Estimated dates never become a clock countdown.
+enum LaunchCountdown: Equatable, Sendable {
+    case remaining(TimeInterval)
+    case timeUnconfirmed
+    case awaitingUpdate
+}
+
+extension LaunchDetails {
+    func countdown(at now: Date) -> LaunchCountdown {
+        guard let plannedTime else { return .timeUnconfirmed }
+        let remaining = plannedTime.timeIntervalSince(now)
+        return remaining > 0 ? .remaining(remaining) : .awaitingUpdate
+    }
+}

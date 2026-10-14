@@ -31,7 +31,7 @@ struct UpcomingView: View {
         .toolbar { Button { viewModel.requestRefresh() } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("Refresh launches") }
     }
     private var countryFilter: some View {
-        Picker("Launch country", selection: $filters.country) {
+        Picker("Filter", selection: $filters.country) {
             Text("All countries").tag("")
             ForEach(filters.countries(in: viewModel.operators), id: \.self) { Text($0).tag($0) }
         }
@@ -53,7 +53,7 @@ struct OperatorsView: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(item.name).font(.headline)
-                        Text("\(item.launches.count) launch records").font(.caption).foregroundStyle(.secondary)
+                        Text(filters.launchCountLabel(for: item)).font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 6)
                 }
             }
@@ -63,8 +63,8 @@ struct OperatorsView: View {
             }
         }
         .modifier(ThemedListBackground())
-        .navigationTitle("Operators")
-        .searchable(text: $filters.search, prompt: "Find an operator")
+        .navigationTitle("Who’s launching?")
+        .searchable(text: $filters.search, prompt: "Search companies and agencies")
     }
 }
 

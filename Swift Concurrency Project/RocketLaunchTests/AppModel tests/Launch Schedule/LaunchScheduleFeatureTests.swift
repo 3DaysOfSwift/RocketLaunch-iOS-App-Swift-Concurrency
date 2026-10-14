@@ -373,3 +373,14 @@ final class OperatorIdentityTests: XCTestCase {
         XCTAssertEqual(LaunchOperator.canonicalName(nil), "Unknown operator")
     }
 }
+
+
+final class LaunchCountdownTests: XCTestCase {
+    func testOnlyExactFutureTimeCanCountDown() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        XCTAssertEqual(LaunchDetails(sortTime: now.addingTimeInterval(600)).countdown(at: now), .timeUnconfirmed)
+        XCTAssertEqual(LaunchDetails(plannedTime: now.addingTimeInterval(1)).countdown(at: now), .remaining(1))
+        XCTAssertEqual(LaunchDetails(plannedTime: now).countdown(at: now), .awaitingUpdate)
+        XCTAssertEqual(LaunchDetails(plannedTime: now.addingTimeInterval(-1)).countdown(at: now), .awaitingUpdate)
+    }
+}

@@ -58,6 +58,9 @@ enum AppColourTheme: String, CaseIterable, Identifiable {
     var heroGradient: LinearGradient {
         LinearGradient(colors: [colour(palette.heroStart), colour(palette.heroEnd)], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
+    var visorForeground: Color { .white }
+    var visorBackground: Color { colour(0x060A15) }
+    var visorGlow: Color { colour(palette.heroEnd) }
     var foreground: Color { .primary }
     var separator: Color { foreground.opacity(0.15) }
     var buttonForeground: Color { colourScheme == .dark ? .black : .white }

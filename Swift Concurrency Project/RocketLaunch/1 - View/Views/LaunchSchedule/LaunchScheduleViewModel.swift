@@ -52,6 +52,41 @@ final class LaunchScheduleViewModel {
     var site: String { detail.site }
     var launchTime: String { detail.launchTime }
     var timingNote: String { detail.timingNote }
+    /// Only presentation ticks every second; the feature retains ownership of launch selection.
+    func countdown(at date: Date) -> CountdownPresentation {
+        switch currentLaunch?.details.countdown(at: date) ?? .timeUnconfirmed {
+        case .remaining(let interval):
+            // Round up so the last fraction of a second never reads zero before the deadline.
+            let seconds = Int(interval.rounded(.up))
+            let days = seconds / 86_400
+            let clock = String(format: "%02d:%02d:%02d", (seconds / 3_600) % 24,
+                               (seconds / 60) % 60, seconds % 60)
+            let formatter = DateComponentsFormatter()
+            formatter.allowedUnits = [.day, .hour, .minute, .second]
+            formatter.unitsStyle = .full
+            let spokenTime = formatter.string(from: TimeInterval(seconds)) ?? clock
+            let dayLabel = days == 1 ? String(localized: "1 day") : String(localized: "\(days) days")
+            return CountdownPresentation(clock: clock,
+                days: days > 0 ? dayLabel : nil,
+                status: String(localized: "Until scheduled launch"),
+                accessibilityText: String(localized: "\(spokenTime) until scheduled launch"))
+        case .timeUnconfirmed:
+            return CountdownPresentation(clock: nil, days: nil,
+                status: String(localized: "Time unconfirmed"),
+                accessibilityText: String(localized: "Exact launch time has not been announced"))
+        case .awaitingUpdate:
+            return CountdownPresentation(clock: nil, days: nil,
+                status: String(localized: "Awaiting update"),
+                accessibilityText: String(localized: "Scheduled time has passed. Awaiting an updated schedule."))
+        }
+    }
+
+    var missionPreview: String? {
+        let description = currentLaunch?.details.missionDescription ?? currentLaunch?.primaryMissionDescription
+        guard let description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return description
+    }
+
     func loadIfNeeded() {
         startObserving()
         guard refreshTask == nil else { return }
@@ -208,4 +243,12 @@ struct LaunchDetailViewModel {
               value.uppercased() != "TBD" else { return String(localized: "To be announced") }
         return value
     }
+}
+
+/// Display values for the visor; carries no independent launch state or timer.
+struct CountdownPresentation {
+    let clock: String?
+    let days: String?
+    let status: String
+    let accessibilityText: String
 }

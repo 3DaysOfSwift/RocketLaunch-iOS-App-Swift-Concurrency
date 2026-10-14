@@ -2,6 +2,8 @@ import SwiftUI
 
 struct LaunchScheduleView: View {
     let viewModel: LaunchScheduleViewModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .largeTitle) private var countdownSize = 44
     @State private var showsSettings = false
     @State private var showsAbout = false
     @State private var showsSources = false
@@ -12,29 +14,11 @@ struct LaunchScheduleView: View {
             VStack(alignment: .leading, spacing: 28) {
                 if viewModel.hasLaunch {
                     timing
-                    AppCard {
-                        VStack(alignment: .leading, spacing: 18) {
-                            HStack(alignment: .top, spacing: 24) {
-                                fact("Who", viewModel.provider, "building.2")
-                                Spacer(minLength: 0)
-                                fact("Country", viewModel.country, "globe")
-                            }
-                            fact("Rocket", viewModel.vehicle, "arrow.up.right")
-                        }
-                    }
-                    AppCard {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("What for?").font(.headline)
-                            Text(viewModel.launchTitle).font(.title3.bold())
-                            Text(viewModel.missionSummary).foregroundStyle(.secondary).lineLimit(3)
-                        }
-                    }
+                    missionCard
                     if let launch = viewModel.currentLaunch {
-                        NavigationLink("Launch details") { LaunchDetailView(launch: launch) }
-                            .buttonStyle(.borderedProminent)
-                            .foregroundStyle(themeManager.selected.buttonForeground)
-                        if let url = launch.details.watchURL {
-                            Link(destination: url) { Label("Watch launch", systemImage: "play.circle.fill") }
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 20) { launchActions(launch) }
+                            VStack(alignment: .leading, spacing: 16) { launchActions(launch) }
                         }
                     }
                 } else if viewModel.isLoading {
@@ -74,6 +58,7 @@ struct LaunchScheduleView: View {
         .background(themeManager.selected.background)
         .foregroundStyle(themeManager.selected.foreground)
         .navigationTitle("Next launch")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button { showsSettings = true } label: { Image(systemName: "gearshape") }
@@ -91,22 +76,98 @@ struct LaunchScheduleView: View {
     }
 
     private var timing: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("NEXT SCHEDULED LAUNCH", systemImage: "clock")
-                .font(.caption.weight(.semibold)).tracking(1)
-            Text(viewModel.launchTime).font(.largeTitle.bold())
-                .fixedSize(horizontal: false, vertical: true)
-            Text(viewModel.timingNote).font(.subheadline).foregroundStyle(.white.opacity(0.8))
+        VStack(spacing: 18) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: 20) {
+                        visorArtwork.frame(height: 140)
+                        countdown(viewModel.countdown(at: context.date))
+                            .padding(.horizontal, 20).padding(.bottom, 24)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(themeManager.selected.visorBackground, in: RoundedRectangle(cornerRadius: 28))
+                } else {
+                    visorArtwork
+                        .overlay { countdown(viewModel.countdown(at: context.date)).padding(.horizontal, 42) }
+                }
+            }
+            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 320)
+            VStack(spacing: 6) {
+                Text(viewModel.launchTime)
+                    .font(.title3.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(viewModel.timingNote)
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(24)
-        .foregroundStyle(.white)
-        .background(themeManager.selected.heroGradient, in: RoundedRectangle(cornerRadius: 24))
     }
 
-    private func fact(_ title: String, _ value: String, _ symbol: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: symbol).font(.subheadline).foregroundStyle(.secondary)
-            Text(value).font(.title3.bold())
+    private var visorArtwork: some View {
+        Image("LaunchVisor")
+            .resizable().scaledToFit()
+            .clipShape(RoundedRectangle(cornerRadius: 28))
+            .accessibilityHidden(true)
+    }
+
+    private func countdown(_ presentation: CountdownPresentation) -> some View {
+        VStack(spacing: 10) {
+            Text("NEXT SCHEDULED LAUNCH")
+                .font(.caption2.weight(.semibold)).tracking(1.5)
+            if let days = presentation.days {
+                Text(days).font(.subheadline.weight(.medium))
+            }
+            if let clock = presentation.clock {
+                Text(clock)
+                    .font(.system(size: countdownSize, weight: .light, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                    .shadow(color: themeManager.selected.visorGlow, radius: 12)
+            }
+            Text(presentation.status)
+                .font(presentation.clock == nil ? .title3.weight(.medium) : .caption)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(themeManager.selected.visorForeground)
+        .multilineTextAlignment(.center)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(presentation.accessibilityText)
+        .accessibilityIdentifier("launchCountdown")
+    }
+
+    private var missionCard: some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(viewModel.launchTitle).font(.title2.weight(.semibold))
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16) {
+                        Label(viewModel.provider, systemImage: "building.2")
+                        Label(viewModel.country, systemImage: "globe")
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(viewModel.provider, systemImage: "building.2")
+                        Label(viewModel.country, systemImage: "globe")
+                    }
+                }
+                .font(.subheadline)
+                Label(viewModel.vehicle, systemImage: "arrow.up.right")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                if let summary = viewModel.missionPreview {
+                    Text(summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func launchActions(_ launch: RocketLaunch) -> some View {
+        NavigationLink { LaunchDetailView(launch: launch) } label: {
+            Label("Launch details", systemImage: "arrow.right")
+        }
+        .buttonStyle(.borderedProminent)
+        .foregroundStyle(themeManager.selected.buttonForeground)
+        if let url = launch.details.watchURL {
+            Link(destination: url) { Label("Watch launch", systemImage: "play.circle.fill") }
         }
     }
 }

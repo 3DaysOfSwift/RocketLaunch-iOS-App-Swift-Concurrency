@@ -20,6 +20,11 @@ final class BrowseViewModel {
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
+    func launchCountLabel(for item: LaunchOperator) -> String {
+        let count = item.launches.count
+        return count == 1 ? String(localized: "1 launch") : String(localized: "\(count) launches")
+    }
+
     func countries(in operators: [LaunchOperator]) -> [String] {
         Set(operators.flatMap(\.launches).compactMap { Self.countryName($0.details.country) }.filter { !$0.isEmpty }).sorted()
     }
