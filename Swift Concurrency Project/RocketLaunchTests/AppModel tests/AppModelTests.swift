@@ -802,6 +802,37 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertEqual(restored, [valid])
     }
 
+    func testFailedWriteOverlappingRemovalPersistsTheSettledState() async throws {
+        let held = expectation(description: "new save held in storage")
+        let storage = FailingReminderPersistence(failingWrites: [3], holdWrite: 3, onHold: { held.fulfill() })
+        let client = ControlledNotifications()
+        let first = launch(id: 1)
+        let second = launch(id: 2)
+        let (feature, _) = await model([first, second], client: client, persistence: storage)
+        try await feature.setReminder(for: second.id, minutesBefore: 5)
+        let save = Task { try await feature.setReminder(for: first.id, minutesBefore: 5) }
+        await fulfillment(of: [held], timeout: 2)
+        let removed = expectation(description: "removal has queued its snapshot")
+        let stream = await feature.reminderSnapshots()
+        let observer = Task {
+            for await snapshot in stream {
+                if !snapshot.reminders.contains(where: { $0.id == second.id }) { removed.fulfill(); return }
+            }
+        }
+        let removal = Task { await feature.removeReminder(second.id) }
+        await fulfillment(of: [removed], timeout: 2)
+        observer.cancel()
+        await storage.releaseWrite()
+        do { try await save.value; XCTFail("Expected storage failure") }
+        catch ReminderError.storageWriteFailed {}
+        await removal.value
+        XCTAssertEqual(feature.reminders.first?.status, .failed)
+        let stored = await storage.records
+        XCTAssertEqual(stored, feature.reminders)
+        let active = await client.active
+        XCTAssertTrue(active.isEmpty)
+    }
+
     func testInitialPersistenceFailureDoesNotScheduleAndCanRetry() async throws {
         let storage = FailingReminderPersistence(failingWrites: [1])
         let client = ControlledNotifications()
@@ -1194,11 +1225,21 @@ private actor FailingReminderPersistence: ReminderPersisting {
     private let failingWrites: Set<Int>
     private var writes = 0
     private(set) var records: [LaunchReminder] = []
-    init(failingWrites: Set<Int>) { self.failingWrites = failingWrites }
+    private let holdWrite: Int?
+    private let onHold: (@Sendable () -> Void)?
+    private var held: CheckedContinuation<Void, Never>?
+    init(failingWrites: Set<Int>, holdWrite: Int? = nil, onHold: (@Sendable () -> Void)? = nil) {
+        self.failingWrites = failingWrites
+        self.holdWrite = holdWrite
+        self.onHold = onHold
+    }
+    func releaseWrite() { held?.resume(); held = nil }
     func load() -> [LaunchReminder] { records }
-    func save(_ reminders: [LaunchReminder]) throws {
+    func save(_ reminders: [LaunchReminder]) async throws {
         writes += 1
-        if failingWrites.contains(writes) { throw Failure.write }
+        let call = writes
+        if call == holdWrite { await withCheckedContinuation { held = $0; onHold?() } }
+        if failingWrites.contains(call) { throw Failure.write }
         records = reminders
     }
 }

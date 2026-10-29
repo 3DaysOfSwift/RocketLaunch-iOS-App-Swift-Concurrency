@@ -459,6 +459,7 @@ final class LaunchScheduleFeature {
         let previousReminder = reminders.first { $0.id == launchID }
         let effect = prepareReminder(launch: launch, minutesBefore: minutesBefore, fireDate: fireDate)
         let persistence = persistReminders()
+        let admissionRevision = reminderRevision
         userSaveCounts[launchID, default: 0] += 1
         defer {
             let remaining = (userSaveCounts[launchID] ?? 1) - 1
@@ -466,6 +467,7 @@ final class LaunchScheduleFeature {
         }
         guard await persistence.value else {
             if let index = reminders.firstIndex(where: { $0.notificationID == effect.desired.notificationID }) {
+                let interveningChange = reminderRevision != admissionRevision
                 if let previousReminder {
                     reminders[index] = previousReminder
                     reminders.sort { $0.fireDate < $1.fireDate }
@@ -476,6 +478,9 @@ final class LaunchScheduleFeature {
                 reminderRevision += 1
                 let snapshot = currentReminderSnapshot
                 for observer in reminderObservers.values { observer.yield(snapshot) }
+                // Another queued snapshot may contain this now-rejected desired state.
+                // Append the correction after it so storage converges with the Model.
+                if interveningChange { _ = await persistReminders().value }
             }
             throw ReminderError.storageWriteFailed
         }
