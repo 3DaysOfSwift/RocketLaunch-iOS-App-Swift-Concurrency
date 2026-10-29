@@ -15,6 +15,13 @@ struct RemindersView: View {
                 ContentUnavailableView("Your launch reminders", systemImage: "bell",
                     description: Text("Open a launch’s details to set an alert before liftoff."))
             }
+            if let error = viewModel.writeError {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(themeManager.selected.error)
+                    Button("Retry saving reminders") { viewModel.retryWrite() }.disabled(viewModel.isBusy)
+                }
+            }
             ForEach(viewModel.reminders) { reminder in
                 NavigationLink { LaunchDetailView(launch: reminder.launch) } label: {
                     VStack(alignment: .leading, spacing: 8) {

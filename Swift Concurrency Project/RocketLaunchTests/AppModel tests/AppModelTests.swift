@@ -782,6 +782,97 @@ final class UnifiedReminderTests: XCTestCase {
         let removed = await iterator.next()
         XCTAssertTrue(removed!.reminders.isEmpty)
     }
+    func testEncodingFailurePreservesPreviouslyStoredReminderBytes() async throws {
+        let suite = "rocket-encoding-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let storage = ReminderPersistence(storage: .suite(suite))
+        let valid = LaunchReminder(launch: launch(), notificationID: "valid", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(6900), issue: nil)
+        try await storage.save([valid])
+        let original = try XCTUnwrap(defaults.data(forKey: "rocketlaunch.reminders.v1"))
+        let invalid = LaunchReminder(launch: launch(), notificationID: "invalid", minutesBefore: 5,
+            fireDate: Date(timeIntervalSince1970: .infinity), issue: nil)
+        do {
+            try await storage.save([invalid])
+            XCTFail("Expected encoding failure")
+        } catch is EncodingError {}
+        XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), original)
+        let restored = try await storage.load()
+        XCTAssertEqual(restored, [valid])
+    }
+
+    func testInitialPersistenceFailureDoesNotScheduleAndCanRetry() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [1])
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client, persistence: storage)
+        do {
+            try await feature.setReminder(for: launch().id, minutesBefore: 5)
+            XCTFail("Expected storage error")
+        } catch ReminderError.storageWriteFailed {}
+        XCTAssertNotNil(feature.reminderWriteError)
+        XCTAssertEqual(feature.reminders.first?.status, .failed)
+        let calls = await client.calls
+        XCTAssertEqual(calls, 0)
+        let outcome = try await feature.setReminder(for: launch().id, minutesBefore: 5)
+        XCTAssertEqual(outcome, .saved)
+        XCTAssertNil(feature.reminderWriteError)
+        let stored = await storage.records
+        XCTAssertEqual(stored, feature.reminders)
+    }
+
+    func testFailedReplacementWritePreservesExistingReminderAndNotification() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [3])
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client, persistence: storage)
+        try await feature.setReminder(for: launch().id, minutesBefore: 15)
+        let previous = feature.reminders
+        do {
+            try await feature.setReminder(for: launch().id, minutesBefore: 5)
+            XCTFail("Expected replacement storage error")
+        } catch ReminderError.storageWriteFailed {}
+        XCTAssertEqual(feature.reminders, previous)
+        let active = await client.active
+        XCTAssertEqual(active, Set(previous.map(\.notificationID)))
+        let stored = await storage.records
+        XCTAssertEqual(stored, previous)
+        XCTAssertNotNil(feature.reminderWriteError)
+    }
+
+    func testFinalPersistenceFailureCancelsInstalledNotification() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [2, 3])
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client, persistence: storage)
+        do {
+            try await feature.setReminder(for: launch().id, minutesBefore: 5)
+            XCTFail("Expected final storage error")
+        } catch ReminderError.storageWriteFailed {}
+        XCTAssertEqual(feature.reminders.first?.status, .failed)
+        XCTAssertNotNil(feature.reminderWriteError)
+        let active = await client.active
+        XCTAssertTrue(active.isEmpty)
+        await feature.retryReminderWrite()
+        XCTAssertNil(feature.reminderWriteError)
+        let stored = await storage.records
+        XCTAssertEqual(stored, feature.reminders)
+    }
+
+    func testRemovalPersistenceFailureStillCleansNotificationAndCanRetry() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [3])
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client, persistence: storage)
+        try await feature.setReminder(for: launch().id, minutesBefore: 5)
+        await feature.removeReminder(launch().id)
+        XCTAssertTrue(feature.reminders.isEmpty)
+        XCTAssertNotNil(feature.reminderWriteError)
+        let active = await client.active
+        XCTAssertTrue(active.isEmpty)
+        await feature.retryReminderWrite()
+        XCTAssertNil(feature.reminderWriteError)
+        let stored = await storage.records
+        XCTAssertTrue(stored.isEmpty)
+    }
+
     func testUnreadableReminderDataIsNotOverwrittenByNewSave() async throws {
         let suite = "rocket-corrupt-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -1095,5 +1186,19 @@ private actor RestartLifecycleSleeper {
         onStart(call)
         defer { onStop(call) }
         try await Task.sleep(for: .seconds(3600))
+    }
+}
+
+private actor FailingReminderPersistence: ReminderPersisting {
+    enum Failure: Error { case write }
+    private let failingWrites: Set<Int>
+    private var writes = 0
+    private(set) var records: [LaunchReminder] = []
+    init(failingWrites: Set<Int>) { self.failingWrites = failingWrites }
+    func load() -> [LaunchReminder] { records }
+    func save(_ reminders: [LaunchReminder]) throws {
+        writes += 1
+        if failingWrites.contains(writes) { throw Failure.write }
+        records = reminders
     }
 }

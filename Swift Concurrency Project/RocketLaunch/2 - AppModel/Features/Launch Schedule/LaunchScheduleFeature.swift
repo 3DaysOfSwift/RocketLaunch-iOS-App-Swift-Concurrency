@@ -212,7 +212,7 @@ final class LaunchScheduleFeature {
         // cleaned up. Screen cancellation must not abandon committed reminder intent.
         let persistence = reminderPersistenceTask
         reminderEffectTasks[id] = Task {
-            await persistence?.value
+            _ = await persistence?.value
             await withTaskGroup(of: Void.self) { group in
                 for effect in effects {
                     group.addTask { _ = try? await self.deliverReminder(effect, askPermission: false) }
@@ -334,9 +334,10 @@ final class LaunchScheduleFeature {
     private let notificationClient: any LaunchNotificationClient
     private let reminderPersistence: any ReminderPersisting
     @ObservationIgnored private var reminderLoadTask: Task<[LaunchReminder], any Error>?
-    @ObservationIgnored private var reminderPersistenceTask: Task<Void, Never>?
+    @ObservationIgnored private var reminderPersistenceTask: Task<Bool, Never>?
     @ObservationIgnored private var reminderLoadID: UUID?
     private(set) var reminderStorageError: String?
+    private(set) var reminderWriteError: String?
     @ObservationIgnored private var remindersLoaded = false
     private(set) var reminders: [LaunchReminder] = []
 
@@ -405,20 +406,34 @@ final class LaunchScheduleFeature {
         }
     }
     @discardableResult
-    private func persistReminders() -> Task<Void, Never> {
+    private func persistReminders() -> Task<Bool, Never> {
         reminderRevision += 1
         let value = currentReminderSnapshot
         let previous = reminderPersistenceTask
         let persistence = reminderPersistence
         // Queue immutable snapshots in mutation order. Actor message arrival alone
         // does not guarantee the order of tasks created by successive mutations.
-        let task = Task {
-            await previous?.value
-            await persistence.save(value.reminders)
+        let task = Task { [weak self] in
+            _ = await previous?.value
+            do {
+                try await persistence.save(value.reminders)
+                if self?.reminderRevision == value.revision { self?.reminderWriteError = nil }
+                return true
+            } catch {
+                if self?.reminderRevision == value.revision {
+                    self?.reminderWriteError = "Reminder changes could not be saved. Retry saving before closing the app."
+                }
+                return false
+            }
         }
         reminderPersistenceTask = task
         for observer in reminderObservers.values { observer.yield(value) }
         return task
+    }
+
+    func retryReminderWrite() async {
+        guard remindersLoaded, reminderWriteError != nil else { return }
+        _ = await persistReminders().value
     }
 
     private struct ReminderEffect: Sendable {
@@ -441,6 +456,7 @@ final class LaunchScheduleFeature {
         let fireDate = time.addingTimeInterval(-Double(minutesBefore) * 60)
         guard fireDate > now() else { throw ReminderError.tooLate }
         guard reminders.count < 50 || reminders.contains(where: { $0.id == launchID }) else { throw ReminderError.limit }
+        let previousReminder = reminders.first { $0.id == launchID }
         let effect = prepareReminder(launch: launch, minutesBefore: minutesBefore, fireDate: fireDate)
         let persistence = persistReminders()
         userSaveCounts[launchID, default: 0] += 1
@@ -448,7 +464,21 @@ final class LaunchScheduleFeature {
             let remaining = (userSaveCounts[launchID] ?? 1) - 1
             userSaveCounts[launchID] = remaining == 0 ? nil : remaining
         }
-        await persistence.value
+        guard await persistence.value else {
+            if let index = reminders.firstIndex(where: { $0.notificationID == effect.desired.notificationID }) {
+                if let previousReminder {
+                    reminders[index] = previousReminder
+                    reminders.sort { $0.fireDate < $1.fireDate }
+                } else {
+                    reminders[index].status = .failed
+                    reminders[index].issue = "The reminder could not be saved. Set this reminder again after retrying storage."
+                }
+                reminderRevision += 1
+                let snapshot = currentReminderSnapshot
+                for observer in reminderObservers.values { observer.yield(snapshot) }
+            }
+            throw ReminderError.storageWriteFailed
+        }
         return try await deliverReminder(effect, askPermission: true)
     }
 
@@ -502,14 +532,14 @@ final class LaunchScheduleFeature {
             guard desired.fireDate > now() else { throw ReminderError.tooLate }
             reminders[index].status = .scheduled
             let persistence = persistReminders()
-            await persistence.value
+            guard await persistence.value else { throw ReminderError.storageWriteFailed }
             return reminders.contains(where: { $0.notificationID == desired.notificationID }) ? .saved : .superseded
         } catch {
             let current = reminders.firstIndex(where: { $0.notificationID == desired.notificationID })
             if let index = current {
                 reminders[index].status = .failed
                 reminders[index].issue = "The notification could not be scheduled. Set this reminder again."
-                await persistReminders().value
+                _ = await persistReminders().value
             }
             await notificationClient.cancel(desired.notificationID)
             guard reminders.contains(where: { $0.notificationID == desired.notificationID }) else { return .superseded }
@@ -525,7 +555,7 @@ final class LaunchScheduleFeature {
         guard !Task.isCancelled, remindersLoaded else { return }
         guard let old = reminders.first(where: { $0.id == launchID }) else { return }
         reminders.removeAll { $0.id == launchID }
-        await persistReminders().value
+        _ = await persistReminders().value
         await notificationClient.cancel(old.notificationID)
     }
 

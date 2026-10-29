@@ -7,6 +7,7 @@ final class ReminderViewModel {
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private var action: Task<Void, Never>?
     init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) { self.feature = feature }
+    var writeError: String? { feature.reminderWriteError }
     var storageError: String? { feature.reminderStorageError }
     var reminders: [LaunchReminder] { feature.reminders }
     @ObservationIgnored private var loadTask: Task<Void, Never>?
@@ -21,6 +22,16 @@ final class ReminderViewModel {
         }
         loadTask = task
         return task
+    }
+    func retryWrite() {
+        guard !isBusy else { return }
+        isBusy = true
+        let feature = feature
+        action = Task { [weak self] in
+            await feature.retryReminderWrite()
+            self?.isBusy = false
+            self?.action = nil
+        }
     }
     func contains(_ id: String) -> Bool { feature.hasActiveReminder(for: id) }
     func remove(_ id: String) {
