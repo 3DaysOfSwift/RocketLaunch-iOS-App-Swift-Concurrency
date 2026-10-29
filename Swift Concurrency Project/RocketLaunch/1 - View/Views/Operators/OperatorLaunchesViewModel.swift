@@ -12,15 +12,11 @@ final class OperatorLaunchesViewModel {
     }
 
     func launches(for operatorID: String) -> [RocketLaunch] {
-        feature.operators.first(where: { $0.id == operatorID })?.launches ?? []
+        feature.launches(for: operatorID)
     }
 
     func relevantSources(for operatorID: String) -> [LaunchSourceSnapshot] {
-        let knownSources = feature.operators.first(where: { $0.id == operatorID })?.sourceIDs ?? []
-        return feature.sources.filter {
-            if $0.id == .spaceX { return operatorID == "spacex" }
-            return $0.fetchedAt == nil || knownSources.contains($0.id)
-        }
+        feature.sources(for: operatorID)
     }
 
     @discardableResult

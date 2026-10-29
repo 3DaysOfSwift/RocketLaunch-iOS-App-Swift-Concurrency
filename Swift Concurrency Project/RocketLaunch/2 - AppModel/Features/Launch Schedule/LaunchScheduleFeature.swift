@@ -45,6 +45,19 @@ final class LaunchScheduleFeature {
         .init(revision: revision, state: state, nextLaunch: nextLaunch, sources: sources, operators: operators,
               upcomingLaunches: upcomingLaunches, updates: updates)
     }
+    func launches(for operatorID: String) -> [RocketLaunch] {
+        operators.first(where: { $0.id == operatorID })?.launches ?? []
+    }
+
+    func sources(for operatorID: String?) -> [LaunchSourceSnapshot] {
+        guard let operatorID else { return sources }
+        let knownSources = operators.first(where: { $0.id == operatorID })?.sourceIDs ?? []
+        return sources.filter {
+            if $0.id == .spaceX { return operatorID == "spacex" }
+            return $0.fetchedAt == nil || knownSources.contains($0.id)
+        }
+    }
+
     func launches(matching query: LaunchBrowseQuery) -> [RocketLaunch] {
         query.launches(in: upcomingLaunches)
     }

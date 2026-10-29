@@ -69,15 +69,10 @@ final class LaunchScheduleViewModel {
     var sources: [LaunchSourceSnapshot] { snapshot.sources }
     func updateNextLaunch() { feature.updateNextLaunch() }
     func launches(for operatorID: String) -> [RocketLaunch] {
-        snapshot.operators.first(where: { $0.id == operatorID })?.launches ?? []
+        feature.launches(for: operatorID)
     }
     func relevantSources(for operatorID: String?) -> [LaunchSourceSnapshot] {
-        guard let operatorID else { return sources }
-        let knownSources = snapshot.operators.first(where: { $0.id == operatorID })?.sourceIDs ?? []
-        return sources.filter {
-            if $0.id == .spaceX { return operatorID == "spacex" }
-            return $0.fetchedAt == nil || knownSources.contains($0.id)
-        }
+        feature.sources(for: operatorID)
     }
     func canRetry(_ source: LaunchSourceSnapshot) -> Bool { SourceStatusPresentation.canRetry(source) }
     func sourceMessage(_ source: LaunchSourceSnapshot) -> String { SourceStatusPresentation.message(source) }
