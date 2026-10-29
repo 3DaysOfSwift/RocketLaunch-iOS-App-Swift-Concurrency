@@ -74,6 +74,9 @@ struct UpdatesView: View {
     @State private var viewModel = UpdatesViewModel()
     var body: some View {
         ThemedList {
+            Section {
+                SourceStatusView(sources: viewModel.sources, refresh: { viewModel.requestRefresh(source: $0) })
+            }
             if viewModel.updates.isEmpty {
                 ContentUnavailableView("No changes detected yet", systemImage: "arrow.triangle.2.circlepath",
                     description: Text("When a refresh reveals a changed launch time or mission, it will appear here."))

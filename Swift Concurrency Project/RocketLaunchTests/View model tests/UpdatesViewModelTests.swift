@@ -23,6 +23,29 @@ final class UpdatesViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.updates.isEmpty)
     }
 
+    func testFailedRefreshExposesSourceErrorAndRetryPreservesChangeHistory() async throws {
+        let scenario = LaunchScenario()
+        let initial = RocketLaunch(id: 42, name: "Launch", missions: [], estimatedDate: .init(month: 1, day: 1, year: 2030))
+        await scenario.prepare(.loaded(initial))
+        let viewModel = UpdatesViewModel(feature: scenario.feature)
+        let updated = RocketLaunch(id: 42, name: "Launch", missions: [.init(name: "Mission", description: "New mission")], estimatedDate: initial.estimatedDate)
+        await scenario.repository.respond(.success([updated]))
+        await viewModel.requestRefresh().value
+        let history = viewModel.updates
+        XCTAssertEqual(history.count, 1)
+
+        await scenario.repository.respond(.failure(URLError(.notConnectedToInternet)))
+        await viewModel.requestRefresh().value
+        let failed = try XCTUnwrap(viewModel.sources.first)
+        XCTAssertEqual(failed.phase, .failed(.offline))
+        XCTAssertEqual(viewModel.updates, history)
+
+        await scenario.repository.respond(.success([updated]))
+        await viewModel.requestRefresh(source: failed.id).value
+        XCTAssertEqual(viewModel.sources.first?.phase, .loaded)
+        XCTAssertEqual(viewModel.updates, history)
+    }
+
     func testRefreshDisplaysChangesRecordedBySharedFeature() async {
         let scenario = LaunchScenario()
         let initial = RocketLaunch(id: 42, name: "Launch", missions: [], estimatedDate: .init(month: 1, day: 1, year: 2030))

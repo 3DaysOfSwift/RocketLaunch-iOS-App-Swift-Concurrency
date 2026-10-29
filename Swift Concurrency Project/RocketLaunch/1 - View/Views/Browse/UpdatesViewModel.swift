@@ -9,8 +9,9 @@ final class UpdatesViewModel {
         self.feature = feature
         refreshTasks = LaunchRefreshTasks(feature: feature)
     }
+    var sources: [LaunchSourceSnapshot] { feature.sources }
     var updates: [LaunchUpdate] { feature.updates }
     @discardableResult
-    func requestRefresh() -> Task<Void, Never> { refreshTasks.request() }
+    func requestRefresh(source: LaunchSourceID? = nil) -> Task<Void, Never> { refreshTasks.request(source: source) }
     func cancelRefresh() { refreshTasks.cancel() }
 }
