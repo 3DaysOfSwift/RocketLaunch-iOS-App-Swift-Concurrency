@@ -4,19 +4,25 @@ import Observation
 
 final class AppModelTests: XCTestCase {
     @MainActor func testRetainsProvidedFeatureWithoutStartingWork() async {
-        let feature = ControlledLaunchFeature()
+        let repository = PresentationLaunchRepository()
+        let feature = LaunchScheduleFeature(repository: repository)
         let appModel = AppModel(launchSchedule: feature)
         XCTAssertTrue(appModel.launchSchedule === feature)
-        XCTAssertEqual(feature.refreshCount, 0)
+        let requests = await repository.requestCount
+        XCTAssertEqual(requests, 0)
     }
     @MainActor func testIndependentApplicationGraphsDoNotShareFeatureRequests() async {
-        let firstFeature = ControlledLaunchFeature()
-        let secondFeature = ControlledLaunchFeature()
+        let a = PresentationLaunchRepository()
+        let firstFeature = LaunchScheduleFeature(repository: a)
+        let b = PresentationLaunchRepository()
+        let secondFeature = LaunchScheduleFeature(repository: b)
         let first = AppModel(launchSchedule: firstFeature)
         _ = AppModel(launchSchedule: secondFeature)
         await first.launchSchedule.refresh()
-        XCTAssertEqual(firstFeature.refreshCount, 1)
-        XCTAssertEqual(secondFeature.refreshCount, 0)
+        let aCount = await a.requestCount
+        XCTAssertEqual(aCount, 1)
+        let bCount = await b.requestCount
+        XCTAssertEqual(bCount, 0)
     }
 }
 
@@ -740,7 +746,7 @@ private actor ControlledNotifications: LaunchNotificationClient {
         for await value in stream { if value.sources.first?.phase == .loaded { break } }
         let count = await repository.requestCount
         XCTAssertEqual(count, 1)
-        vm.cancelRefresh(); vm.stopObserving()
+        vm.cancelRefresh()
     }
     func testTwoCallersShareOneRequestAndBothReceiveItsResult() async {
         let began = expectation(description: "request")

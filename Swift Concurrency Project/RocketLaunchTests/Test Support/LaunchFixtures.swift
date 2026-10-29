@@ -48,81 +48,68 @@ actor ControlledLaunchRepository: LaunchRepository {
     }
 }
 
-@MainActor @Observable
-final class ControlledLaunchFeature: LaunchScheduleFeatureAPI {
-    var reminderSnapshot: RemindersSnapshot { .initial }
-    func reminderSnapshots() -> AsyncStream<RemindersSnapshot> { AsyncStream { $0.yield(.initial); $0.finish() } }
-    func setReminder(for launchID: String, minutesBefore: Int) async throws -> ReminderSaveOutcome { throw ReminderError.launchUnavailable }
-    func removeReminder(_ launchID: String) async {}
-
-    var sources: [LaunchSourceSnapshot] = []
-    var operators: [LaunchOperator] = []
-    var updates: [LaunchUpdate] = []
-    func refresh(source: LaunchSourceID) async { await refresh() }
-    func updateNextLaunch() {}
-    private(set) var state: LaunchScheduleState = .idle
-    private(set) var refreshCount = 0
-    var onInitialLoad: () -> Void = {}
-    private var revision: UInt64 = 0
-    private var observers: [UUID: AsyncStream<LaunchScheduleSnapshot>.Continuation] = [:]
-    var snapshot: LaunchScheduleSnapshot {
-        .init(revision: revision, state: state, nextLaunch: state.launch, sources: sources, operators: operators, upcomingLaunches: [], updates: updates)
+/// Drives the real Feature through an isolated repository for presentation scenarios.
+@MainActor
+final class LaunchScenario {
+    let repository = PresentationLaunchRepository()
+    let feature: LaunchScheduleFeature
+    init() {
+        feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            now: { Date(timeIntervalSince1970: 1_600_000_000) })
     }
-    func snapshots() -> AsyncStream<LaunchScheduleSnapshot> {
-        let id = UUID()
-        let (stream, continuation) = AsyncStream<LaunchScheduleSnapshot>.makeStream(bufferingPolicy: .bufferingNewest(1))
-        observers[id] = continuation
-        continuation.onTermination = { [weak self] _ in Task { @MainActor in self?.observers[id] = nil } }
-        continuation.yield(snapshot)
-        return stream
+    func prepare(_ state: LaunchScheduleState) async {
+        switch state {
+        case .loaded(let launch):
+            await repository.respond(.success([launch]))
+        case .empty:
+            await repository.respond(.success([]))
+        case .failed(_, let previous):
+            if let previous {
+                await repository.respond(.success([previous]))
+                await feature.refresh()
+            }
+            await repository.respond(.failure(URLError(.notConnectedToInternet)))
+        case .idle, .loading:
+            XCTFail("Use a controlled repository to test pending work")
+            return
+        }
+        await feature.refresh()
     }
-    func setState(_ state: LaunchScheduleState) {
-        self.state = state; revision += 1
-        for observer in observers.values { observer.yield(snapshot) }
-    }
-    func loadIfNeeded() async {
-        if case .idle = state { await refresh() }
-        onInitialLoad()
-    }
-    func refresh() async { refreshCount += 1 }
 }
 
-@MainActor
-final class LifecycleFeature: LaunchScheduleFeatureAPI {
-    var reminderSnapshot: RemindersSnapshot { .initial }
-    func reminderSnapshots() -> AsyncStream<RemindersSnapshot> { AsyncStream { $0.yield(.initial); $0.finish() } }
-    func setReminder(for launchID: String, minutesBefore: Int) async throws -> ReminderSaveOutcome { throw ReminderError.launchUnavailable }
-    func removeReminder(_ launchID: String) async {}
+actor PresentationLaunchRepository: LaunchRepository {
+    private var result: Result<[RocketLaunch], any Error> = .success([])
+    private(set) var requestCount = 0
+    func respond(_ result: Result<[RocketLaunch], any Error>) { self.result = result }
+    func fetchUpcomingLaunches() async throws -> [RocketLaunch] {
+        requestCount += 1
+        return try result.get()
+    }
+}
 
-    var sources: [LaunchSourceSnapshot] = []
-    var operators: [LaunchOperator] = []
-    var updates: [LaunchUpdate] = []
-    var requestedSources: [LaunchSourceID] = []
-    func refresh(source: LaunchSourceID) async {
-        requestedSources.append(source)
-        await refresh()
+actor LifecycleRepository: LaunchRepository {
+    private let onRequest: @Sendable () -> Void
+    private let onFinish: @Sendable () -> Void
+    private var pending: [Int: CheckedContinuation<Void, Never>] = [:]
+    private(set) var requestCount = 0
+    private(set) var cancellations: [Int: Bool] = [:]
+    init(onRequest: @escaping @Sendable () -> Void, onFinish: @escaping @Sendable () -> Void) {
+        self.onRequest = onRequest
+        self.onFinish = onFinish
     }
-    func updateNextLaunch() {}
-    var snapshot: LaunchScheduleSnapshot { .initial }
-    func snapshots() -> AsyncStream<LaunchScheduleSnapshot> {
-        AsyncStream { $0.yield(.initial); $0.finish() }
-    }
-    let state: LaunchScheduleState = .idle
-    var pending: [CheckedContinuation<Void, Never>] = []
-    var cancellations: [Int: Bool] = [:]
-    var onRequest: (Int) -> Void = { _ in }
-    var onFinish: (Int) -> Void = { _ in }
-    func loadIfNeeded() async { await refresh() }
-    func refresh() async {
-        let index = pending.count
+    func fetchUpcomingLaunches() async throws -> [RocketLaunch] {
+        let index = requestCount
+        requestCount += 1
         await withCheckedContinuation { continuation in
-            pending.append(continuation)
-            onRequest(index)
+            pending[index] = continuation
+            onRequest()
         }
         cancellations[index] = Task.isCancelled
-        onFinish(index)
+        onFinish()
+        try Task.checkCancellation()
+        return []
     }
-    func complete(_ index: Int) { pending[index].resume() }
+    func complete(_ index: Int) { pending.removeValue(forKey: index)?.resume() }
 }
 
 @MainActor

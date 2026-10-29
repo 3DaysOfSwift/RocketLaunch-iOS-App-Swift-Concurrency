@@ -1,22 +1,9 @@
 import Foundation
 import Observation
 
-protocol LaunchScheduleFeatureAPI: AnyObject, Sendable {
-    var snapshot: LaunchScheduleSnapshot { get async }
-    func snapshots() async -> AsyncStream<LaunchScheduleSnapshot>
-    func loadIfNeeded() async
-    func refresh() async
-    func refresh(source: LaunchSourceID) async
-    func updateNextLaunch() async
-    var reminderSnapshot: RemindersSnapshot { get async }
-    func reminderSnapshots() async -> AsyncStream<RemindersSnapshot>
-    @discardableResult func setReminder(for launchID: String, minutesBefore: Int) async throws -> ReminderSaveOutcome
-    func removeReminder(_ launchID: String) async
-}
-
 /// Owns observable application state. Network decoding and persistence use service actors.
 @MainActor @Observable
-final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
+final class LaunchScheduleFeature {
     private(set) var state: LaunchScheduleState = .idle
     private(set) var sources: [LaunchSourceSnapshot]
     private(set) var operators: [LaunchOperator] = []

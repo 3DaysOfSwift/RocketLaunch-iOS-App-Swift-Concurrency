@@ -4,9 +4,9 @@ import Foundation
 @MainActor
 struct AppModel {
     static let shared = AppModel.live()
-    let launchSchedule: any LaunchScheduleFeatureAPI
+    let launchSchedule: LaunchScheduleFeature
 
-    init(launchSchedule: any LaunchScheduleFeatureAPI) {
+    init(launchSchedule: LaunchScheduleFeature) {
         self.launchSchedule = launchSchedule
     }
 

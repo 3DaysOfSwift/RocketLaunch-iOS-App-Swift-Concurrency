@@ -32,7 +32,7 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { viewModel.updateNextLaunch() }
         }
-        .onDisappear { viewModel.cancelRefresh(); viewModel.stopObserving(); reminders.stopObserving() }
+        .onDisappear { viewModel.cancelRefresh(); reminders.stopObserving() }
     }
 }
 

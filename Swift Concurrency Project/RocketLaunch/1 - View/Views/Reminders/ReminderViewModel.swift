@@ -5,9 +5,9 @@ import Observation
 final class ReminderViewModel {
     var errorMessage: String?
     private(set) var isBusy = false
-    @ObservationIgnored private let feature: any LaunchScheduleFeatureAPI
+    @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private var action: Task<Void, Never>?
-    init(feature: any LaunchScheduleFeatureAPI = AppModel.shared.launchSchedule) { self.feature = feature }
+    init(feature: LaunchScheduleFeature = AppModel.shared.launchSchedule) { self.feature = feature }
     private(set) var snapshot: RemindersSnapshot = .initial
     var reminders: [LaunchReminder] { snapshot.reminders }
     @ObservationIgnored private var observationTask: Task<Void, Never>?
