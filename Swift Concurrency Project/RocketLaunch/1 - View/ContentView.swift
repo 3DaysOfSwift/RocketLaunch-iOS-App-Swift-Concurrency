@@ -9,7 +9,7 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            NavigationStack { LaunchScheduleView(viewModel: viewModel) }
+            NavigationStack { LaunchScheduleView() }
                 .tabItem { Label("Next", systemImage: "clock") }.tag("next")
             NavigationStack { UpcomingView(viewModel: viewModel) }
                 .tabItem { Label("Schedule", systemImage: "calendar") }.tag("upcoming")

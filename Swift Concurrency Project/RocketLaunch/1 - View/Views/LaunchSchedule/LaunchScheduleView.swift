@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct LaunchScheduleView: View {
-    let viewModel: LaunchScheduleViewModel
+    @State private var viewModel = LaunchScheduleViewModel()
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .largeTitle) private var countdownSize = 44
     @State private var showsSettings = false
@@ -57,6 +57,7 @@ struct LaunchScheduleView: View {
         .simultaneousGesture(TapGesture(count: 2).onEnded { themeManager.selectNextTheme() })
         .background(themeManager.selected.background)
         .foregroundStyle(themeManager.selected.foreground)
+        .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle("Next launch")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -172,4 +173,4 @@ struct LaunchScheduleView: View {
     }
 }
 
-#Preview { NavigationStack { LaunchScheduleView(viewModel: LaunchScheduleViewModel()) }.environment(ThemeManager()) }
+#Preview { NavigationStack { LaunchScheduleView() }.environment(ThemeManager()) }
