@@ -194,6 +194,20 @@ extension LaunchScheduleViewModelTests {
 
 
 extension LaunchScheduleViewModelTests {
+    @MainActor func testSourceRetryDeadlineAndLoadingUseSuppliedTime() {
+        let deadline = Date(timeIntervalSince1970: 2_000_000_000)
+        var source = LaunchSourceSnapshot(id: .rocketLaunchLive, nextRefreshAt: deadline, phase: .failed(.offline))
+        XCTAssertFalse(SourceStatusPresentation.canRetry(source, at: deadline.addingTimeInterval(-0.001)))
+        XCTAssertTrue(SourceStatusPresentation.canRetry(source, at: deadline))
+        XCTAssertTrue(SourceStatusPresentation.canRetry(source, at: deadline.addingTimeInterval(1)))
+        source.phase = .loading
+        XCTAssertFalse(SourceStatusPresentation.canRetry(source, at: deadline.addingTimeInterval(1)))
+        source.nextRefreshAt = nil
+        XCTAssertFalse(SourceStatusPresentation.canRetry(source, at: deadline))
+        source.phase = .idle
+        XCTAssertTrue(SourceStatusPresentation.canRetry(source, at: deadline))
+    }
+
     @MainActor func testCountdownAdvancesAndWaitsForScheduleAtDeadline() async {
         let scenario = LaunchScenario()
         let feature = scenario.feature

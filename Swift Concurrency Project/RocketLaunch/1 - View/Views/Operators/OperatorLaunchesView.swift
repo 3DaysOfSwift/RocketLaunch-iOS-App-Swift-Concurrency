@@ -119,11 +119,11 @@ struct SourceStatusView: View {
     let sources: [LaunchSourceSnapshot]
     let refresh: (LaunchSourceID) -> Void
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { _ in
-            statusContent
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            statusContent(at: context.date)
         }
     }
-    private var statusContent: some View {
+    private func statusContent(at date: Date) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(sources) { source in
                 VStack(alignment: .leading, spacing: 5) {
@@ -134,18 +134,18 @@ struct SourceStatusView: View {
                         else {
                             Button("Refresh") { refresh(source.id) }
                                 .font(.caption).buttonStyle(.borderless)
-                                .disabled(!SourceStatusPresentation.canRetry(source))
+                                .disabled(!SourceStatusPresentation.canRetry(source, at: date))
                                 .accessibilityLabel("Refresh \(source.id.name)")
                         }
                     }
                     if case .failed = source.phase {
-                        Label(SourceStatusPresentation.message(source), systemImage: "exclamationmark.triangle")
+                        Label(SourceStatusPresentation.message(source, at: date), systemImage: "exclamationmark.triangle")
                             .font(.caption).foregroundStyle(themeManager.selected.error)
                     } else {
-                        Text(SourceStatusPresentation.message(source)).font(.caption).foregroundStyle(.secondary)
+                        Text(SourceStatusPresentation.message(source, at: date)).font(.caption).foregroundStyle(.secondary)
                     }
-                    if let date = source.nextRefreshAt, date > Date(), source.phase != .loading {
-                        Text("Refresh available after \(date.formatted(date: .omitted, time: .shortened))")
+                    if let retryDate = source.nextRefreshAt, retryDate > date, source.phase != .loading {
+                        Text("Refresh available after \(retryDate.formatted(date: .omitted, time: .shortened))")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
