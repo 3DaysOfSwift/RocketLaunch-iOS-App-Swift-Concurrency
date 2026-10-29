@@ -10,7 +10,7 @@ final class LaunchScheduleViewModel {
     @ObservationIgnored private var sourceTasks: [LaunchSourceID: Task<Void, Never>] = [:]
     @ObservationIgnored private var sourceRequestIDs: [LaunchSourceID: UUID] = [:]
 
-    init(feature: LaunchScheduleFeature = AppModel.shared.launchSchedule) { self.feature = feature }
+    init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) { self.feature = feature }
 
     var snapshot: LaunchScheduleSnapshot { feature.snapshot }
     var upcomingLaunches: [RocketLaunch] { snapshot.upcomingLaunches }

@@ -6,19 +6,73 @@ final class AppModelTests: XCTestCase {
     @MainActor func testRetainsProvidedFeatureWithoutStartingWork() async {
         let repository = PresentationLaunchRepository()
         let feature = LaunchScheduleFeature(repository: repository)
-        let appModel = AppModel(launchSchedule: feature)
-        XCTAssertTrue(appModel.launchSchedule === feature)
+        let appModel = AppModel(launchScheduleFeature: feature)
+        XCTAssertTrue(appModel.launchScheduleFeature === feature)
         let requests = await repository.requestCount
         XCTAssertEqual(requests, 0)
     }
+    @MainActor func testLaunchLoadsOnceAndScreenRefreshRemainsAvailable() async {
+        let repository = PresentationLaunchRepository()
+        let feature = LaunchScheduleFeature(repository: repository)
+        let model = AppModel(launchScheduleFeature: feature)
+        await model.applicationDidFinishLaunching()
+        await model.applicationDidFinishLaunching()
+        let initialRequests = await repository.requestCount
+        XCTAssertEqual(initialRequests, 1)
+        await feature.refresh()
+        let refreshedRequests = await repository.requestCount
+        XCTAssertEqual(refreshedRequests, 2)
+    }
+
+    @MainActor func testRepeatedLaunchDoesNotDuplicateActiveDownload() async {
+        let began = expectation(description: "Launch download began")
+        let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: {})
+        let feature = LaunchScheduleFeature(repository: repository)
+        let model = AppModel(launchScheduleFeature: feature)
+        var launchFinished = false
+        let launch = Task {
+            await model.applicationDidFinishLaunching()
+            launchFinished = true
+        }
+        await waitFor([began])
+        await model.applicationDidFinishLaunching()
+        XCTAssertFalse(launchFinished)
+        let requests = await repository.requestCount
+        XCTAssertEqual(requests, 1)
+        await repository.complete(0)
+        await launch.value
+        XCTAssertTrue(launchFinished)
+        XCTAssertEqual(feature.state, .empty)
+    }
+
+    @MainActor func testLeavingScreenDoesNotCancelApplicationLaunchDownload() async {
+        let began = expectation(description: "Launch download began")
+        let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: {})
+        let feature = LaunchScheduleFeature(repository: repository)
+        let model = AppModel(launchScheduleFeature: feature)
+        let launch = Task { await model.applicationDidFinishLaunching() }
+        await waitFor([began])
+        let screen = LaunchScheduleViewModel(feature: feature)
+        let refresh = screen.requestRefresh()
+        screen.cancelRefresh()
+        await refresh.value
+        await repository.complete(0)
+        await launch.value
+        let requests = await repository.requestCount
+        let cancellations = await repository.cancellations
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(cancellations[0], false)
+        XCTAssertEqual(feature.state, .empty)
+    }
+
     @MainActor func testIndependentApplicationGraphsDoNotShareFeatureRequests() async {
         let a = PresentationLaunchRepository()
         let firstFeature = LaunchScheduleFeature(repository: a)
         let b = PresentationLaunchRepository()
         let secondFeature = LaunchScheduleFeature(repository: b)
-        let first = AppModel(launchSchedule: firstFeature)
-        _ = AppModel(launchSchedule: secondFeature)
-        await first.launchSchedule.refresh()
+        let first = AppModel(launchScheduleFeature: firstFeature)
+        _ = AppModel(launchScheduleFeature: secondFeature)
+        await first.launchScheduleFeature.refresh()
         let aCount = await a.requestCount
         XCTAssertEqual(aCount, 1)
         let bCount = await b.requestCount

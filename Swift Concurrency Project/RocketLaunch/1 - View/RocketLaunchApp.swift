@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct RocketLaunchApp: App {
+    @UIApplicationDelegateAdaptor(RocketLaunchAppDelegate.self) private var appDelegate
     @State private var themeManager = ThemeManager(defaults: .standard)
 
     var body: some Scene {
@@ -14,4 +15,23 @@ struct RocketLaunchApp: App {
             }
         }
     }
+}
+
+@MainActor
+final class RocketLaunchAppDelegate: NSObject, UIApplicationDelegate {
+    private var launchTask: Task<Void, Never>?
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Hosted tests construct isolated models without contacting production services.
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return true }
+        launchTask = Task {
+            await AppModel.shared.applicationDidFinishLaunching()
+        }
+        return true
+    }
+
+    isolated deinit { launchTask?.cancel() }
 }

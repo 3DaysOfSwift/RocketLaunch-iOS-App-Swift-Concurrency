@@ -1,13 +1,22 @@
 import Foundation
 
-/// Constructs the shared graph. The screen requests an initial load when it appears.
+/// Constructs Features and starts application-wide loading at launch.
 @MainActor
-struct AppModel {
+final class AppModel {
     static let shared = AppModel.live()
-    let launchSchedule: LaunchScheduleFeature
+    let launchScheduleFeature: LaunchScheduleFeature
+    private var hasLaunched: Bool
 
-    init(launchSchedule: LaunchScheduleFeature) {
-        self.launchSchedule = launchSchedule
+    init(launchScheduleFeature: LaunchScheduleFeature) {
+        self.launchScheduleFeature = launchScheduleFeature
+        self.hasLaunched = false
+    }
+
+    func applicationDidFinishLaunching() async {
+        guard !hasLaunched else { return }
+        hasLaunched = true
+        await launchScheduleFeature.loadRemindersIfNeeded()
+        await launchScheduleFeature.loadIfNeeded()
     }
 
     static func live() -> AppModel {
@@ -16,7 +25,7 @@ struct AppModel {
         let libraryURL = URL(string: "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?limit=50&mode=normal&hide_recent_previous=true")!
         let library = LaunchLibraryAPI(session: .shared, endpoint: libraryURL)
         let spaceX = SpaceXAPI(session: .shared, endpoint: URL(string: "https://api.spacexdata.com/v5/launches/query")!)
-        return AppModel(launchSchedule: LaunchScheduleFeature(sources: [
+        return AppModel(launchScheduleFeature: LaunchScheduleFeature(sources: [
             .init(id: .rocketLaunchLive, repository: repository),
             .init(id: .launchLibrary, repository: library, minimumRefreshInterval: 300),
             .init(id: .spaceX, repository: spaceX, minimumRefreshInterval: 60)

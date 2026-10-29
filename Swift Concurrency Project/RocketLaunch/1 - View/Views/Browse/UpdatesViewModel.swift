@@ -5,7 +5,7 @@ import Observation
 final class UpdatesViewModel {
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private let refreshTasks: LaunchRefreshTasks
-    init(feature: LaunchScheduleFeature = AppModel.shared.launchSchedule) {
+    init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {
         self.feature = feature
         refreshTasks = LaunchRefreshTasks(feature: feature)
     }
