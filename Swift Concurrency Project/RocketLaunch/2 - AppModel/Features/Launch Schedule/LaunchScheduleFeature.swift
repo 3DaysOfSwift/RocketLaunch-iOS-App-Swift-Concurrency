@@ -426,7 +426,11 @@ final class LaunchScheduleFeature {
     }
 
     func removeReminder(_ launchID: String) async {
+        // Reject abandoned intent before committing deletion. Once removed,
+        // persistence and notification cleanup must both settle.
+        guard !Task.isCancelled else { return }
         await loadRemindersIfNeeded()
+        guard !Task.isCancelled else { return }
         guard let old = reminders.first(where: { $0.id == launchID }) else { return }
         reminders.removeAll { $0.id == launchID }
         await persistReminders().value

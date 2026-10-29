@@ -564,6 +564,51 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertEqual(retried.reminders.first?.status, .scheduled)
     }
 
+    func testRemovalCancelledWhileLoadingDoesNotDeleteRestoredReminder() async {
+        let started = expectation(description: "Loading saved reminder")
+        let stored = LaunchReminder(launch: launch(), notificationID: "existing", minutesBefore: 15,
+            fireDate: now.addingTimeInterval(600), issue: nil)
+        let persistence = ControlledReminderPersistence(holdLoad: true, initial: [stored]) { started.fulfill() }
+        let client = ControlledNotifications()
+        let feature = LaunchScheduleFeature(sources: [], notificationClient: client, reminderPersistence: persistence)
+        let removal = Task { await feature.removeReminder(stored.id) }
+        await fulfillment(of: [started], timeout: 2)
+        removal.cancel()
+        await persistence.resumeLoad()
+        await removal.value
+        XCTAssertEqual(feature.reminders, [stored])
+        let writes = await persistence.writes
+        let cancellations = await client.cancelCount
+        XCTAssertTrue(writes.isEmpty)
+        XCTAssertEqual(cancellations, 0)
+    }
+
+    func testCancelledRemovalPreservesReminderAndNotificationUntilRetry() async throws {
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client)
+        let id = launch().id
+        try await feature.setReminder(for: id, minutesBefore: 15)
+        let original = await feature.reminderSnapshot
+        let originalNotifications = await client.active
+        let cancelled = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            await feature.removeReminder(id)
+        }
+        await cancelled.value
+        let unchanged = await feature.reminderSnapshot
+        let notifications = await client.active
+        let cancellations = await client.cancelCount
+        XCTAssertEqual(unchanged, original)
+        XCTAssertEqual(notifications, originalNotifications)
+        XCTAssertEqual(cancellations, 0)
+
+        await feature.removeReminder(id)
+        let removed = await feature.reminderSnapshot
+        let remainingNotifications = await client.active
+        XCTAssertTrue(removed.reminders.isEmpty)
+        XCTAssertTrue(remainingNotifications.isEmpty)
+    }
+
     func testCallerCancellationDoesNotDiscardAcceptedReminder() async throws {
         let started = expectation(description: "notification scheduling suspended")
         let client = ControlledNotifications(hold: 1) { _ in started.fulfill() }
@@ -868,6 +913,7 @@ private actor ControlledNotifications: LaunchNotificationClient {
 }
 
 private actor ControlledReminderPersistence: ReminderPersisting {
+    private let initial: [LaunchReminder]
     private let holdLoad: Bool
     private let started: @Sendable () -> Void
     private var loadContinuation: CheckedContinuation<Void, Never>?
@@ -875,7 +921,8 @@ private actor ControlledReminderPersistence: ReminderPersisting {
     private(set) var loads = 0
     private(set) var writes: [[LaunchReminder]] = []
 
-    init(holdLoad: Bool = false, started: @escaping @Sendable () -> Void) {
+    init(holdLoad: Bool = false, initial: [LaunchReminder] = [], started: @escaping @Sendable () -> Void) {
+        self.initial = initial
         self.holdLoad = holdLoad
         self.started = started
     }
@@ -888,7 +935,7 @@ private actor ControlledReminderPersistence: ReminderPersisting {
                 started()
             }
         }
-        return []
+        return initial
     }
     func save(_ reminders: [LaunchReminder]) async {
         XCTAssertFalse(Thread.isMainThread)
