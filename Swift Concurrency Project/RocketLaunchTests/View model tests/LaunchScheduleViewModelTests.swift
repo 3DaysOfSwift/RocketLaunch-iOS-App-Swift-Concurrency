@@ -224,3 +224,43 @@ extension LaunchScheduleViewModelTests {
             details: .init(plannedTime: date, sortTime: sortTime))
     }
 }
+
+
+extension LaunchScheduleViewModelTests {
+    @MainActor func testProviderRefreshCoalescesSameSourceAndAllowsIndependentSource() async {
+        let feature = LifecycleFeature()
+        let started = expectation(description: "Two distinct providers started")
+        started.expectedFulfillmentCount = 2
+        let finished = expectation(description: "Both provider requests finished")
+        finished.expectedFulfillmentCount = 2
+        feature.onRequest = { _ in started.fulfill() }
+        feature.onFinish = { _ in finished.fulfill() }
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        defer { viewModel.cancelRefresh(); viewModel.stopObserving() }
+        viewModel.requestRefresh(source: .spaceX)
+        viewModel.requestRefresh(source: .spaceX)
+        viewModel.requestRefresh(source: .launchLibrary)
+        await waitFor([started])
+        XCTAssertEqual(feature.requestedSources.count, 2)
+        XCTAssertEqual(Set(feature.requestedSources), [.spaceX, .launchLibrary])
+        for index in feature.pending.indices { feature.complete(index) }
+        await waitFor([finished])
+        XCTAssertEqual(feature.cancellations.values.filter { $0 }.count, 0)
+    }
+
+    @MainActor func testLeavingScreenCancelsProviderRefresh() async {
+        let feature = LifecycleFeature()
+        let started = expectation(description: "Provider refresh started")
+        let finished = expectation(description: "Cancelled provider returned")
+        feature.onRequest = { _ in started.fulfill() }
+        feature.onFinish = { _ in finished.fulfill() }
+        let viewModel = LaunchScheduleViewModel(feature: feature)
+        defer { viewModel.cancelRefresh(); viewModel.stopObserving() }
+        viewModel.requestRefresh(source: .spaceX)
+        await waitFor([started])
+        viewModel.cancelRefresh()
+        for index in feature.pending.indices { feature.complete(index) }
+        await waitFor([finished])
+        XCTAssertEqual(feature.cancellations[0], true)
+    }
+}

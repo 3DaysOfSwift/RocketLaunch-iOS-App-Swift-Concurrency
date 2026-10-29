@@ -97,7 +97,11 @@ final class LifecycleFeature: LaunchScheduleFeatureAPI {
     var sources: [LaunchSourceSnapshot] = []
     var operators: [LaunchOperator] = []
     var updates: [LaunchUpdate] = []
-    func refresh(source: LaunchSourceID) async { await refresh() }
+    var requestedSources: [LaunchSourceID] = []
+    func refresh(source: LaunchSourceID) async {
+        requestedSources.append(source)
+        await refresh()
+    }
     func updateNextLaunch() {}
     var snapshot: LaunchScheduleSnapshot { .initial }
     func snapshots() -> AsyncStream<LaunchScheduleSnapshot> {
