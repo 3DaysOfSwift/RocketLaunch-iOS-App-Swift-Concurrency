@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B696A20675CB4C2E89394DBA /* OperatorLaunchesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9600D1359AF745B6B3F32A71 /* OperatorLaunchesViewModelTests.swift */; };
+		06B6328DB0FB412298C66AF5 /* OperatorLaunchesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE0D3DBFBB342BFA360ABCA /* OperatorLaunchesViewModel.swift */; };
 		BDD8E4128BDF449E8F924D08 /* UpdatesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128FA67483AB4C049A7EE6EE /* UpdatesViewModelTests.swift */; };
 		7448AE0A9D3B4E6D9796C515 /* OperatorsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F759E3A31D47379B129174 /* OperatorsViewModelTests.swift */; };
 		8F9E3FF2CE76471F9D1B3D04 /* UpcomingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA66B206CD54C658994C65F /* UpcomingViewModelTests.swift */; };
@@ -65,6 +67,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		9600D1359AF745B6B3F32A71 /* OperatorLaunchesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorLaunchesViewModelTests.swift; sourceTree = "<group>"; };
+		3DE0D3DBFBB342BFA360ABCA /* OperatorLaunchesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorLaunchesViewModel.swift; sourceTree = "<group>"; };
 		128FA67483AB4C049A7EE6EE /* UpdatesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesViewModelTests.swift; sourceTree = "<group>"; };
 		86F759E3A31D47379B129174 /* OperatorsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorsViewModelTests.swift; sourceTree = "<group>"; };
 		1BA66B206CD54C658994C65F /* UpcomingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingViewModelTests.swift; sourceTree = "<group>"; };
@@ -257,6 +261,7 @@
 			isa = PBXGroup;
 			children = (
 				ECF3AA58DF64286E918A8453 /* OperatorLaunchesView.swift */,
+				3DE0D3DBFBB342BFA360ABCA /* OperatorLaunchesViewModel.swift */,
 			);
 			path = Operators;
 			sourceTree = "<group>";
@@ -316,6 +321,7 @@
 			isa = PBXGroup;
 			children = (
 				4E807A9D1C71066E900A6792 /* LaunchScheduleViewModelTests.swift */,
+				9600D1359AF745B6B3F32A71 /* OperatorLaunchesViewModelTests.swift */,
 				128FA67483AB4C049A7EE6EE /* UpdatesViewModelTests.swift */,
 				86F759E3A31D47379B129174 /* OperatorsViewModelTests.swift */,
 				1BA66B206CD54C658994C65F /* UpcomingViewModelTests.swift */,
@@ -535,6 +541,7 @@
 				71EE6C4EB964B7D50B88E3A0 /* SpaceXAPI.swift in Sources */,
 				2338D39EF5D218558C7916FA /* LaunchLibraryAPI.swift in Sources */,
 				D742B6F54A5210A60DE2925C /* OperatorLaunchesView.swift in Sources */,
+				06B6328DB0FB412298C66AF5 /* OperatorLaunchesViewModel.swift in Sources */,
 				5900175C78A56AE96FD7AA37 /* AboutView.swift in Sources */,
 				C71295EF9F333CF055E11A17 /* AppPresentation.swift in Sources */,
 				BFCB555EF76613F20AC19FED /* LaunchRepository.swift in Sources */,
@@ -554,6 +561,7 @@
 				8B73DA98BAC6FA42E29D6A98 /* LaunchFixtures.swift in Sources */,
 				AD314A2629F09C3736C3D237 /* StubURLProtocol.swift in Sources */,
 				16C0A180733C0360412B7D8E /* LaunchScheduleViewModelTests.swift in Sources */,
+				B696A20675CB4C2E89394DBA /* OperatorLaunchesViewModelTests.swift in Sources */,
 				BDD8E4128BDF449E8F924D08 /* UpdatesViewModelTests.swift in Sources */,
 				7448AE0A9D3B4E6D9796C515 /* OperatorsViewModelTests.swift in Sources */,
 				8F9E3FF2CE76471F9D1B3D04 /* UpcomingViewModelTests.swift in Sources */,

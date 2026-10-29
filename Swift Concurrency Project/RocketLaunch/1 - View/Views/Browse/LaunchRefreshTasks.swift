@@ -32,5 +32,5 @@ final class LaunchRefreshTasks {
         tasks.values.forEach { $0.cancel() }
         tasks.removeAll()
     }
-    isolated deinit { tasks.values.forEach { $0.cancel() } }
+    deinit { tasks.values.forEach { $0.cancel() } }
 }

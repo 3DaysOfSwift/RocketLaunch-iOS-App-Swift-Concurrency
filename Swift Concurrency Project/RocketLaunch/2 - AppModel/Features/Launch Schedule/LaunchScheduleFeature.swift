@@ -59,7 +59,7 @@ final class LaunchScheduleFeature {
         lastPublished = value
         for observer in observers.values { observer.yield(value) }
     }
-    isolated deinit {
+    deinit {
         for observer in observers.values { observer.finish() }
         for observer in reminderObservers.values { observer.finish() }
         for request in requests.values {

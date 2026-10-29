@@ -3,7 +3,7 @@ import SwiftUI
 struct OperatorLaunchesView: View {
     let operatorID: String
     let name: String
-    @State private var viewModel = LaunchScheduleViewModel()
+    @State private var viewModel = OperatorLaunchesViewModel()
 
     var body: some View {
         ThemedList {
