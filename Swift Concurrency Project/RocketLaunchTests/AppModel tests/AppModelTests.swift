@@ -846,6 +846,34 @@ private actor ControlledNotifications: LaunchNotificationClient {
 }
 
 @MainActor final class SharedRefreshTests: XCTestCase {
+    @available(iOS 26.0, *)
+    func testCancellingOneRegisteredCallerPreservesTheOtherCaller() async {
+        let began = expectation(description: "shared provider started")
+        let finished = expectation(description: "shared provider completed")
+        let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: { finished.fulfill() })
+        let feature = LaunchScheduleFeature(repository: repository)
+        await feature.loadRemindersIfNeeded()
+
+        // Both closures inherit MainActor and start immediately. With storage
+        // already loaded, their first suspension is the registered continuation.
+        // No cooldown or scheduler delay can impersonate a joined caller here.
+        let first = Task.immediate { await feature.refresh(source: .rocketLaunchLive) }
+        let second = Task.immediate { await feature.refresh(source: .rocketLaunchLive) }
+        await waitFor([began])
+        first.cancel()
+        await first.value
+        XCTAssertEqual(feature.sources.first?.phase, .loading)
+
+        await repository.complete(0)
+        await second.value
+        await waitFor([finished])
+        let count = await repository.requestCount
+        let cancellations = await repository.cancellations
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(cancellations[0], false)
+        XCTAssertEqual(feature.state, .empty)
+    }
+
     func testReappearanceBeforeOldTransportFinishesRestartsInitialLoad() async {
         let firstBegan = expectation(description: "first")
         let secondBegan = expectation(description: "second")
