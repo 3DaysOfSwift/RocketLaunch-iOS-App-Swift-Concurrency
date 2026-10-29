@@ -91,6 +91,49 @@ final class LocalLaunchNotificationsTests: XCTestCase {
         XCTAssertEqual(events, ["status", "add:one", "status", "add:one"])
     }
 
+    func testCallerCancellationDuringPermissionKeepsAcceptedSaveConsistent() async throws {
+        let requested = expectation(description: "permission pending")
+        let system = NotificationSystemStub(onPermission: { requested.fulfill() })
+        let (feature, launch) = await reminderFeature(system: system)
+        let save = Task { try await feature.setReminder(for: launch.id, minutesBefore: 5) }
+        await waitFor([requested])
+        XCTAssertEqual(feature.reminders.first?.status, .pending)
+        save.cancel()
+        await system.finishPermission()
+        let outcome = try await save.value
+        XCTAssertEqual(outcome, .saved)
+        XCTAssertEqual(feature.reminders.first?.status, .scheduled)
+        let installed = await system.installed
+        XCTAssertEqual(installed.map(\.id), feature.reminders.map(\.notificationID))
+        XCTAssertEqual(installed.count, 1)
+    }
+
+    func testRemovalDuringPermissionCleansLateInstallation() async throws {
+        let requested = expectation(description: "permission pending")
+        let system = NotificationSystemStub(onPermission: { requested.fulfill() })
+        let (feature, launch) = await reminderFeature(system: system)
+        let save = Task { try await feature.setReminder(for: launch.id, minutesBefore: 5) }
+        await waitFor([requested])
+        await feature.removeReminder(launch.id)
+        await system.finishPermission()
+        let outcome = try await save.value
+        XCTAssertEqual(outcome, .superseded)
+        XCTAssertTrue(feature.reminders.isEmpty)
+        let installed = await system.installed
+        XCTAssertTrue(installed.isEmpty)
+    }
+
+    private func reminderFeature(system: NotificationSystemStub) async -> (LaunchScheduleFeature, RocketLaunch) {
+        let now = date
+        let launch = RocketLaunch(id: "permission", source: .rocketLaunchLive, name: "Launch", missions: [],
+            estimatedDate: .init(month: nil, day: nil, year: nil),
+            details: .init(plannedTime: now.addingTimeInterval(7200)))
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: NotificationLaunchRepository(launch: launch))],
+            now: { now }, notificationClient: LocalLaunchNotifications(system: system))
+        await feature.refresh()
+        return (feature, launch)
+    }
+
     func testInstallationWaitsForPermissionResponse() async throws {
         let requested = expectation(description: "permission pending")
         let system = NotificationSystemStub(onPermission: { requested.fulfill() })
@@ -148,4 +191,10 @@ private actor NotificationSystemStub: LaunchNotificationSystem {
         events.append("remove:" + id)
         installed.removeAll { $0.id == id }
     }
+}
+
+private actor NotificationLaunchRepository: LaunchRepository {
+    let launch: RocketLaunch
+    init(launch: RocketLaunch) { self.launch = launch }
+    func fetchUpcomingLaunches() async throws -> [RocketLaunch] { [launch] }
 }
