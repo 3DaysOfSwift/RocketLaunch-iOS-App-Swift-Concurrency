@@ -38,4 +38,41 @@ final class UpcomingViewModelTests: XCTestCase {
         XCTAssertEqual(cancelled[0], true)
         XCTAssertFalse(viewModel.isLoading)
     }
+
+    func testCancelledRefreshCanRestartAndRepeatedIntentRetainsReplacementTask() async throws {
+        let started = expectation(description: "original transport started")
+        let restarted = expectation(description: "replacement transport started")
+        let repository = ControlledLaunchRepository { index in
+            if index == 0 { started.fulfill() }
+            else if index == 1 { restarted.fulfill() }
+            else { XCTFail("Repeated refresh created an extra transport request") }
+        }
+        let feature = LaunchScheduleFeature(
+            sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            now: { Date(timeIntervalSince1970: 1_600_000_000) })
+        let viewModel = UpcomingViewModel(feature: feature)
+        let launches = try LaunchFixtures.launches()
+        let originalLaunch = try XCTUnwrap(launches.first)
+        let replacementLaunch = try XCTUnwrap(launches.dropFirst().first)
+
+        let original = viewModel.requestRefresh()
+        await waitFor([started])
+        viewModel.cancelRefresh()
+        await original.value
+        let replacement = viewModel.requestRefresh()
+        await waitFor([restarted])
+        XCTAssertTrue(viewModel.isLoading)
+        XCTAssertEqual(viewModel.requestRefresh(), replacement)
+
+        await repository.complete(1, with: .success([replacementLaunch]))
+        await replacement.value
+        XCTAssertEqual(viewModel.launches, [replacementLaunch])
+        XCTAssertFalse(viewModel.isLoading)
+
+        // Release the abandoned transport so the fixture retains no continuation.
+        await repository.complete(0, with: .success([originalLaunch]))
+        let count = await repository.requestCount
+        XCTAssertEqual(count, 2)
+    }
+
 }
