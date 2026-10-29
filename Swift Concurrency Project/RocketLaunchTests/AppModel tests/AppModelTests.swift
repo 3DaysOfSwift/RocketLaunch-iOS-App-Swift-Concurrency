@@ -802,8 +802,17 @@ final class UnifiedReminderTests: XCTestCase {
         // Simulate storage becoming readable again; retry must restore its contents.
         let stored = LaunchReminder(launch: launch(), notificationID: "existing", minutesBefore: 15,
             fireDate: now.addingTimeInterval(6300), issue: nil)
+        let stream = await feature.reminderSnapshots()
+        let recovered = expectation(description: "existing subscriber receives restored data")
+        let observer = Task {
+            for await snapshot in stream {
+                if snapshot.reminders == [stored] { recovered.fulfill(); return }
+            }
+        }
+        defer { observer.cancel() }
         defaults.set(try JSONEncoder().encode([stored]), forKey: "rocketlaunch.reminders.v1")
         await viewModel.loadIfNeeded().value
+        await fulfillment(of: [recovered], timeout: 2)
         XCTAssertNil(viewModel.storageError)
         XCTAssertEqual(viewModel.reminders, [stored])
         let outcome = try await feature.setReminder(for: launch().id, minutesBefore: 5)

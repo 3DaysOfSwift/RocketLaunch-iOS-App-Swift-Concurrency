@@ -397,6 +397,9 @@ final class LaunchScheduleFeature {
                 reminders[index].status = .failed
                 reminders[index].issue = "Scheduling was interrupted. Set this reminder again."
             }
+            reminderRevision += 1
+            let snapshot = currentReminderSnapshot
+            for observer in reminderObservers.values { observer.yield(snapshot) }
         case .failure:
             reminderStorageError = "Saved reminders could not be read. Your stored data has been kept. Retry before changing reminders."
         }
