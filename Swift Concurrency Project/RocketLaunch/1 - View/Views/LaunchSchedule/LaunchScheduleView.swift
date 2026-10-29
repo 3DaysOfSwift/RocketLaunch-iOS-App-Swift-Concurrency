@@ -70,7 +70,7 @@ struct LaunchScheduleView: View {
                     .accessibilityLabel("About RocketLaunch")
             }
         }
-        .sheet(isPresented: $showsSources) { NavigationStack { ThemedList { SourceStatusView(viewModel: viewModel) }.navigationTitle("Data sources").toolbar { Button("Done") { showsSources = false } } } }
+        .sheet(isPresented: $showsSources) { NavigationStack { ThemedList { SourceStatusView(sources: viewModel.sources, refresh: { viewModel.requestRefresh(source: $0) }) }.navigationTitle("Data sources").toolbar { Button("Done") { showsSources = false } } } }
         .sheet(isPresented: $showsSettings) { NavigationStack { SettingsView() } }
         .sheet(isPresented: $showsAbout) { NavigationStack { AboutView() } }
 

@@ -11,11 +11,11 @@ struct ContentView: View {
         TabView(selection: $selection) {
             NavigationStack { LaunchScheduleView() }
                 .tabItem { Label("Next", systemImage: "clock") }.tag("next")
-            NavigationStack { UpcomingView(viewModel: viewModel) }
+            NavigationStack { UpcomingView() }
                 .tabItem { Label("Schedule", systemImage: "calendar") }.tag("upcoming")
-            NavigationStack { OperatorsView(viewModel: viewModel) }
+            NavigationStack { OperatorsView() }
                 .tabItem { Label("Operators", systemImage: "building.2") }.tag("operators")
-            NavigationStack { UpdatesView(viewModel: viewModel) }
+            NavigationStack { UpdatesView() }
                 .tabItem { Label("Changes", systemImage: "arrow.triangle.2.circlepath") }.tag("updates")
             NavigationStack { RemindersView() }
                 .tabItem { Label("Reminders", systemImage: "bell") }.tag("reminders")

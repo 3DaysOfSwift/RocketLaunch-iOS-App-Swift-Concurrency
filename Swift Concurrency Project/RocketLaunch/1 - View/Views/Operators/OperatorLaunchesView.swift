@@ -3,12 +3,12 @@ import SwiftUI
 struct OperatorLaunchesView: View {
     let operatorID: String
     let name: String
-    let viewModel: LaunchScheduleViewModel
+    @State private var viewModel = LaunchScheduleViewModel()
 
     var body: some View {
         ThemedList {
             Section {
-                SourceStatusView(viewModel: viewModel, operatorID: operatorID)
+                SourceStatusView(sources: viewModel.relevantSources(for: operatorID), refresh: { viewModel.requestRefresh(source: $0) })
             }
             Section("Launches") {
                 if viewModel.launches(for: operatorID).isEmpty {
@@ -23,6 +23,7 @@ struct OperatorLaunchesView: View {
             }
         }
         .modifier(ThemedListBackground())
+        .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle(name)
     }
 }
@@ -112,8 +113,8 @@ struct LaunchDetailView: View {
 
 struct SourceStatusView: View {
     @Environment(ThemeManager.self) private var themeManager
-    let viewModel: LaunchScheduleViewModel
-    var operatorID: String? = nil
+    let sources: [LaunchSourceSnapshot]
+    let refresh: (LaunchSourceID) -> Void
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { _ in
             statusContent
@@ -121,24 +122,24 @@ struct SourceStatusView: View {
     }
     private var statusContent: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ForEach(viewModel.relevantSources(for: operatorID)) { source in
+            ForEach(sources) { source in
                 VStack(alignment: .leading, spacing: 5) {
                     HStack {
                         Text(source.id.name).font(.subheadline.bold())
                         Spacer()
                         if source.phase == .loading { ProgressView() }
                         else {
-                            Button("Refresh") { viewModel.requestRefresh(source: source.id) }
+                            Button("Refresh") { refresh(source.id) }
                                 .font(.caption).buttonStyle(.borderless)
-                                .disabled(!viewModel.canRetry(source))
+                                .disabled(!SourceStatusPresentation.canRetry(source))
                                 .accessibilityLabel("Refresh \(source.id.name)")
                         }
                     }
                     if case .failed = source.phase {
-                        Label(viewModel.sourceMessage(source), systemImage: "exclamationmark.triangle")
+                        Label(SourceStatusPresentation.message(source), systemImage: "exclamationmark.triangle")
                             .font(.caption).foregroundStyle(themeManager.selected.error)
                     } else {
-                        Text(viewModel.sourceMessage(source)).font(.caption).foregroundStyle(.secondary)
+                        Text(SourceStatusPresentation.message(source)).font(.caption).foregroundStyle(.secondary)
                     }
                     if let date = source.nextRefreshAt, date > Date(), source.phase != .loading {
                         Text("Refresh available after \(date.formatted(date: .omitted, time: .shortened))")

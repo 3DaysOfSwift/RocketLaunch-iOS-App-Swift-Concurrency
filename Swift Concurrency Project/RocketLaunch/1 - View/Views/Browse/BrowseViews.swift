@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct UpcomingView: View {
-    let viewModel: LaunchScheduleViewModel
-    @State private var filters = BrowseViewModel()
+    @State private var viewModel = UpcomingViewModel()
     var body: some View {
-        ThemedList {
+        @Bindable var filters = viewModel.filters
+        return ThemedList {
             Section {
                 Picker("Operator", selection: $filters.operatorID) {
                     Text("All operators").tag("")
@@ -13,43 +13,45 @@ struct UpcomingView: View {
                 countryFilter
             }
             Section {
-                ForEach(filters.launches(in: viewModel.upcomingLaunches)) { launch in
+                ForEach(viewModel.launches) { launch in
                     NavigationLink { LaunchDetailView(launch: launch) } label: {
                         LaunchListRow(viewModel: .init(launch: launch), source: launch.source.name)
                     }
                 }
-                if filters.launches(in: viewModel.upcomingLaunches).isEmpty {
+                if viewModel.launches.isEmpty {
                     Text(viewModel.isLoading ? "Loading launches…" : "No launches match these filters.")
                         .foregroundStyle(.secondary)
                 }
             } footer: { Text("Launches are attributed to each source. The same launch may appear more than once.") }
-            Section("Data sources") { SourceStatusView(viewModel: viewModel) }
+            Section("Data sources") { SourceStatusView(sources: viewModel.sources, refresh: { viewModel.requestRefresh(source: $0) }) }
         }
         .modifier(ThemedListBackground())
+        .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle("Upcoming")
         .searchable(text: $filters.search, prompt: "Mission, rocket or operator")
         .toolbar { Button { viewModel.requestRefresh() } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("Refresh launches") }
     }
     private var countryFilter: some View {
-        Picker("Filter", selection: $filters.country) {
+        @Bindable var filters = viewModel.filters
+        return Picker("Filter", selection: $filters.country) {
             Text("All countries").tag("")
-            ForEach(filters.countries(in: viewModel.operators), id: \.self) { Text($0).tag($0) }
+            ForEach(viewModel.countries, id: \.self) { Text($0).tag($0) }
         }
     }
 }
 
 struct OperatorsView: View {
-    let viewModel: LaunchScheduleViewModel
-    @State private var filters = BrowseViewModel()
+    @State private var viewModel = OperatorsViewModel()
     var body: some View {
-        ThemedList {
+        @Bindable var filters = viewModel.filters
+        return ThemedList {
             Picker("Launch country", selection: $filters.country) {
                 Text("All countries").tag("")
-                ForEach(filters.countries(in: viewModel.operators), id: \.self) { Text($0).tag($0) }
+                ForEach(viewModel.countries, id: \.self) { Text($0).tag($0) }
             }
-            ForEach(filters.operators(in: viewModel.operators)) { item in
+            ForEach(viewModel.operators) { item in
                 NavigationLink {
-                    OperatorLaunchesView(operatorID: item.id, name: item.name, viewModel: viewModel)
+                    OperatorLaunchesView(operatorID: item.id, name: item.name)
                 } label: {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(item.name).font(.headline)
@@ -57,7 +59,7 @@ struct OperatorsView: View {
                     }.padding(.vertical, 6)
                 }
             }
-            if filters.operators(in: viewModel.operators).isEmpty {
+            if viewModel.operators.isEmpty {
                 Text(viewModel.isLoading ? "Finding operators…" : "No operators match these filters.")
                     .foregroundStyle(.secondary)
             }
@@ -69,7 +71,7 @@ struct OperatorsView: View {
 }
 
 struct UpdatesView: View {
-    let viewModel: LaunchScheduleViewModel
+    @State private var viewModel = UpdatesViewModel()
     var body: some View {
         ThemedList {
             if viewModel.updates.isEmpty {
@@ -96,6 +98,7 @@ struct UpdatesView: View {
             }
         }
         .modifier(ThemedListBackground())
+        .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle("Changes")
         .toolbar { Button("Refresh") { viewModel.requestRefresh() } }
     }

@@ -79,23 +79,8 @@ final class LaunchScheduleViewModel {
             return $0.fetchedAt == nil || knownSources.contains($0.id)
         }
     }
-    func canRetry(_ source: LaunchSourceSnapshot) -> Bool {
-        source.phase != .loading && (source.nextRefreshAt.map { $0 <= Date() } ?? true)
-    }
-    func sourceMessage(_ source: LaunchSourceSnapshot) -> String {
-        switch source.phase {
-        case .idle: return String(localized: "Waiting for data")
-        case .loading: return String(localized: "Updating…")
-        case .loaded:
-            if source.id == .spaceX, !source.launches.isEmpty,
-               !source.launches.contains(where: { ($0.details.sortTime ?? .distantPast) >= Date() }) {
-                return String(localized: "Downloaded schedule is outdated · Excluded from Next")
-            }
-            return source.fetchedAt.map { "Updated \($0.formatted(date: .omitted, time: .shortened)) · \(source.launches.count) launches" } ?? "Updated"
-        case .failed:
-            return source.launches.isEmpty ? String(localized: "Refresh failed · No data available") : String(localized: "Refresh failed · Showing previous data")
-        }
-    }
+    func canRetry(_ source: LaunchSourceSnapshot) -> Bool { SourceStatusPresentation.canRetry(source) }
+    func sourceMessage(_ source: LaunchSourceSnapshot) -> String { SourceStatusPresentation.message(source) }
     var hasLaunch: Bool { snapshot.state.launch != nil }
     var isLoading: Bool {
         if case .loading = snapshot.state { return true }

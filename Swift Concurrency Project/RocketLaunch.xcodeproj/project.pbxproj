@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BDD8E4128BDF449E8F924D08 /* UpdatesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128FA67483AB4C049A7EE6EE /* UpdatesViewModelTests.swift */; };
+		7448AE0A9D3B4E6D9796C515 /* OperatorsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F759E3A31D47379B129174 /* OperatorsViewModelTests.swift */; };
+		8F9E3FF2CE76471F9D1B3D04 /* UpcomingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA66B206CD54C658994C65F /* UpcomingViewModelTests.swift */; };
+		5963A982E9ED4B1DB26769FB /* SourceStatusPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0BC76613E64F8796F8D117 /* SourceStatusPresentation.swift */; };
+		6A968013E6F24D6B8C809711 /* UpdatesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F223D69C4EC34311ABCD8EA6 /* UpdatesViewModel.swift */; };
+		0F256597C984444C9D76BE58 /* OperatorsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 176ADCC061FE4DF5B7F0BE84 /* OperatorsViewModel.swift */; };
+		FD1ABDEE42234D67ACAE66D2 /* UpcomingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20697B84C52040CCA0E56D81 /* UpcomingViewModel.swift */; };
+		8FFAAAB7ED7640FD95E3E9B4 /* LaunchRefreshTasks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27EDD5D91CDF411FBB7E2042 /* LaunchRefreshTasks.swift */; };
 		B12345678901234567890101 /* ReminderViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12345678901234567890102 /* ReminderViewModelTests.swift */; };
 		16C0A180733C0360412B7D8E /* LaunchScheduleViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E807A9D1C71066E900A6792 /* LaunchScheduleViewModelTests.swift */; };
 		210F0EFB74899257C00AF13A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F149E9826C3D5F239A29CF4 /* AppModel.swift */; };
@@ -57,6 +65,14 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		128FA67483AB4C049A7EE6EE /* UpdatesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesViewModelTests.swift; sourceTree = "<group>"; };
+		86F759E3A31D47379B129174 /* OperatorsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorsViewModelTests.swift; sourceTree = "<group>"; };
+		1BA66B206CD54C658994C65F /* UpcomingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingViewModelTests.swift; sourceTree = "<group>"; };
+		FF0BC76613E64F8796F8D117 /* SourceStatusPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceStatusPresentation.swift; sourceTree = "<group>"; };
+		F223D69C4EC34311ABCD8EA6 /* UpdatesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesViewModel.swift; sourceTree = "<group>"; };
+		176ADCC061FE4DF5B7F0BE84 /* OperatorsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorsViewModel.swift; sourceTree = "<group>"; };
+		20697B84C52040CCA0E56D81 /* UpcomingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingViewModel.swift; sourceTree = "<group>"; };
+		27EDD5D91CDF411FBB7E2042 /* LaunchRefreshTasks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchRefreshTasks.swift; sourceTree = "<group>"; };
 		B12345678901234567890102 /* ReminderViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderViewModelTests.swift; sourceTree = "<group>"; };
 		0708E9DA54F15EB2B22F4235 /* AppColourTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColourTheme.swift; sourceTree = "<group>"; };
 		0C015E402B212A6600253DED /* RocketLaunch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RocketLaunch.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -300,6 +316,9 @@
 			isa = PBXGroup;
 			children = (
 				4E807A9D1C71066E900A6792 /* LaunchScheduleViewModelTests.swift */,
+				128FA67483AB4C049A7EE6EE /* UpdatesViewModelTests.swift */,
+				86F759E3A31D47379B129174 /* OperatorsViewModelTests.swift */,
+				1BA66B206CD54C658994C65F /* UpcomingViewModelTests.swift */,
 				B12345678901234567890102 /* ReminderViewModelTests.swift */,
 				75635FEFD990C35E2482197D /* ThemeManagerTests.swift */,
 			);
@@ -335,6 +354,11 @@
 			isa = PBXGroup;
 			children = (
 				A2CC0C13153D6DA54B7687B6 /* BrowseViewModel.swift */,
+				FF0BC76613E64F8796F8D117 /* SourceStatusPresentation.swift */,
+				F223D69C4EC34311ABCD8EA6 /* UpdatesViewModel.swift */,
+				176ADCC061FE4DF5B7F0BE84 /* OperatorsViewModel.swift */,
+				20697B84C52040CCA0E56D81 /* UpcomingViewModel.swift */,
+				27EDD5D91CDF411FBB7E2042 /* LaunchRefreshTasks.swift */,
 				96320E21EBBF4D064BD23E03 /* BrowseViews.swift */,
 			);
 			path = Browse;
@@ -503,6 +527,11 @@
 				7323CD0427F3266796D2804F /* ReminderViewModel.swift in Sources */,
 				D952B3A092D495835A57648C /* BrowseViews.swift in Sources */,
 				50F7307AE1F9BC19D6C6D5C3 /* BrowseViewModel.swift in Sources */,
+				5963A982E9ED4B1DB26769FB /* SourceStatusPresentation.swift in Sources */,
+				6A968013E6F24D6B8C809711 /* UpdatesViewModel.swift in Sources */,
+				0F256597C984444C9D76BE58 /* OperatorsViewModel.swift in Sources */,
+				FD1ABDEE42234D67ACAE66D2 /* UpcomingViewModel.swift in Sources */,
+				8FFAAAB7ED7640FD95E3E9B4 /* LaunchRefreshTasks.swift in Sources */,
 				71EE6C4EB964B7D50B88E3A0 /* SpaceXAPI.swift in Sources */,
 				2338D39EF5D218558C7916FA /* LaunchLibraryAPI.swift in Sources */,
 				D742B6F54A5210A60DE2925C /* OperatorLaunchesView.swift in Sources */,
@@ -525,6 +554,9 @@
 				8B73DA98BAC6FA42E29D6A98 /* LaunchFixtures.swift in Sources */,
 				AD314A2629F09C3736C3D237 /* StubURLProtocol.swift in Sources */,
 				16C0A180733C0360412B7D8E /* LaunchScheduleViewModelTests.swift in Sources */,
+				BDD8E4128BDF449E8F924D08 /* UpdatesViewModelTests.swift in Sources */,
+				7448AE0A9D3B4E6D9796C515 /* OperatorsViewModelTests.swift in Sources */,
+				8F9E3FF2CE76471F9D1B3D04 /* UpcomingViewModelTests.swift in Sources */,
 				B12345678901234567890101 /* ReminderViewModelTests.swift in Sources */,
 				2902723AF79DE76B3BE7F686 /* ThemeManagerTests.swift in Sources */,
 			);
