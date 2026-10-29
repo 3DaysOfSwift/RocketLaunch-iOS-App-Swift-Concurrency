@@ -11,9 +11,7 @@ final class LaunchDetailScreenViewModel {
     init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) { self.feature = feature }
 
     func contains(_ id: String) -> Bool {
-        feature.reminders.contains {
-            $0.id == id && $0.status == .scheduled && $0.issue == nil && $0.fireDate > Date()
-        }
+        feature.hasActiveReminder(for: id)
     }
 
     @discardableResult

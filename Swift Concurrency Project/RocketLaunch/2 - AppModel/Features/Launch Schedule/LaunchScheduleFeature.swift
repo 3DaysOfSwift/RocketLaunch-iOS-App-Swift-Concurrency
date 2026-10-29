@@ -264,6 +264,12 @@ final class LaunchScheduleFeature {
     @ObservationIgnored private var reminderPersistenceTask: Task<Void, Never>?
     @ObservationIgnored private var remindersLoaded = false
     private(set) var reminders: [LaunchReminder] = []
+
+    func hasActiveReminder(for launchID: String) -> Bool {
+        reminders.contains {
+            $0.id == launchID && $0.status == .scheduled && $0.issue == nil && $0.fireDate > now()
+        }
+    }
     @ObservationIgnored private var userSaveCounts: [String: Int] = [:]
     private var reminderRevision: UInt64 = 0
     @ObservationIgnored private var reminderObservers: [UUID: AsyncStream<RemindersSnapshot>.Continuation] = [:]

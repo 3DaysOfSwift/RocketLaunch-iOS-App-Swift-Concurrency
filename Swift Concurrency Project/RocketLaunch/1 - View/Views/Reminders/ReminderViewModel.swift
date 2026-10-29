@@ -21,7 +21,7 @@ final class ReminderViewModel {
         loadTask = task
         return task
     }
-    func contains(_ id: String) -> Bool { reminders.contains { $0.id == id && $0.status == .scheduled && $0.issue == nil && $0.fireDate > Date() } }
+    func contains(_ id: String) -> Bool { feature.hasActiveReminder(for: id) }
     func remove(_ id: String) {
         guard !isBusy else { return }
         isBusy = true

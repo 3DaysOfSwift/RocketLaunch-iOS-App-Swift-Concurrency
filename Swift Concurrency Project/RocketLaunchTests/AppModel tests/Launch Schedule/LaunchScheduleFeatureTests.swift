@@ -3,6 +3,37 @@ import Observation
 @testable import RocketLaunch
 
 final class LaunchScheduleFeatureTests: XCTestCase {
+
+    @MainActor func testActiveReminderExpiresAtItsFireTimeUsingTheFeatureClock() async throws {
+        let clock = TestClock(Date(timeIntervalSince1970: 2_000_000_000))
+        let launch = try XCTUnwrap(LaunchFixtures.launches().first)
+        let reminder = LaunchReminder(launch: launch, notificationID: "test", minutesBefore: 15,
+            fireDate: clock.read().addingTimeInterval(60), issue: nil)
+        let feature = LaunchScheduleFeature(sources: [], now: { clock.read() },
+            reminderPersistence: ActiveReminderPersistence(reminder))
+        await feature.loadRemindersIfNeeded()
+        XCTAssertTrue(feature.hasActiveReminder(for: launch.id))
+        XCTAssertFalse(feature.hasActiveReminder(for: "missing"))
+        clock.advance(60)
+        XCTAssertFalse(feature.hasActiveReminder(for: launch.id))
+        XCTAssertEqual(feature.reminders, [reminder], "Expiry must not erase reminder history")
+    }
+
+    @MainActor func testUnsuccessfulRemindersAreNotReportedAsActive() async throws {
+        let date = Date(timeIntervalSince1970: 2_000_000_000)
+        let launch = try XCTUnwrap(LaunchFixtures.launches().first)
+        let cases: [(LaunchReminder.Status, String?)] = [
+            (.pending, nil), (.failed, nil), (.scheduled, "Scheduling failed")
+        ]
+        for (status, issue) in cases {
+            let reminder = LaunchReminder(launch: launch, notificationID: "test", minutesBefore: 15,
+                fireDate: date.addingTimeInterval(60), issue: issue, status: status)
+            let feature = LaunchScheduleFeature(sources: [], now: { date },
+                reminderPersistence: ActiveReminderPersistence(reminder))
+            await feature.loadRemindersIfNeeded()
+            XCTAssertFalse(feature.hasActiveReminder(for: launch.id), "Unexpected active status: \(status)")
+        }
+    }
     @MainActor func testElapsedLaunchCannotBecomeNext() async {
         await verifyNextAfterTimePasses(initialOffset: -60, advance: 0)
     }
@@ -383,4 +414,11 @@ final class LaunchCountdownTests: XCTestCase {
         XCTAssertEqual(LaunchDetails(plannedTime: now).countdown(at: now), .awaitingUpdate)
         XCTAssertEqual(LaunchDetails(plannedTime: now.addingTimeInterval(-1)).countdown(at: now), .awaitingUpdate)
     }
+}
+
+private actor ActiveReminderPersistence: ReminderPersisting {
+    private let reminder: LaunchReminder
+    init(_ reminder: LaunchReminder) { self.reminder = reminder }
+    func load() async -> [LaunchReminder] { [reminder] }
+    func save(_ reminders: [LaunchReminder]) async {}
 }
