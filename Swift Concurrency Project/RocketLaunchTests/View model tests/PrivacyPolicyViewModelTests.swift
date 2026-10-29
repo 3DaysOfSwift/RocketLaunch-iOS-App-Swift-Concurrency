@@ -36,6 +36,20 @@ final class PrivacyPolicyViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.text, "Current policy")
     }
 
+    func testOlderReadCannotReplaceNewerPolicy() async {
+        let started = expectation(description: "first read started")
+        let loader = HeldPolicyFixture(started: { started.fulfill() })
+        let viewModel = PrivacyPolicyViewModel(loader: loader)
+        let olderRead = Task { await viewModel.load() }
+        await waitFor([started])
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.text, "Current policy")
+        await loader.finish()
+        await olderRead.value
+        XCTAssertEqual(viewModel.text, "Current policy")
+    }
+
     func testBundledLoaderReadsPolicyFromApplicationBundle() async throws {
         let text = try await BundledPrivacyPolicyLoader().load()
         XCTAssertFalse(text.isEmpty)
