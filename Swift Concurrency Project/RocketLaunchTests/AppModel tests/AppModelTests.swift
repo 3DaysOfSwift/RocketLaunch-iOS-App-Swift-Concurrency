@@ -803,8 +803,24 @@ final class UnifiedReminderTests: XCTestCase {
     }
 
     func testFailedWriteOverlappingRemovalPersistsTheSettledState() async throws {
+        try await verifyOverlappingWriteRecovery(cancelDuringCorrection: false, failCorrection: false)
+    }
+
+    func testCallerCancellationDoesNotAbandonCorrectiveWrite() async throws {
+        try await verifyOverlappingWriteRecovery(cancelDuringCorrection: true, failCorrection: false)
+    }
+
+    func testFailedCorrectionRemainsVisibleAndRetryableAfterCallerCancellation() async throws {
+        try await verifyOverlappingWriteRecovery(cancelDuringCorrection: true, failCorrection: true)
+    }
+
+    private func verifyOverlappingWriteRecovery(cancelDuringCorrection: Bool, failCorrection: Bool) async throws {
         let held = expectation(description: "new save held in storage")
-        let storage = FailingReminderPersistence(failingWrites: [3], holdWrite: 3, onHold: { held.fulfill() })
+        let correction = cancelDuringCorrection ? expectation(description: "corrected state held in storage") : nil
+        let storage = FailingReminderPersistence(failingWrites: failCorrection ? [3, 5] : [3],
+            holdWrites: cancelDuringCorrection ? [3, 5] : [3], onHold: { call in
+                if call == 3 { held.fulfill() } else { correction?.fulfill() }
+            })
         let client = ControlledNotifications()
         let first = launch(id: 1)
         let second = launch(id: 2)
@@ -823,10 +839,22 @@ final class UnifiedReminderTests: XCTestCase {
         await fulfillment(of: [removed], timeout: 2)
         observer.cancel()
         await storage.releaseWrite()
+        if let correction {
+            await fulfillment(of: [correction], timeout: 2)
+            save.cancel()
+            await storage.releaseWrite()
+        }
         do { try await save.value; XCTFail("Expected storage failure") }
         catch ReminderError.storageWriteFailed {}
         await removal.value
         XCTAssertEqual(feature.reminders.first?.status, .failed)
+        if failCorrection {
+            XCTAssertNotNil(feature.reminderWriteError)
+            let beforeRetry = await storage.records
+            XCTAssertNotEqual(beforeRetry, feature.reminders)
+            await feature.retryReminderWrite()
+        }
+        XCTAssertNil(feature.reminderWriteError)
         let stored = await storage.records
         XCTAssertEqual(stored, feature.reminders)
         let active = await client.active
@@ -1225,12 +1253,12 @@ private actor FailingReminderPersistence: ReminderPersisting {
     private let failingWrites: Set<Int>
     private var writes = 0
     private(set) var records: [LaunchReminder] = []
-    private let holdWrite: Int?
-    private let onHold: (@Sendable () -> Void)?
+    private let holdWrites: Set<Int>
+    private let onHold: (@Sendable (Int) -> Void)?
     private var held: CheckedContinuation<Void, Never>?
-    init(failingWrites: Set<Int>, holdWrite: Int? = nil, onHold: (@Sendable () -> Void)? = nil) {
+    init(failingWrites: Set<Int>, holdWrites: Set<Int> = [], onHold: (@Sendable (Int) -> Void)? = nil) {
         self.failingWrites = failingWrites
-        self.holdWrite = holdWrite
+        self.holdWrites = holdWrites
         self.onHold = onHold
     }
     func releaseWrite() { held?.resume(); held = nil }
@@ -1238,7 +1266,7 @@ private actor FailingReminderPersistence: ReminderPersisting {
     func save(_ reminders: [LaunchReminder]) async throws {
         writes += 1
         let call = writes
-        if call == holdWrite { await withCheckedContinuation { held = $0; onHold?() } }
+        if holdWrites.contains(call) { await withCheckedContinuation { held = $0; onHold?(call) } }
         if failingWrites.contains(call) { throw Failure.write }
         records = reminders
     }
