@@ -311,6 +311,9 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
 
     @discardableResult
     func setReminder(for launchID: String, minutesBefore: Int = 15) async throws -> ReminderSaveOutcome {
+        // Reject abandoned intent before changing desired state or external notifications.
+        // Once admitted, delivery must settle honestly even if the caller cancels later.
+        try Task.checkCancellation()
         loadRemindersIfNeeded()
         guard let launch = sources.lazy.flatMap(\.launches).first(where: { $0.id == launchID }) else { throw ReminderError.launchUnavailable }
         guard [5, 15, 60].contains(minutesBefore) else { throw ReminderError.invalidLeadTime }

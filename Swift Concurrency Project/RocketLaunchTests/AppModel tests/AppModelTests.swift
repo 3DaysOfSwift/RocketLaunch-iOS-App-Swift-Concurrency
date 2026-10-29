@@ -351,6 +351,39 @@ final class UnifiedReminderTests: XCTestCase {
         let active = await client.active
         XCTAssertTrue(active.isEmpty)
     }
+    func testCancellationBeforeDispatchPreservesExistingReminderAndAllowsRetry() async throws {
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client)
+        let id = launch().id
+        try await feature.setReminder(for: id, minutesBefore: 15)
+        let original = await feature.reminderSnapshot
+        let originalNotifications = await client.active
+
+        let cancelled = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await feature.setReminder(for: id, minutesBefore: 5)
+        }
+        do {
+            _ = try await cancelled.value
+            XCTFail("A request cancelled before dispatch must not replace a reminder")
+        } catch is CancellationError {}
+
+        let unchanged = await feature.reminderSnapshot
+        let notifications = await client.active
+        let calls = await client.calls
+        let cancellations = await client.cancelCount
+        XCTAssertEqual(unchanged, original)
+        XCTAssertEqual(notifications, originalNotifications)
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(cancellations, 0)
+
+        let result = try await feature.setReminder(for: id, minutesBefore: 5)
+        let retried = await feature.reminderSnapshot
+        XCTAssertEqual(result, .saved)
+        XCTAssertEqual(retried.reminders.first?.minutesBefore, 5)
+        XCTAssertEqual(retried.reminders.first?.status, .scheduled)
+    }
+
     func testCallerCancellationDoesNotDiscardAcceptedReminder() async throws {
         let started = expectation(description: "notification scheduling suspended")
         let client = ControlledNotifications(hold: 1) { _ in started.fulfill() }
