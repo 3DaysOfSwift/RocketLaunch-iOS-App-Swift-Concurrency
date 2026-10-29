@@ -3,6 +3,16 @@ import Observation
 @testable import RocketLaunch
 
 final class AppModelTests: XCTestCase {
+    @MainActor func testApplicationDelegateCanBeReleasedFromSynchronousLifecycle() {
+        weak var releasedDelegate: RocketLaunchAppDelegate?
+        do {
+            let delegate = RocketLaunchAppDelegate()
+            releasedDelegate = delegate
+            XCTAssertNotNil(releasedDelegate)
+        }
+        XCTAssertNil(releasedDelegate)
+    }
+
     @MainActor func testRetainsProvidedFeatureWithoutStartingWork() async {
         let repository = PresentationLaunchRepository()
         let feature = LaunchScheduleFeature(repository: repository)

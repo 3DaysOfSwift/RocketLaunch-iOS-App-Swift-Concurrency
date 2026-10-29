@@ -33,5 +33,5 @@ final class RocketLaunchAppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
 
-    isolated deinit { launchTask?.cancel() }
+    deinit { launchTask?.cancel() }
 }
