@@ -278,7 +278,7 @@ final class LaunchScheduleFeature {
         return stream
     }
     private func removeReminderObserver(_ id: UUID) { reminderObservers[id] = nil }
-    private func loadRemindersIfNeeded() async {
+    func loadRemindersIfNeeded() async {
         guard !remindersLoaded else { return }
         let task: Task<[LaunchReminder], Never>
         if let pending = reminderLoadTask { task = pending }

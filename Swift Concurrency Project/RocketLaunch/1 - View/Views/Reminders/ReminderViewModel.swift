@@ -8,29 +8,19 @@ final class ReminderViewModel {
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private var action: Task<Void, Never>?
     init(feature: LaunchScheduleFeature = AppModel.shared.launchSchedule) { self.feature = feature }
-    private(set) var snapshot: RemindersSnapshot = .initial
-    var reminders: [LaunchReminder] { snapshot.reminders }
-    @ObservationIgnored private var observationTask: Task<Void, Never>?
-    @ObservationIgnored private var observationID: UUID?
-    func startObserving() {
-        guard observationTask == nil else { return }
+    var reminders: [LaunchReminder] { feature.reminders }
+    @ObservationIgnored private var loadTask: Task<Void, Never>?
+
+    @discardableResult
+    func loadIfNeeded() -> Task<Void, Never> {
+        if let pending = loadTask { return pending }
         let feature = feature
-        let id = UUID(); observationID = id
-        observationTask = Task { [weak self] in
-            let stream = await feature.reminderSnapshots()
-            for await value in stream {
-                guard !Task.isCancelled, self?.observationID == id else { break }
-                self?.apply(value)
-            }
+        let task = Task { [weak self] in
+            await feature.loadRemindersIfNeeded()
+            self?.loadTask = nil
         }
-    }
-    func stopObserving() {
-        observationID = nil
-        observationTask?.cancel(); observationTask = nil
-    }
-    private func apply(_ value: RemindersSnapshot) {
-        guard value.revision >= snapshot.revision else { return }
-        snapshot = value
+        loadTask = task
+        return task
     }
     func contains(_ id: String) -> Bool { reminders.contains { $0.id == id && $0.status == .scheduled && $0.issue == nil && $0.fireDate > Date() } }
     func save(_ launchID: String, minutesBefore: Int) {
@@ -55,8 +45,6 @@ final class ReminderViewModel {
                 default: self?.errorMessage = "The reminder couldn’t be saved. Please try again."
                 }
             }
-            let value = await feature.reminderSnapshot
-            self?.apply(value)
             self?.isBusy = false; self?.action = nil
         }
     }
@@ -66,10 +54,8 @@ final class ReminderViewModel {
         let feature = feature
         action = Task { [weak self] in
             await feature.removeReminder(id)
-            let value = await feature.reminderSnapshot
-            self?.apply(value)
             self?.isBusy = false; self?.action = nil
         }
     }
-    deinit { observationTask?.cancel(); action?.cancel() }
+    deinit { loadTask?.cancel(); action?.cancel() }
 }
