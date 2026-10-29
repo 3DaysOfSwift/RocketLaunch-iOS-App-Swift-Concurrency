@@ -11,6 +11,10 @@ final class LaunchScheduleFeature {
     private(set) var updates: [LaunchUpdate] = []
     private let configurations: [LaunchSourceConfiguration]
     private let now: @Sendable () -> Date
+    private let waitForScheduleTick: @Sendable () async throws -> Void
+    @ObservationIgnored private var scheduleMonitorTask: Task<Void, Never>?
+    @ObservationIgnored private var scheduleMonitorID: UUID?
+    @ObservationIgnored private var scheduleMonitorCallers: [UUID: CheckedContinuation<Void, Never>] = [:]
     private struct Request {
         let id: UUID
         let task: Task<Void, Never>
@@ -24,9 +28,10 @@ final class LaunchScheduleFeature {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
     }
 
-    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, notificationClient: any LaunchNotificationClient = LocalLaunchNotifications(), reminderStorage: ReminderStorage = .memory, reminderPersistence: (any ReminderPersisting)? = nil) {
+    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, notificationClient: any LaunchNotificationClient = LocalLaunchNotifications(), reminderStorage: ReminderStorage = .memory, reminderPersistence: (any ReminderPersisting)? = nil, waitForScheduleTick: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(60)) }) {
         precondition(Set(sources.map(\.id)).count == sources.count)
         self.configurations = sources; self.now = now
+        self.waitForScheduleTick = waitForScheduleTick
         self.notificationClient = notificationClient; self.reminderPersistence = reminderPersistence ?? ReminderPersistence(storage: reminderStorage)
         self.sources = sources.map { LaunchSourceSnapshot(id: $0.id) }
         self.lastPublished = .init(revision: 0, state: .idle, nextLaunch: nil, sources: self.sources, operators: [], upcomingLaunches: [], updates: [])
@@ -60,6 +65,8 @@ final class LaunchScheduleFeature {
         for observer in observers.values { observer.yield(value) }
     }
     deinit {
+        scheduleMonitorTask?.cancel()
+        for caller in scheduleMonitorCallers.values { caller.resume() }
         for observer in observers.values { observer.finish() }
         for observer in reminderObservers.values { observer.finish() }
         for request in requests.values {
@@ -190,14 +197,55 @@ final class LaunchScheduleFeature {
         }
     }
 
-    /// Stored output is recalculated only on model events, never in a View getter.
-    /// Re-evaluates time-sensitive schedule state while the lifecycle caller is active.
-    /// Cancellation ends monitoring without cancelling downloads or reminders.
+    /// Foreground callers share one timer. Each awaits its own cancellation;
+    /// the last departing caller stops monitoring without cancelling downloads.
     func monitorScheduleTime() async {
-        while !Task.isCancelled {
-            updateNextLaunch()
-            do { try await Task.sleep(for: .seconds(60)) } catch { return }
+        let callerID = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                guard !Task.isCancelled else { continuation.resume(); return }
+                scheduleMonitorCallers[callerID] = continuation
+                guard scheduleMonitorTask == nil else { return }
+                let monitorID = UUID()
+                scheduleMonitorID = monitorID
+                updateNextLaunch()
+                let waitForTick = waitForScheduleTick
+                scheduleMonitorTask = Task { [weak self] in
+                    do {
+                        while !Task.isCancelled {
+                            try await waitForTick()
+                            try Task.checkCancellation()
+                            guard let self, self.scheduleMonitorID == monitorID else { return }
+                            self.updateNextLaunch()
+                        }
+                    } catch {
+                        // Cancellation is the normal end of the timer's lifetime.
+                    }
+                    self?.finishScheduleMonitor(monitorID)
+                }
+            }
+        } onCancel: {
+            Task { await self.removeScheduleMonitorCaller(callerID) }
         }
+    }
+
+    private func removeScheduleMonitorCaller(_ id: UUID) {
+        guard let caller = scheduleMonitorCallers.removeValue(forKey: id) else { return }
+        if scheduleMonitorCallers.isEmpty {
+            scheduleMonitorID = nil
+            scheduleMonitorTask?.cancel()
+            scheduleMonitorTask = nil
+        }
+        caller.resume()
+    }
+
+    private func finishScheduleMonitor(_ id: UUID) {
+        guard scheduleMonitorID == id else { return }
+        scheduleMonitorID = nil
+        scheduleMonitorTask = nil
+        let callers = scheduleMonitorCallers.values
+        scheduleMonitorCallers.removeAll()
+        for caller in callers { caller.resume() }
     }
 
     func updateNextLaunch() {
