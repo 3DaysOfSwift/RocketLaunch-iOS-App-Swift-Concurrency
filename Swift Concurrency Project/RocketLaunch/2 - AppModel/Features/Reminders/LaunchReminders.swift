@@ -37,33 +37,21 @@ protocol LaunchNotificationClient: Sendable {
     func cancel(_ id: String) async
 }
 
-actor LocalLaunchNotifications: LaunchNotificationClient {
-    // Permission is an explicitly owned system operation, shared by overlapping effects.
-    private var permissionRequest: Task<Bool, any Error>?
-    private func authorize(askPermission: Bool) async throws {
-        if let pending = permissionRequest {
-            guard try await pending.value else { throw ReminderError.denied }
-            return
-        }
-        let center = UNUserNotificationCenter.current()
-        if askPermission {
-            let request = Task {
-                let settings = await center.notificationSettings()
-                if settings.authorizationStatus == .notDetermined {
-                    return try await center.requestAuthorization(options: [.alert, .sound])
-                }
-                return settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
-            }
-            permissionRequest = request
-            defer { permissionRequest = nil }
-            guard try await request.value else { throw ReminderError.denied }
-        } else {
-            let settings = await center.notificationSettings()
-            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { throw ReminderError.denied }
-        }
+protocol LaunchNotificationSystem: Sendable {
+    func authorizationStatus() async -> UNAuthorizationStatus
+    func requestAuthorization() async throws -> Bool
+    func add(id: String, title: String, date: Date) async throws
+    func remove(_ id: String) async
+}
+
+struct SystemLaunchNotifications: LaunchNotificationSystem {
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
-    func schedule(id: String, title: String, date: Date, askPermission: Bool) async throws {
-        try await authorize(askPermission: askPermission)
+    func requestAuthorization() async throws -> Bool {
+        try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+    }
+    func add(id: String, title: String, date: Date) async throws {
         let content = UNMutableNotificationContent()
         content.title = "Launch coming up"
         content.body = title
@@ -73,9 +61,42 @@ actor LocalLaunchNotifications: LaunchNotificationClient {
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         try await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
     }
-    func cancel(_ id: String) async {
+    func remove(_ id: String) async {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
     }
+}
+
+actor LocalLaunchNotifications: LaunchNotificationClient {
+    private let system: any LaunchNotificationSystem
+    init(system: any LaunchNotificationSystem = SystemLaunchNotifications()) { self.system = system }
+
+    // Permission is an explicitly owned system operation, shared by overlapping effects.
+    private var permissionRequest: Task<Bool, any Error>?
+    private func authorize(askPermission: Bool) async throws {
+        if let pending = permissionRequest {
+            guard try await pending.value else { throw ReminderError.denied }
+            return
+        }
+        let system = system
+        if askPermission {
+            let request = Task {
+                let status = await system.authorizationStatus()
+                if status == .notDetermined { return try await system.requestAuthorization() }
+                return status == .authorized || status == .provisional
+            }
+            permissionRequest = request
+            defer { permissionRequest = nil }
+            guard try await request.value else { throw ReminderError.denied }
+        } else {
+            let status = await system.authorizationStatus()
+            guard status == .authorized || status == .provisional else { throw ReminderError.denied }
+        }
+    }
+    func schedule(id: String, title: String, date: Date, askPermission: Bool) async throws {
+        try await authorize(askPermission: askPermission)
+        try await system.add(id: id, title: title, date: date)
+    }
+    func cancel(_ id: String) async { await system.remove(id) }
 }
 
 struct RemindersSnapshot: Equatable, Sendable {

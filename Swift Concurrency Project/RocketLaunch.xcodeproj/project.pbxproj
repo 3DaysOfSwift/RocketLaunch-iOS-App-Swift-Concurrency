@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		6076452ABDB84C33A4CF2D59 /* LocalLaunchNotificationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */; };
 		65FA53030A69472CBDBED8E5 /* PrivacyPolicyViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */; };
 		8BEA8F7D62864813BB5EF773 /* BundledPrivacyPolicyLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */; };
 		B9291F07BAC8477F9CFDCFD5 /* PrivacyPolicyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */; };
@@ -72,6 +73,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLaunchNotificationsTests.swift; sourceTree = "<group>"; };
 		BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunchTests/View model tests/PrivacyPolicyViewModelTests.swift"; sourceTree = SOURCE_ROOT; };
 		3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Services/BundledPrivacyPolicyLoader.swift"; sourceTree = SOURCE_ROOT; };
 		561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/1 - View/Views/About/PrivacyPolicyViewModel.swift"; sourceTree = SOURCE_ROOT; };
@@ -146,6 +148,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		9E22A1F8E05A462396CB7DC3 /* IntegrationTests */ = {isa = PBXGroup; children = (91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */,); path = IntegrationTests; sourceTree = "<group>"; };
 		AB67220480014DBBAD230001 /* Services */ = {
 			isa = PBXGroup;
 			children = (
@@ -229,6 +232,7 @@
 				3E9F07B4410DE7054B1C2489 /* Fixtures */,
 				12B7704C8A89F243543FDED1 /* Test Support */,
 				91DA622286FF2FEB3B87F3BD /* View model tests */,
+				9E22A1F8E05A462396CB7DC3 /* IntegrationTests */,
 			);
 			path = RocketLaunchTests;
 			sourceTree = "<group>";
@@ -581,6 +585,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F6058977FFEB8E6858DBBD67 /* AppModelTests.swift in Sources */,
+				6076452ABDB84C33A4CF2D59 /* LocalLaunchNotificationsTests.swift in Sources */,
 				39CE8771AA39797646EC7338 /* LaunchDecodingTests.swift in Sources */,
 				4A1E14875F4C651F2D31A00F /* LaunchScheduleFeatureTests.swift in Sources */,
 				226732CA8B4D451225510FE4 /* RocketLaunchAPITests.swift in Sources */,
