@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct RocketLaunchApp: App {
     @UIApplicationDelegateAdaptor(RocketLaunchAppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     @State private var themeManager = ThemeManager(defaults: .standard)
 
     var body: some Scene {
@@ -10,6 +11,10 @@ struct RocketLaunchApp: App {
             // Hosted unit tests inject their own features; keep live networking dormant.
             if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
                 ContentView().environment(themeManager)
+                    .task(id: scenePhase) {
+                        guard scenePhase == .active else { return }
+                        await AppModel.shared.applicationDidBecomeActive()
+                    }
             } else {
                 Color.clear
             }

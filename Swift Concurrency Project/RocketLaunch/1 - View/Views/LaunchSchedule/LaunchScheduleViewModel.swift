@@ -137,13 +137,6 @@ final class LaunchScheduleViewModel {
         return task
     }
 
-    func monitorTime() async {
-        while !Task.isCancelled {
-            feature.updateNextLaunch()
-            do { try await Task.sleep(for: .seconds(60)) } catch { return }
-        }
-    }
-
     func cancelRefresh() {
         sourceTasks.values.forEach { $0.cancel() }
         sourceTasks.removeAll(); sourceRequestIDs.removeAll()

@@ -19,6 +19,10 @@ final class AppModel {
         await launchScheduleFeature.loadIfNeeded()
     }
 
+    func applicationDidBecomeActive() async {
+        await launchScheduleFeature.monitorScheduleTime()
+    }
+
     static func live() -> AppModel {
         let endpoint = URL(string: "https://fdo.rocketlaunch.live/json/launches/next/5")!
         let repository = RocketLaunchAPI(session: .shared, endpoint: endpoint)

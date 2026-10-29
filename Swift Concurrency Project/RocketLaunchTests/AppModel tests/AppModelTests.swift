@@ -75,6 +75,45 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(feature.state, .empty)
     }
 
+    @MainActor func testActiveLifecycleRefreshesTimeWithoutDownloadingAgainAndCancelsPromptly() async {
+        let clock = TestClock(Date(timeIntervalSince1970: 2_000_000_000))
+        let repository = PresentationLaunchRepository()
+        let feature = LaunchScheduleFeature(sources: [
+            .init(id: .launchLibrary, repository: repository, minimumRefreshInterval: 60)
+        ], now: { clock.read() })
+        let model = AppModel(launchScheduleFeature: feature)
+        await model.applicationDidFinishLaunching()
+        XCTAssertNotNil(feature.sources.first?.nextRefreshAt)
+        clock.advance(61)
+        let updated = expectation(description: "Active lifecycle updated time-sensitive state")
+        withObservationTracking { _ = feature.sources } onChange: { updated.fulfill() }
+        let monitoring = Task { await model.applicationDidBecomeActive() }
+        await waitFor([updated])
+        XCTAssertNil(feature.sources.first?.nextRefreshAt)
+        monitoring.cancel()
+        let stopped = expectation(description: "Monitoring cancellation completes")
+        let completion = Task { await monitoring.value; stopped.fulfill() }
+        await waitFor([stopped])
+        await completion.value
+        let count = await repository.requestCount
+        XCTAssertEqual(count, 1)
+    }
+
+    @MainActor func testCancelledLifecycleDoesNotUpdateScheduleState() async {
+        let clock = TestClock(Date(timeIntervalSince1970: 2_000_000_000))
+        let feature = LaunchScheduleFeature(sources: [
+            .init(id: .launchLibrary, repository: PresentationLaunchRepository(), minimumRefreshInterval: 60)
+        ], now: { clock.read() })
+        let model = AppModel(launchScheduleFeature: feature)
+        await model.applicationDidFinishLaunching()
+        let before = feature.snapshot
+        clock.advance(61)
+        let monitoring = Task { await model.applicationDidBecomeActive() }
+        monitoring.cancel()
+        await monitoring.value
+        XCTAssertEqual(feature.snapshot, before)
+    }
+
     @MainActor func testIndependentApplicationGraphsDoNotShareFeatureRequests() async {
         let a = PresentationLaunchRepository()
         let firstFeature = LaunchScheduleFeature(repository: a)

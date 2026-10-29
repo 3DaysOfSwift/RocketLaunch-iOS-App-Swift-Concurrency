@@ -191,6 +191,15 @@ final class LaunchScheduleFeature {
     }
 
     /// Stored output is recalculated only on model events, never in a View getter.
+    /// Re-evaluates time-sensitive schedule state while the lifecycle caller is active.
+    /// Cancellation ends monitoring without cancelling downloads or reminders.
+    func monitorScheduleTime() async {
+        while !Task.isCancelled {
+            updateNextLaunch()
+            do { try await Task.sleep(for: .seconds(60)) } catch { return }
+        }
+    }
+
     func updateNextLaunch() {
         let currentTime = now()
         // Expiring a cooldown is a meaningful UI change, even when launches did not change.
