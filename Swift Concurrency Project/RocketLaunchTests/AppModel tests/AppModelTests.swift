@@ -187,7 +187,7 @@ final class RemindersAndBrowsingTests: XCTestCase {
     }
 
     func testBrowsingFiltersSearchCountryAndExcludesPastSpaceX() {
-        let filters = BrowseViewModel()
+        var filters = LaunchBrowseQuery()
         let group = LaunchOperator(id: "spacex", name: "SpaceX", launches: [launch(), launch(-1, source: .spaceX), launch(source: .launchLibrary, country: "China")])
         XCTAssertEqual(filters.launches(in: LaunchScheduleSnapshot.upcoming(from: group.launches, now: now)).count, 2)
         filters.country = "United States"

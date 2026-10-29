@@ -45,6 +45,18 @@ final class LaunchScheduleFeature {
         .init(revision: revision, state: state, nextLaunch: nextLaunch, sources: sources, operators: operators,
               upcomingLaunches: upcomingLaunches, updates: updates)
     }
+    func launches(matching query: LaunchBrowseQuery) -> [RocketLaunch] {
+        query.launches(in: upcomingLaunches)
+    }
+
+    func operators(matching query: LaunchBrowseQuery) -> [LaunchOperator] {
+        query.operators(in: operators)
+    }
+
+    var launchCountries: [String] {
+        LaunchBrowseQuery().countries(in: operators)
+    }
+
     func snapshots() -> AsyncStream<LaunchScheduleSnapshot> {
         let id = UUID()
         let (stream, continuation) = AsyncStream<LaunchScheduleSnapshot>.makeStream(bufferingPolicy: .bufferingNewest(1))

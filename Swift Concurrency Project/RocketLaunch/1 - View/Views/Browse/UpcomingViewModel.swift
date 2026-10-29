@@ -11,8 +11,8 @@ final class UpcomingViewModel {
         refreshTasks = LaunchRefreshTasks(feature: feature)
     }
     var operators: [LaunchOperator] { feature.operators }
-    var launches: [RocketLaunch] { filters.launches(in: feature.snapshot.upcomingLaunches) }
-    var countries: [String] { filters.countries(in: operators) }
+    var launches: [RocketLaunch] { feature.launches(matching: filters.query) }
+    var countries: [String] { feature.launchCountries }
     var sources: [LaunchSourceSnapshot] { feature.sources }
     var isLoading: Bool { if case .loading = feature.state { return true }; return false }
     @discardableResult
