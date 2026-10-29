@@ -83,7 +83,7 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     func loadIfNeeded() async {
         let unfinished = sources.filter { $0.phase == .idle || $0.phase == .loading }.map(\.id)
         await withTaskGroup(of: Void.self) { group in
-            for source in unfinished { group.addTask { await self.refresh(source: source) } }
+            for source in unfinished { group.addTask { await self.refresh(source: source, onlyIfNeeded: true) } }
         }
     }
 
@@ -97,23 +97,33 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     }
 
     func refresh(source: LaunchSourceID) async {
+        await refresh(source: source, onlyIfNeeded: false)
+    }
+
+    private func refresh(source: LaunchSourceID, onlyIfNeeded: Bool) async {
         let waiterID = UUID()
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                registerRefresh(source: source, waiterID: waiterID, continuation: continuation)
+                registerRefresh(source: source, onlyIfNeeded: onlyIfNeeded, waiterID: waiterID, continuation: continuation)
             }
         } onCancel: {
             Task { await self.cancelRefresh(source: source, waiterID: waiterID) }
         }
     }
 
-    private func registerRefresh(source: LaunchSourceID, waiterID: UUID, continuation: CheckedContinuation<Void, Never>) {
+    private func registerRefresh(source: LaunchSourceID, onlyIfNeeded: Bool, waiterID: UUID, continuation: CheckedContinuation<Void, Never>) {
         guard !Task.isCancelled,
               let index = sources.firstIndex(where: { $0.id == source }),
               let configuration = configurations.first(where: { $0.id == source }) else { continuation.resume(); return }
         // Joining existing work does not make another HTTP request or bypass cooldown.
         if requests[source] != nil {
             requests[source]?.waiters[waiterID] = continuation
+            return
+        }
+        // A child task may start after another caller has already loaded this source.
+        // Recheck the initial-load policy here, without a suspension before registration.
+        if onlyIfNeeded, sources[index].phase != .idle {
+            continuation.resume()
             return
         }
         if let retryAt = sources[index].nextRefreshAt, now() < retryAt { continuation.resume(); return }

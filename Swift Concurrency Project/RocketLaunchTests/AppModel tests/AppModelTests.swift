@@ -351,6 +351,28 @@ final class UnifiedReminderTests: XCTestCase {
         let active = await client.active
         XCTAssertTrue(active.isEmpty)
     }
+    func testCallerCancellationDoesNotDiscardAcceptedReminder() async throws {
+        let started = expectation(description: "notification scheduling suspended")
+        let client = ControlledNotifications(hold: 1) { _ in started.fulfill() }
+        let (feature, _) = await model([launch()], client: client)
+        let id = launch().id
+        let save = Task { try await feature.setReminder(for: id, minutesBefore: 5) }
+        await fulfillment(of: [started], timeout: 2)
+        let pending = await feature.reminderSnapshot
+        XCTAssertEqual(pending.reminders.first?.status, .pending)
+
+        save.cancel()
+        // The external service accepts the write despite cancellation of its caller.
+        await client.finish()
+        let outcome = try await save.value
+        let saved = await feature.reminderSnapshot
+        let active = await client.active
+        XCTAssertEqual(outcome, .saved)
+        XCTAssertEqual(saved.reminders.first?.status, .scheduled)
+        XCTAssertEqual(saved.reminders.first?.notificationID, pending.reminders.first?.notificationID)
+        XCTAssertEqual(active, Set(saved.reminders.map(\.notificationID)))
+    }
+
     func testRemoveDuringSchedulingDoesNotRestoreRecord() async throws {
         let started = expectation(description: "save suspended")
         let client = ControlledNotifications(hold: 1) { _ in started.fulfill() }
@@ -469,6 +491,36 @@ final class UnifiedReminderTests: XCTestCase {
         let saved = await feature.reminderSnapshot
         XCTAssertEqual(saved.reminders.count, 2)
     }
+    func testCancelledSchedulingCleansPartialNotificationAndAllowsRetry() async throws {
+        let started = expectation(description: "notification scheduling suspended")
+        let client = ControlledNotifications(hold: 1) { _ in started.fulfill() }
+        let (feature, _) = await model([launch()], client: client)
+        let id = launch().id
+        let save = Task { try await feature.setReminder(for: id, minutesBefore: 5) }
+        await fulfillment(of: [started], timeout: 2)
+        save.cancel()
+        await client.finishWithCancellationAfterPartialAcceptance()
+        do {
+            _ = try await save.value
+            XCTFail("Cancellation must reach the caller")
+        } catch is CancellationError {
+            // The model must retain honest state even when the service cancels.
+        }
+        let failed = await feature.reminderSnapshot
+        let activeAfterFailure = await client.active
+        XCTAssertEqual(failed.reminders.first?.status, .failed)
+        XCTAssertNotNil(failed.reminders.first?.issue)
+        XCTAssertTrue(activeAfterFailure.isEmpty)
+
+        let retry = try await feature.setReminder(for: id, minutesBefore: 5)
+        let saved = await feature.reminderSnapshot
+        let activeAfterRetry = await client.active
+        XCTAssertEqual(retry, .saved)
+        XCTAssertEqual(saved.reminders.first?.status, .scheduled)
+        XCTAssertNil(saved.reminders.first?.issue)
+        XCTAssertEqual(activeAfterRetry, Set(saved.reminders.map(\.notificationID)))
+    }
+
     func testDoubleTapDoesNotStartTwoSaves() async {
         let started = expectation(description: "save suspended")
         let finished = expectation(description: "UI command finishes")
@@ -499,6 +551,7 @@ private actor ControlledNotifications: LaunchNotificationClient {
     private(set) var calls = 0
     private(set) var permissionFlags: [Bool] = []
     var continuation: CheckedContinuation<Void, any Error>?
+    private var suspendedNotificationID: String?
     var cancelCount = 0
     var canceledHook: (@Sendable () -> Void)?
     init(hold: Int? = nil, deny: Bool = false, started: @escaping @Sendable (Int) -> Void = { _ in }) {
@@ -509,6 +562,7 @@ private actor ControlledNotifications: LaunchNotificationClient {
         permissionFlags.append(askPermission)
         if deny { throw ReminderError.denied }
         if calls == hold {
+            suspendedNotificationID = id
             try await withCheckedThrowingContinuation { continuation in self.continuation = continuation; started(calls) }
         }
         active.insert(id) // Simulate a late external success even after cancel(id).
@@ -516,6 +570,12 @@ private actor ControlledNotifications: LaunchNotificationClient {
     func finish(fail: Bool = false) {
         if fail { continuation?.resume(throwing: ReminderError.denied) } else { continuation?.resume() }
         continuation = nil
+    }
+    func finishWithCancellationAfterPartialAcceptance() {
+        if let id = suspendedNotificationID { active.insert(id) }
+        continuation?.resume(throwing: CancellationError())
+        continuation = nil
+        suspendedNotificationID = nil
     }
     func allow() { deny = false }
     func onNextCancel(_ hook: @escaping @Sendable () -> Void) {
