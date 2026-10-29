@@ -73,6 +73,24 @@ final class LocalLaunchNotificationsTests: XCTestCase {
         }
     }
 
+    func testInstallationFailurePropagatesAndAllowsRetry() async throws {
+        let system = NotificationSystemStub(status: .authorized)
+        let client = LocalLaunchNotifications(system: system)
+        await system.setInstallationFailure(true)
+        do {
+            try await client.schedule(id: "one", title: "Launch", date: date, askPermission: true)
+            XCTFail("Expected installation failure")
+        } catch NotificationSystemStub.Failure.installation {}
+        let failed = await system.installed
+        XCTAssertTrue(failed.isEmpty)
+        await system.setInstallationFailure(false)
+        try await client.schedule(id: "one", title: "Launch", date: date, askPermission: true)
+        let installed = await system.installed
+        XCTAssertEqual(installed, [.init(id: "one", title: "Launch", date: date)])
+        let events = await system.events
+        XCTAssertEqual(events, ["status", "add:one", "status", "add:one"])
+    }
+
     func testInstallationWaitsForPermissionResponse() async throws {
         let requested = expectation(description: "permission pending")
         let system = NotificationSystemStub(onPermission: { requested.fulfill() })
@@ -89,7 +107,7 @@ final class LocalLaunchNotificationsTests: XCTestCase {
 }
 
 private actor NotificationSystemStub: LaunchNotificationSystem {
-    enum Failure: Error { case permission }
+    enum Failure: Error { case permission, installation }
     struct Installed: Equatable, Sendable {
         let id: String
         let title: String
@@ -98,6 +116,8 @@ private actor NotificationSystemStub: LaunchNotificationSystem {
     private let status: UNAuthorizationStatus
     private let onPermission: (@Sendable () -> Void)?
     private var pending: CheckedContinuation<Void, Never>?
+    private var installationFails = false
+    func setInstallationFailure(_ value: Bool) { installationFails = value }
     private var permissionFails = false
     private var permissionGranted = true
     private(set) var events: [String] = []
@@ -119,8 +139,9 @@ private actor NotificationSystemStub: LaunchNotificationSystem {
         if permissionFails { throw Failure.permission }
         return permissionGranted
     }
-    func add(id: String, title: String, date: Date) {
+    func add(id: String, title: String, date: Date) throws {
         events.append("add:" + id)
+        if installationFails { throw Failure.installation }
         installed.append(.init(id: id, title: title, date: date))
     }
     func remove(_ id: String) {
