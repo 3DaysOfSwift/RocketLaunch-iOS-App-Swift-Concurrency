@@ -172,12 +172,12 @@ final class UnifiedReminderTests: XCTestCase {
         .init(id: String(id), source: source, name: "Launch \(id)", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil),
               details: .init(plannedTime: offset.map { now.addingTimeInterval($0) }))
     }
-    private func model(_ launches: [RocketLaunch], client: any LaunchNotificationClient = ControlledNotifications(), storage: ReminderStorage = .memory) async -> (LaunchScheduleFeature, MutableLaunchRepository) {
+    private func model(_ launches: [RocketLaunch], client: any LaunchNotificationClient = ControlledNotifications(), storage: ReminderStorage = .memory, persistence: (any ReminderPersisting)? = nil) async -> (LaunchScheduleFeature, MutableLaunchRepository) {
         let repository = MutableLaunchRepository(launches)
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], now: { [now] in
             XCTAssertFalse(Thread.isMainThread)
             return now
-        }, notificationClient: client, reminderStorage: storage)
+        }, notificationClient: client, reminderStorage: storage, reminderPersistence: persistence)
         await feature.refresh()
         return (feature, repository)
     }
@@ -190,6 +190,60 @@ final class UnifiedReminderTests: XCTestCase {
         }
         await fulfillment(of: [scheduled], timeout: 2)
         observer.cancel()
+    }
+
+    func testOverlappingReminderReadsShareStorageLoad() async {
+        let began = expectation(description: "storage load suspended")
+        let persistence = ControlledReminderPersistence(holdLoad: true, started: { began.fulfill() })
+        let feature = LaunchScheduleFeature(sources: [], reminderPersistence: persistence)
+        let first = Task { await feature.reminderSnapshot }
+        await fulfillment(of: [began], timeout: 2)
+        let second = Task { await feature.reminderSnapshot }
+        await persistence.resumeLoad()
+        let one = await first.value
+        let two = await second.value
+        let loads = await persistence.loads
+        XCTAssertEqual(one, two)
+        XCTAssertEqual(loads, 1)
+    }
+
+    func testReminderWritesStayOrderedWhileStorageIsSuspended() async throws {
+        let began = expectation(description: "first storage write suspended")
+        let persistence = ControlledReminderPersistence(started: { began.fulfill() })
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client, persistence: persistence)
+        let id = launch().id
+        let first = Task { try await feature.setReminder(for: id, minutesBefore: 15) }
+        await fulfillment(of: [began], timeout: 2)
+        let laterPublished = expectation(description: "new desired reminder published")
+        let observer = Task {
+            for await value in await feature.reminderSnapshots() {
+                if value.reminders.first?.minutesBefore == 5 {
+                    laterPublished.fulfill()
+                    return
+                }
+            }
+        }
+        let second = Task { try await feature.setReminder(for: id, minutesBefore: 5) }
+        await fulfillment(of: [laterPublished], timeout: 2)
+        observer.cancel()
+        let writesBeforeRelease = await persistence.writes
+        let notificationCallsBeforeRelease = await client.calls
+        XCTAssertEqual(writesBeforeRelease.count, 1)
+        XCTAssertEqual(notificationCallsBeforeRelease, 0)
+
+        await persistence.resumeSave()
+        let firstResult = try await first.value
+        let secondResult = try await second.value
+        let writes = await persistence.writes
+        let saved = await feature.reminderSnapshot
+        let active = await client.active
+        XCTAssertEqual(firstResult, .superseded)
+        XCTAssertEqual(secondResult, .saved)
+        XCTAssertEqual(writes.map { $0.first?.minutesBefore }, [15, 5, 5])
+        XCTAssertEqual(writes.last, saved.reminders)
+        XCTAssertEqual(saved.reminders.first?.status, .scheduled)
+        XCTAssertEqual(active, Set(saved.reminders.map(\.notificationID)))
     }
 
     func testNewRefreshDownloadsWhilePreviousNotificationIsSuspended() async throws {
@@ -685,4 +739,41 @@ private actor ControlledNotifications: LaunchNotificationClient {
         let value = await feature.snapshot
         XCTAssertEqual(value.state, .empty)
     }
+}
+
+private actor ControlledReminderPersistence: ReminderPersisting {
+    private let holdLoad: Bool
+    private let started: @Sendable () -> Void
+    private var loadContinuation: CheckedContinuation<Void, Never>?
+    private var saveContinuation: CheckedContinuation<Void, Never>?
+    private(set) var loads = 0
+    private(set) var writes: [[LaunchReminder]] = []
+
+    init(holdLoad: Bool = false, started: @escaping @Sendable () -> Void) {
+        self.holdLoad = holdLoad
+        self.started = started
+    }
+    func load() async -> [LaunchReminder] {
+        XCTAssertFalse(Thread.isMainThread)
+        loads += 1
+        if holdLoad {
+            await withCheckedContinuation { continuation in
+                loadContinuation = continuation
+                started()
+            }
+        }
+        return []
+    }
+    func save(_ reminders: [LaunchReminder]) async {
+        XCTAssertFalse(Thread.isMainThread)
+        writes.append(reminders)
+        if writes.count == 1 {
+            await withCheckedContinuation { continuation in
+                saveContinuation = continuation
+                started()
+            }
+        }
+    }
+    func resumeLoad() { loadContinuation?.resume(); loadContinuation = nil }
+    func resumeSave() { saveContinuation?.resume(); saveContinuation = nil }
 }

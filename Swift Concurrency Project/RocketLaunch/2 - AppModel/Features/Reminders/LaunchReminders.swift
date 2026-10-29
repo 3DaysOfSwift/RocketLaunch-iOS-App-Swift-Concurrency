@@ -85,3 +85,40 @@ struct RemindersSnapshot: Equatable, Sendable {
 }
 
 enum ReminderStorage: Sendable { case memory, standard, suite(String) }
+
+/// Serializes stored reminder snapshots without owning the application's live state.
+protocol ReminderPersisting: Sendable {
+    func load() async -> [LaunchReminder]
+    func save(_ reminders: [LaunchReminder]) async
+}
+
+actor ReminderPersistence: ReminderPersisting {
+    private let storage: ReminderStorage
+    private var defaults: UserDefaults?
+    private var opened = false
+
+    init(storage: ReminderStorage) { self.storage = storage }
+
+    private func openIfNeeded() {
+        guard !opened else { return }
+        opened = true
+        switch storage {
+        case .memory: defaults = nil
+        case .standard: defaults = .standard
+        case .suite(let name): defaults = UserDefaults(suiteName: name)
+        }
+    }
+
+    func load() -> [LaunchReminder] {
+        openIfNeeded()
+        return defaults?.data(forKey: "rocketlaunch.reminders.v1")
+            .flatMap { try? JSONDecoder().decode([LaunchReminder].self, from: $0) } ?? []
+    }
+
+    func save(_ reminders: [LaunchReminder]) {
+        openIfNeeded()
+        if let data = try? JSONEncoder().encode(reminders) {
+            defaults?.set(data, forKey: "rocketlaunch.reminders.v1")
+        }
+    }
+}

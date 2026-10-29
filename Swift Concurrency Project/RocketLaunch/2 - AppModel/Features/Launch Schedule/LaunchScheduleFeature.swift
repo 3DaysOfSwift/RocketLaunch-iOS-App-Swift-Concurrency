@@ -35,10 +35,10 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
     }
 
-    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, notificationClient: any LaunchNotificationClient = LocalLaunchNotifications(), reminderStorage: ReminderStorage = .memory) {
+    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, notificationClient: any LaunchNotificationClient = LocalLaunchNotifications(), reminderStorage: ReminderStorage = .memory, reminderPersistence: (any ReminderPersisting)? = nil) {
         precondition(Set(sources.map(\.id)).count == sources.count)
         self.configurations = sources; self.now = now
-        self.notificationClient = notificationClient; self.reminderStorage = reminderStorage
+        self.notificationClient = notificationClient; self.reminderPersistence = reminderPersistence ?? ReminderPersistence(storage: reminderStorage)
         self.sources = sources.map { LaunchSourceSnapshot(id: $0.id) }
         self.lastPublished = .init(revision: 0, state: .idle, nextLaunch: nil, sources: self.sources, operators: [], upcomingLaunches: [], updates: [])
     }
@@ -101,6 +101,7 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     }
 
     private func refresh(source: LaunchSourceID, onlyIfNeeded: Bool) async {
+        await loadRemindersIfNeeded()
         let waiterID = UUID()
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
@@ -188,7 +189,9 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         let id = UUID()
         // Retain the model until these external effects settle and stale IDs are
         // cleaned up. Screen cancellation must not abandon committed reminder intent.
+        let persistence = reminderPersistenceTask
         reminderEffectTasks[id] = Task {
+            await persistence?.value
             await withTaskGroup(of: Void.self) { group in
                 for effect in effects {
                     group.addTask { _ = try? await self.deliverReminder(effect, askPermission: false) }
@@ -258,8 +261,9 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     }
 
     private let notificationClient: any LaunchNotificationClient
-    private let reminderStorage: ReminderStorage
-    private var reminderDefaults: UserDefaults?
+    private let reminderPersistence: any ReminderPersisting
+    private var reminderLoadTask: Task<[LaunchReminder], Never>?
+    private var reminderPersistenceTask: Task<Void, Never>?
     private var remindersLoaded = false
     private var reminders: [LaunchReminder] = []
     private var userSaveCounts: [String: Int] = [:]
@@ -267,40 +271,59 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     private var reminderObservers: [UUID: AsyncStream<RemindersSnapshot>.Continuation] = [:]
 
     var reminderSnapshot: RemindersSnapshot {
-        loadRemindersIfNeeded()
-        return .init(revision: reminderRevision, reminders: reminders)
+        get async {
+            await loadRemindersIfNeeded()
+            return currentReminderSnapshot
+        }
     }
-    func reminderSnapshots() -> AsyncStream<RemindersSnapshot> {
-        loadRemindersIfNeeded()
+    private var currentReminderSnapshot: RemindersSnapshot {
+        .init(revision: reminderRevision, reminders: reminders)
+    }
+    func reminderSnapshots() async -> AsyncStream<RemindersSnapshot> {
+        await loadRemindersIfNeeded()
         let id = UUID()
         let (stream, continuation) = AsyncStream<RemindersSnapshot>.makeStream(bufferingPolicy: .bufferingNewest(1))
         reminderObservers[id] = continuation
         continuation.onTermination = { [weak self] _ in Task { await self?.removeReminderObserver(id) } }
-        continuation.yield(reminderSnapshot)
+        continuation.yield(currentReminderSnapshot)
         return stream
     }
     private func removeReminderObserver(_ id: UUID) { reminderObservers[id] = nil }
-    private func loadRemindersIfNeeded() {
+    private func loadRemindersIfNeeded() async {
         guard !remindersLoaded else { return }
-        remindersLoaded = true
-        switch reminderStorage {
-        case .memory: reminderDefaults = nil
-        case .standard: reminderDefaults = .standard
-        case .suite(let name): reminderDefaults = UserDefaults(suiteName: name)
+        let task: Task<[LaunchReminder], Never>
+        if let pending = reminderLoadTask { task = pending }
+        else {
+            let persistence = reminderPersistence
+            task = Task { await persistence.load() }
+            reminderLoadTask = task
         }
-        reminders = reminderDefaults?.data(forKey: "rocketlaunch.reminders.v1")
-            .flatMap { try? JSONDecoder().decode([LaunchReminder].self, from: $0) } ?? []
-        // An interrupted external operation is not evidence of successful delivery.
+        let stored = await task.value
+        // A joining caller must not reinstall old disk state after another caller mutates it.
+        guard !remindersLoaded else { return }
+        reminders = stored
+        remindersLoaded = true
+        reminderLoadTask = nil
         for index in reminders.indices where reminders[index].status == .pending {
             reminders[index].status = .failed
             reminders[index].issue = "Scheduling was interrupted. Set this reminder again."
         }
     }
-    private func persistReminders() {
+    @discardableResult
+    private func persistReminders() -> Task<Void, Never> {
         reminderRevision += 1
-        let value = reminderSnapshot
-        if let data = try? JSONEncoder().encode(reminders) { reminderDefaults?.set(data, forKey: "rocketlaunch.reminders.v1") }
+        let value = currentReminderSnapshot
+        let previous = reminderPersistenceTask
+        let persistence = reminderPersistence
+        // Queue immutable snapshots in mutation order. Actor message arrival alone
+        // does not guarantee the order of tasks created by successive mutations.
+        let task = Task {
+            await previous?.value
+            await persistence.save(value.reminders)
+        }
+        reminderPersistenceTask = task
         for observer in reminderObservers.values { observer.yield(value) }
+        return task
     }
 
     private struct ReminderEffect: Sendable {
@@ -314,7 +337,8 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         // Reject abandoned intent before changing desired state or external notifications.
         // Once admitted, delivery must settle honestly even if the caller cancels later.
         try Task.checkCancellation()
-        loadRemindersIfNeeded()
+        await loadRemindersIfNeeded()
+        try Task.checkCancellation()
         guard let launch = sources.lazy.flatMap(\.launches).first(where: { $0.id == launchID }) else { throw ReminderError.launchUnavailable }
         guard [5, 15, 60].contains(minutesBefore) else { throw ReminderError.invalidLeadTime }
         guard let time = launch.details.plannedTime else { throw ReminderError.unknownTime }
@@ -322,12 +346,13 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         guard fireDate > now() else { throw ReminderError.tooLate }
         guard reminders.count < 50 || reminders.contains(where: { $0.id == launchID }) else { throw ReminderError.limit }
         let effect = prepareReminder(launch: launch, minutesBefore: minutesBefore, fireDate: fireDate)
-        persistReminders()
+        let persistence = persistReminders()
         userSaveCounts[launchID, default: 0] += 1
         defer {
             let remaining = (userSaveCounts[launchID] ?? 1) - 1
             userSaveCounts[launchID] = remaining == 0 ? nil : remaining
         }
+        await persistence.value
         return try await deliverReminder(effect, askPermission: true)
     }
 
@@ -343,7 +368,6 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     }
 
     private func reconcileReminders(with launches: [RocketLaunch]) -> [ReminderEffect] {
-        loadRemindersIfNeeded()
         var effects: [ReminderEffect] = []
         var changed = false
         for launch in launches {
@@ -381,14 +405,15 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
             }
             guard desired.fireDate > now() else { throw ReminderError.tooLate }
             reminders[index].status = .scheduled
-            persistReminders()
-            return .saved
+            let persistence = persistReminders()
+            await persistence.value
+            return reminders.contains(where: { $0.notificationID == desired.notificationID }) ? .saved : .superseded
         } catch {
             let current = reminders.firstIndex(where: { $0.notificationID == desired.notificationID })
             if let index = current {
                 reminders[index].status = .failed
                 reminders[index].issue = "The notification could not be scheduled. Set this reminder again."
-                persistReminders()
+                await persistReminders().value
             }
             await notificationClient.cancel(desired.notificationID)
             guard reminders.contains(where: { $0.notificationID == desired.notificationID }) else { return .superseded }
@@ -397,10 +422,10 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     }
 
     func removeReminder(_ launchID: String) async {
-        loadRemindersIfNeeded()
+        await loadRemindersIfNeeded()
         guard let old = reminders.first(where: { $0.id == launchID }) else { return }
         reminders.removeAll { $0.id == launchID }
-        persistReminders()
+        await persistReminders().value
         await notificationClient.cancel(old.notificationID)
     }
 
