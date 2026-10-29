@@ -155,13 +155,13 @@ final class SpaceXAPITests: XCTestCase {
         let records = try SpaceXAPI.decodeResponse(fixture(precision: "minute"))
         let task = Task { await feature.refresh() }; await waitFor([began])
         await repository.complete(0, with: .success(records)); await task.value
-        let projection1 = await feature.snapshot
+        let projection1 = feature.snapshot
         XCTAssertEqual(projection1.sources[0].launches, records)
-        let projection2 = await feature.snapshot
+        let projection2 = feature.snapshot
         XCTAssertEqual(projection2.operators.first?.name, "SpaceX")
-        let projection3 = await feature.snapshot
+        let projection3 = feature.snapshot
         XCTAssertNil(projection3.nextLaunch)
-        let projection4 = await feature.snapshot
+        let projection4 = feature.snapshot
         XCTAssertEqual(projection4.state, .empty)
     }
 }

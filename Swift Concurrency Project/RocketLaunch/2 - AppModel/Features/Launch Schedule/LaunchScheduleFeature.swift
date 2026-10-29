@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 protocol LaunchScheduleFeatureAPI: AnyObject, Sendable {
     var snapshot: LaunchScheduleSnapshot { get async }
@@ -13,8 +14,9 @@ protocol LaunchScheduleFeatureAPI: AnyObject, Sendable {
     func removeReminder(_ launchID: String) async
 }
 
-/// Owns business state and processing independently of the UI's main actor.
-actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
+/// Owns observable application state. Network decoding and persistence use service actors.
+@MainActor @Observable
+final class LaunchScheduleFeature: LaunchScheduleFeatureAPI {
     private(set) var state: LaunchScheduleState = .idle
     private(set) var sources: [LaunchSourceSnapshot]
     private(set) var operators: [LaunchOperator] = []
@@ -28,10 +30,10 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         let previous: LaunchSourceSnapshot
         var waiters: [UUID: CheckedContinuation<Void, Never>]
     }
-    private var requests: [LaunchSourceID: Request] = [:]
-    private var reminderEffectTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var requests: [LaunchSourceID: Request] = [:]
+    @ObservationIgnored private var reminderEffectTasks: [UUID: Task<Void, Never>] = [:]
 
-    init(repository: any LaunchRepository) {
+    convenience init(repository: any LaunchRepository) {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
     }
 
@@ -43,10 +45,10 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         self.lastPublished = .init(revision: 0, state: .idle, nextLaunch: nil, sources: self.sources, operators: [], upcomingLaunches: [], updates: [])
     }
 
-    private var lastPublished: LaunchScheduleSnapshot?
-    private var revision: UInt64 = 0
+    @ObservationIgnored private var lastPublished: LaunchScheduleSnapshot?
+    @ObservationIgnored private var revision: UInt64 = 0
     private var upcomingLaunches: [RocketLaunch] = []
-    private var observers: [UUID: AsyncStream<LaunchScheduleSnapshot>.Continuation] = [:]
+    @ObservationIgnored private var observers: [UUID: AsyncStream<LaunchScheduleSnapshot>.Continuation] = [:]
     var snapshot: LaunchScheduleSnapshot {
         .init(revision: revision, state: state, nextLaunch: nextLaunch, sources: sources, operators: operators,
               upcomingLaunches: upcomingLaunches, updates: updates)
@@ -70,7 +72,7 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
         lastPublished = value
         for observer in observers.values { observer.yield(value) }
     }
-    deinit {
+    isolated deinit {
         for observer in observers.values { observer.finish() }
         for observer in reminderObservers.values { observer.finish() }
         for request in requests.values {
@@ -141,7 +143,7 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
                 try Task.checkCancellation()
                 result = .success(launches)
             } catch { result = .failure(error) }
-            await self?.completeRefresh(source: source, id: id, result: result)
+            self?.completeRefresh(source: source, id: id, result: result)
         }
         requests[source] = Request(id: id, task: task, previous: previous, waiters: [waiterID: continuation])
     }
@@ -262,13 +264,13 @@ actor LaunchScheduleFeature: LaunchScheduleFeatureAPI {
 
     private let notificationClient: any LaunchNotificationClient
     private let reminderPersistence: any ReminderPersisting
-    private var reminderLoadTask: Task<[LaunchReminder], Never>?
-    private var reminderPersistenceTask: Task<Void, Never>?
-    private var remindersLoaded = false
-    private var reminders: [LaunchReminder] = []
-    private var userSaveCounts: [String: Int] = [:]
+    @ObservationIgnored private var reminderLoadTask: Task<[LaunchReminder], Never>?
+    @ObservationIgnored private var reminderPersistenceTask: Task<Void, Never>?
+    @ObservationIgnored private var remindersLoaded = false
+    private(set) var reminders: [LaunchReminder] = []
+    @ObservationIgnored private var userSaveCounts: [String: Int] = [:]
     private var reminderRevision: UInt64 = 0
-    private var reminderObservers: [UUID: AsyncStream<RemindersSnapshot>.Continuation] = [:]
+    @ObservationIgnored private var reminderObservers: [UUID: AsyncStream<RemindersSnapshot>.Continuation] = [:]
 
     var reminderSnapshot: RemindersSnapshot {
         get async {
@@ -524,7 +526,7 @@ struct LaunchUpdate: Identifiable, Equatable, Sendable {
     let timeChanged: Bool
 }
 
-/// Immutable UI projection. The actor retains authoritative mutable state.
+/// Immutable UI projection. The MainActor Feature retains authoritative mutable state.
 struct LaunchScheduleSnapshot: Equatable, Sendable {
     let revision: UInt64
     let state: LaunchScheduleState

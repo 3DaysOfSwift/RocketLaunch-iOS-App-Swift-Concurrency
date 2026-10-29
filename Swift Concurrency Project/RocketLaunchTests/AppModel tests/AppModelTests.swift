@@ -49,19 +49,19 @@ final class RemindersAndBrowsingTests: XCTestCase {
         let repository = SequenceLaunchRepository([[launch()], [launch()], [launch(10800)]])
         let feature = LaunchScheduleFeature(repository: repository)
         await feature.refresh()
-        let projection13 = await feature.snapshot
+        let projection13 = feature.snapshot
         XCTAssertTrue(projection13.updates.isEmpty)
         await feature.refresh()
-        let projection14 = await feature.snapshot
+        let projection14 = feature.snapshot
         XCTAssertTrue(projection14.updates.isEmpty)
         await feature.refresh()
-        let projection15 = await feature.snapshot
+        let projection15 = feature.snapshot
         XCTAssertEqual(projection15.updates.count, 1)
-        let projection16 = await feature.snapshot
+        let projection16 = feature.snapshot
         XCTAssertTrue(projection16.updates[0].timeChanged)
-        let projection17 = await feature.snapshot
+        let projection17 = feature.snapshot
         XCTAssertEqual(projection17.updates[0].previous.details.plannedTime, now.addingTimeInterval(7200))
-        let projection18 = await feature.snapshot
+        let projection18 = feature.snapshot
         XCTAssertEqual(projection18.updates[0].launch.details.plannedTime, now.addingTimeInterval(10800))
     }
     func testWebLinksRejectNonWebSchemes() {
@@ -76,35 +76,35 @@ final class ActorSnapshotTests: XCTestCase {
 
     func testUnchangedClockDoesNotPublishAnotherRevision() async {
         let feature = LaunchScheduleFeature(repository: SequenceLaunchRepository([[]]))
-        let initial = await feature.snapshot
-        await feature.updateNextLaunch()
-        let stillInitial = await feature.snapshot
+        let initial = feature.snapshot
+        feature.updateNextLaunch()
+        let stillInitial = feature.snapshot
         XCTAssertEqual(stillInitial, initial)
         await feature.refresh()
-        let loaded = await feature.snapshot
-        for _ in 0..<10 { await feature.updateNextLaunch() }
-        let unchanged = await feature.snapshot
+        let loaded = feature.snapshot
+        for _ in 0..<10 { feature.updateNextLaunch() }
+        let unchanged = feature.snapshot
         XCTAssertEqual(unchanged, loaded)
     }
     func testCooldownExpiryPublishesEvenWithoutNewLaunches() async {
         let clock = TestClock(Date(timeIntervalSince1970: 2_000_000_000))
         let feature = LaunchScheduleFeature(sources: [.init(id: .launchLibrary, repository: SequenceLaunchRepository([[]]), minimumRefreshInterval: 300)], now: { clock.read() })
         await feature.refresh()
-        let loaded = await feature.snapshot
+        let loaded = feature.snapshot
         clock.advance(60)
-        await feature.updateNextLaunch()
-        let unchanged = await feature.snapshot
+        feature.updateNextLaunch()
+        let unchanged = feature.snapshot
         XCTAssertEqual(unchanged, loaded)
         clock.advance(240)
-        await feature.updateNextLaunch()
-        let expired = await feature.snapshot
+        feature.updateNextLaunch()
+        let expired = feature.snapshot
         XCTAssertNil(expired.sources.first?.nextRefreshAt)
         XCTAssertGreaterThan(expired.revision, loaded.revision)
     }
     func testEachSubscriberReceivesInitialAndFinalSnapshots() async {
         let feature = LaunchScheduleFeature(repository: SequenceLaunchRepository([[]]))
-        let firstStream = await feature.snapshots()
-        let secondStream = await feature.snapshots()
+        let firstStream = feature.snapshots()
+        let secondStream = feature.snapshots()
         var first = firstStream.makeAsyncIterator()
         var second = secondStream.makeAsyncIterator()
         let initialA = await first.next()
@@ -120,19 +120,19 @@ final class ActorSnapshotTests: XCTestCase {
     }
     func testSlowSubscriberReceivesLatestCompleteSnapshot() async {
         let feature = LaunchScheduleFeature(repository: SequenceLaunchRepository([[]]))
-        let stream = await feature.snapshots()
+        let stream = feature.snapshots()
         var iterator = stream.makeAsyncIterator()
         _ = await iterator.next()
         await feature.refresh()
-        for _ in 0..<10 { await feature.updateNextLaunch() }
-        let expected = await feature.snapshot
+        for _ in 0..<10 { feature.updateNextLaunch() }
+        let expected = feature.snapshot
         let received = await iterator.next()
         XCTAssertEqual(received, expected)
     }
     func testCancelingOneSubscriberDoesNotStopAnother() async {
         let feature = LaunchScheduleFeature(repository: SequenceLaunchRepository([[]]))
-        let firstStream = await feature.snapshots()
-        let secondStream = await feature.snapshots()
+        let firstStream = feature.snapshots()
+        let secondStream = feature.snapshots()
         let started = expectation(description: "First subscriber started")
         let consumer = Task {
             started.fulfill()
@@ -146,15 +146,29 @@ final class ActorSnapshotTests: XCTestCase {
         let value = await second.next()
         XCTAssertEqual(value?.state, .empty)
     }
-    func testFeatureComputationRunsAwayFromMainThread() async {
+    func testFeaturePublishesObservableSourceChangesOnMainActor() async {
+        let feature = LaunchScheduleFeature(repository: SequenceLaunchRepository([[]]))
+        let changed = expectation(description: "observable source state changed")
+        withObservationTracking {
+            _ = feature.sources
+        } onChange: {
+            MainActor.assertIsolated()
+            changed.fulfill()
+        }
+        await feature.refresh()
+        await fulfillment(of: [changed], timeout: 2)
+        XCTAssertEqual(feature.sources.first?.phase, .loaded)
+        XCTAssertEqual(feature.state, .empty)
+    }
+
+    func testFeatureStateUsesMainActorAndRepositoryUsesItsOwnActor() async {
         let date = Date(timeIntervalSince1970: 2_000_000_000)
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: SequenceLaunchRepository([[]]))], now: {
-            // Called synchronously inside feature-isolated business processing.
-            XCTAssertFalse(Thread.isMainThread)
+            MainActor.assertIsolated()
             return date
         })
         await feature.refresh()
-        let value = await feature.snapshot
+        let value = feature.snapshot
         XCTAssertEqual(value.state, .empty)
     }
 }
@@ -162,7 +176,10 @@ final class ActorSnapshotTests: XCTestCase {
 private actor SequenceLaunchRepository: LaunchRepository {
     var pages: [[RocketLaunch]]
     init(_ pages: [[RocketLaunch]]) { self.pages = pages }
-    func fetchUpcomingLaunches() async throws -> [RocketLaunch] { pages.removeFirst() }
+    func fetchUpcomingLaunches() async throws -> [RocketLaunch] {
+        XCTAssertFalse(Thread.isMainThread)
+        return pages.removeFirst()
+    }
 }
 
 @MainActor
@@ -175,7 +192,7 @@ final class UnifiedReminderTests: XCTestCase {
     private func model(_ launches: [RocketLaunch], client: any LaunchNotificationClient = ControlledNotifications(), storage: ReminderStorage = .memory, persistence: (any ReminderPersisting)? = nil) async -> (LaunchScheduleFeature, MutableLaunchRepository) {
         let repository = MutableLaunchRepository(launches)
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], now: { [now] in
-            XCTAssertFalse(Thread.isMainThread)
+            MainActor.assertIsolated()
             return now
         }, notificationClient: client, reminderStorage: storage, reminderPersistence: persistence)
         await feature.refresh()
@@ -258,7 +275,7 @@ final class UnifiedReminderTests: XCTestCase {
         let refreshed = expectation(description: "new download completes before old notification")
         let second = Task { await feature.refresh(); refreshed.fulfill() }
         await fulfillment(of: [refreshed], timeout: 2)
-        let snapshot = await feature.snapshot
+        let snapshot = feature.snapshot
         XCTAssertEqual(snapshot.sources.first?.launches.first, launch(10800))
         await client.finish()
         await first.value
@@ -687,7 +704,7 @@ private actor ControlledNotifications: LaunchNotificationClient {
         await fulfillment(of: [secondBegan], timeout: 2)
         await repository.complete(1, with: .success([])); await new.value
         await repository.complete(0, with: .success([]))
-        let value = await feature.snapshot
+        let value = feature.snapshot
         XCTAssertEqual(value.state, .empty)
     }
     func testPartialInitialLoadRetriesOnlyCanceledSource() async {
@@ -699,7 +716,7 @@ private actor ControlledNotifications: LaunchNotificationClient {
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: a), .init(id: .launchLibrary, repository: b)])
         let initial = Task { await feature.loadIfNeeded() }
         await fulfillment(of: [aStarted, bStarted], timeout: 2)
-        let stream = await feature.snapshots()
+        let stream = feature.snapshots()
         let accepted = expectation(description: "A committed")
         let observer = Task { for await value in stream { if value.sources.first?.phase == .loaded { accepted.fulfill(); break } } }
         await a.complete(0, with: .success([])); await fulfillment(of: [accepted], timeout: 2); await observer.value
@@ -719,7 +736,7 @@ private actor ControlledNotifications: LaunchNotificationClient {
         vm.requestRefresh(); await fulfillment(of: [began], timeout: 2)
         vm.requestRefresh(); vm.requestRefresh(source: .launchLibrary)
         await repository.complete(0, with: .success([]))
-        let stream = await feature.snapshots()
+        let stream = feature.snapshots()
         for await value in stream { if value.sources.first?.phase == .loaded { break } }
         let count = await repository.requestCount
         XCTAssertEqual(count, 1)
@@ -736,7 +753,7 @@ private actor ControlledNotifications: LaunchNotificationClient {
         await first.value; await second.value
         let count = await repository.requestCount
         XCTAssertEqual(count, 1)
-        let value = await feature.snapshot
+        let value = feature.snapshot
         XCTAssertEqual(value.state, .empty)
     }
 }
