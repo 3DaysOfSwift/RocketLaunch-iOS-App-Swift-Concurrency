@@ -137,6 +137,30 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(stops, 1)
     }
 
+    @MainActor func testForegroundMonitoringRestartsAfterLastCallerLeaves() async {
+        let firstStart = expectation(description: "first timer started")
+        let secondStart = expectation(description: "replacement timer started")
+        let firstStop = expectation(description: "first timer stopped")
+        let secondStop = expectation(description: "replacement timer stopped")
+        let sleeper = RestartLifecycleSleeper(
+            onStart: { ($0 == 1 ? firstStart : secondStart).fulfill() },
+            onStop: { ($0 == 1 ? firstStop : secondStop).fulfill() })
+        let feature = LaunchScheduleFeature(sources: [], waitForScheduleTick: { try await sleeper.wait() })
+        let first = Task { await feature.monitorScheduleTime() }
+        await waitFor([firstStart])
+        first.cancel()
+        await first.value
+        await waitFor([firstStop])
+
+        let replacement = Task { await feature.monitorScheduleTime() }
+        await waitFor([secondStart])
+        replacement.cancel()
+        await replacement.value
+        await waitFor([secondStop])
+        let starts = await sleeper.starts
+        XCTAssertEqual(starts, 2)
+    }
+
     @MainActor func testIndependentApplicationGraphsDoNotShareFeatureRequests() async {
         let a = PresentationLaunchRepository()
         let firstFeature = LaunchScheduleFeature(repository: a)
@@ -1016,6 +1040,23 @@ private actor LifecycleSleeper {
         onStart()
         defer { stops += 1; onStop() }
         // The test cancels this sleep; it never waits for this duration to elapse.
+        try await Task.sleep(for: .seconds(3600))
+    }
+}
+
+private actor RestartLifecycleSleeper {
+    private let onStart: @Sendable (Int) -> Void
+    private let onStop: @Sendable (Int) -> Void
+    private(set) var starts = 0
+    init(onStart: @escaping @Sendable (Int) -> Void, onStop: @escaping @Sendable (Int) -> Void) {
+        self.onStart = onStart
+        self.onStop = onStop
+    }
+    func wait() async throws {
+        starts += 1
+        let call = starts
+        onStart(call)
+        defer { onStop(call) }
         try await Task.sleep(for: .seconds(3600))
     }
 }
