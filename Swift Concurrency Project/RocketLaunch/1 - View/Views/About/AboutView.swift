@@ -46,22 +46,17 @@ struct AboutView: View {
 /// Bundled policy remains accessible without a network connection.
 struct PrivacyPolicyView: View {
     @Environment(ThemeManager.self) private var themeManager
-    private var policy: String {
-        guard let url = Bundle.main.url(forResource: "PrivacyPolicy", withExtension: "txt"),
-              let text = try? String(contentsOf: url, encoding: .utf8) else {
-            return "The privacy policy could not be loaded. Please consult the project’s PRIVACY.md document."
-        }
-        return text
-    }
+    @State private var viewModel = PrivacyPolicyViewModel()
     var body: some View {
         ScrollView {
-            Text(policy)
+            Text(viewModel.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
                 .padding(20)
         }
         .background(themeManager.selected.background)
         .foregroundStyle(themeManager.selected.foreground)
+        .task { await viewModel.load() }
         .navigationTitle("Privacy policy")
         .navigationBarTitleDisplayMode(.inline)
     }

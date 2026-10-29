@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		65FA53030A69472CBDBED8E5 /* PrivacyPolicyViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */; };
+		8BEA8F7D62864813BB5EF773 /* BundledPrivacyPolicyLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */; };
+		B9291F07BAC8477F9CFDCFD5 /* PrivacyPolicyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */; };
 		51E48199E82D47B3B5328207 /* LaunchDetailScreenViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1487D16D33444396BBF0C0 /* LaunchDetailScreenViewModelTests.swift */; };
 		2FB377856FE14FB9853509FD /* LaunchDetailScreenViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7401725948B4428EBA03353D /* LaunchDetailScreenViewModel.swift */; };
 		B696A20675CB4C2E89394DBA /* OperatorLaunchesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9600D1359AF745B6B3F32A71 /* OperatorLaunchesViewModelTests.swift */; };
@@ -69,6 +72,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunchTests/View model tests/PrivacyPolicyViewModelTests.swift"; sourceTree = SOURCE_ROOT; };
+		3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Services/BundledPrivacyPolicyLoader.swift"; sourceTree = SOURCE_ROOT; };
+		561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/1 - View/Views/About/PrivacyPolicyViewModel.swift"; sourceTree = SOURCE_ROOT; };
 		EF1487D16D33444396BBF0C0 /* LaunchDetailScreenViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailScreenViewModelTests.swift; sourceTree = "<group>"; };
 		7401725948B4428EBA03353D /* LaunchDetailScreenViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailScreenViewModel.swift; sourceTree = "<group>"; };
 		9600D1359AF745B6B3F32A71 /* OperatorLaunchesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorLaunchesViewModelTests.swift; sourceTree = "<group>"; };
@@ -140,6 +146,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		AB67220480014DBBAD230001 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		08CAA8DB30623CBE82AE04CD /* Theme */ = {
 			isa = PBXGroup;
 			children = (
@@ -191,6 +205,7 @@
 			children = (
 				0F149E9826C3D5F239A29CF4 /* AppModel.swift */,
 				2EA1047E28D9F93EC2BB5EED /* Features */,
+				AB67220480014DBBAD230001 /* Services */,
 			);
 			path = "2 - AppModel";
 			sourceTree = "<group>";
@@ -333,6 +348,7 @@
 				B12345678901234567890102 /* ReminderViewModelTests.swift */,
 				EF1487D16D33444396BBF0C0 /* LaunchDetailScreenViewModelTests.swift */,
 				75635FEFD990C35E2482197D /* ThemeManagerTests.swift */,
+				BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */,
 			);
 			path = "View model tests";
 			sourceTree = "<group>";
@@ -358,6 +374,7 @@
 			isa = PBXGroup;
 			children = (
 				D2EA7DB1A9044D47551CE4CA /* AboutView.swift */,
+				561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */,
 			);
 			path = About;
 			sourceTree = "<group>";
@@ -550,6 +567,8 @@
 				2FB377856FE14FB9853509FD /* LaunchDetailScreenViewModel.swift in Sources */,
 				06B6328DB0FB412298C66AF5 /* OperatorLaunchesViewModel.swift in Sources */,
 				5900175C78A56AE96FD7AA37 /* AboutView.swift in Sources */,
+				8BEA8F7D62864813BB5EF773 /* BundledPrivacyPolicyLoader.swift in Sources */,
+				B9291F07BAC8477F9CFDCFD5 /* PrivacyPolicyViewModel.swift in Sources */,
 				C71295EF9F333CF055E11A17 /* AppPresentation.swift in Sources */,
 				BFCB555EF76613F20AC19FED /* LaunchRepository.swift in Sources */,
 				4F4ED4B5F2B6530219B555D6 /* RocketLaunchAPI.swift in Sources */,
@@ -575,6 +594,7 @@
 				B12345678901234567890101 /* ReminderViewModelTests.swift in Sources */,
 				51E48199E82D47B3B5328207 /* LaunchDetailScreenViewModelTests.swift in Sources */,
 				2902723AF79DE76B3BE7F686 /* ThemeManagerTests.swift in Sources */,
+				65FA53030A69472CBDBED8E5 /* PrivacyPolicyViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
