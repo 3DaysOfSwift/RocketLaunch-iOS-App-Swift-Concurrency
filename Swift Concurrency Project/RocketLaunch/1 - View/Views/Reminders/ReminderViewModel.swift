@@ -7,6 +7,7 @@ final class ReminderViewModel {
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private var action: Task<Void, Never>?
     init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) { self.feature = feature }
+    var storageError: String? { feature.reminderStorageError }
     var reminders: [LaunchReminder] { feature.reminders }
     @ObservationIgnored private var loadTask: Task<Void, Never>?
 

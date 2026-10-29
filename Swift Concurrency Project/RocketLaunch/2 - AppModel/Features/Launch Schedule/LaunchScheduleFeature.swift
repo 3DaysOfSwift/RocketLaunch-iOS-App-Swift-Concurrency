@@ -333,8 +333,10 @@ final class LaunchScheduleFeature {
 
     private let notificationClient: any LaunchNotificationClient
     private let reminderPersistence: any ReminderPersisting
-    @ObservationIgnored private var reminderLoadTask: Task<[LaunchReminder], Never>?
+    @ObservationIgnored private var reminderLoadTask: Task<[LaunchReminder], any Error>?
     @ObservationIgnored private var reminderPersistenceTask: Task<Void, Never>?
+    @ObservationIgnored private var reminderLoadID: UUID?
+    private(set) var reminderStorageError: String?
     @ObservationIgnored private var remindersLoaded = false
     private(set) var reminders: [LaunchReminder] = []
 
@@ -368,22 +370,35 @@ final class LaunchScheduleFeature {
     private func removeReminderObserver(_ id: UUID) { reminderObservers[id] = nil }
     func loadRemindersIfNeeded() async {
         guard !remindersLoaded else { return }
-        let task: Task<[LaunchReminder], Never>
-        if let pending = reminderLoadTask { task = pending }
-        else {
+        let task: Task<[LaunchReminder], any Error>
+        let id: UUID
+        if let pending = reminderLoadTask, let pendingID = reminderLoadID {
+            task = pending
+            id = pendingID
+        } else {
             let persistence = reminderPersistence
-            task = Task { await persistence.load() }
+            task = Task { try await persistence.load() }
+            id = UUID()
             reminderLoadTask = task
+            reminderLoadID = id
         }
-        let stored = await task.value
-        // A joining caller must not reinstall old disk state after another caller mutates it.
-        guard !remindersLoaded else { return }
-        reminders = stored
-        remindersLoaded = true
+        let result = await task.result
+        // Only the current read may publish or clear its handle. Joining callers
+        // must not restore old data or overwrite the result of a later retry.
+        guard reminderLoadID == id else { return }
         reminderLoadTask = nil
-        for index in reminders.indices where reminders[index].status == .pending {
-            reminders[index].status = .failed
-            reminders[index].issue = "Scheduling was interrupted. Set this reminder again."
+        reminderLoadID = nil
+        switch result {
+        case .success(let stored):
+            reminders = stored
+            remindersLoaded = true
+            reminderStorageError = nil
+            for index in reminders.indices where reminders[index].status == .pending {
+                reminders[index].status = .failed
+                reminders[index].issue = "Scheduling was interrupted. Set this reminder again."
+            }
+        case .failure:
+            reminderStorageError = "Saved reminders could not be read. Your stored data has been kept. Retry before changing reminders."
         }
     }
     @discardableResult
@@ -416,6 +431,7 @@ final class LaunchScheduleFeature {
         try Task.checkCancellation()
         await loadRemindersIfNeeded()
         try Task.checkCancellation()
+        guard remindersLoaded else { throw ReminderError.storageUnavailable }
         guard let launch = sources.lazy.flatMap(\.launches).first(where: { $0.id == launchID }) else { throw ReminderError.launchUnavailable }
         guard [5, 15, 60].contains(minutesBefore) else { throw ReminderError.invalidLeadTime }
         guard let time = launch.details.plannedTime else { throw ReminderError.unknownTime }
@@ -503,7 +519,7 @@ final class LaunchScheduleFeature {
         // persistence and notification cleanup must both settle.
         guard !Task.isCancelled else { return }
         await loadRemindersIfNeeded()
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled, remindersLoaded else { return }
         guard let old = reminders.first(where: { $0.id == launchID }) else { return }
         reminders.removeAll { $0.id == launchID }
         await persistReminders().value

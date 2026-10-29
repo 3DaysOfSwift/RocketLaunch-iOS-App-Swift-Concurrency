@@ -30,7 +30,7 @@ struct LaunchReminder: Identifiable, Codable, Equatable, Sendable {
 /// Saved confirms accepted scheduling, not alert delivery; superseded means newer desired state replaced it.
 enum ReminderSaveOutcome: Equatable, Sendable { case saved, superseded }
 
-enum ReminderError: Error { case unknownTime, tooLate, denied, limit, launchUnavailable, invalidLeadTime }
+enum ReminderError: Error { case unknownTime, tooLate, denied, limit, launchUnavailable, invalidLeadTime, storageUnavailable }
 
 protocol LaunchNotificationClient: Sendable {
     func schedule(id: String, title: String, date: Date, askPermission: Bool) async throws
@@ -109,7 +109,7 @@ enum ReminderStorage: Sendable { case memory, standard, suite(String) }
 
 /// Serializes stored reminder snapshots without owning the application's live state.
 protocol ReminderPersisting: Sendable {
-    func load() async -> [LaunchReminder]
+    func load() async throws -> [LaunchReminder]
     func save(_ reminders: [LaunchReminder]) async
 }
 
@@ -130,10 +130,10 @@ actor ReminderPersistence: ReminderPersisting {
         }
     }
 
-    func load() -> [LaunchReminder] {
+    func load() throws -> [LaunchReminder] {
         openIfNeeded()
-        return defaults?.data(forKey: "rocketlaunch.reminders.v1")
-            .flatMap { try? JSONDecoder().decode([LaunchReminder].self, from: $0) } ?? []
+        guard let data = defaults?.data(forKey: "rocketlaunch.reminders.v1") else { return [] }
+        return try JSONDecoder().decode([LaunchReminder].self, from: data)
     }
 
     func save(_ reminders: [LaunchReminder]) {

@@ -782,6 +782,34 @@ final class UnifiedReminderTests: XCTestCase {
         let removed = await iterator.next()
         XCTAssertTrue(removed!.reminders.isEmpty)
     }
+    func testUnreadableReminderDataIsNotOverwrittenByNewSave() async throws {
+        let suite = "rocket-corrupt-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let original = Data("unreadable saved reminders".utf8)
+        defaults.set(original, forKey: "rocketlaunch.reminders.v1")
+        let (feature, _) = await model([launch()], storage: .suite(suite))
+        do {
+            try await feature.setReminder(for: launch().id, minutesBefore: 15)
+            XCTFail("Unreadable saved reminders must block a replacement write")
+        } catch ReminderError.storageUnavailable {}
+        XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), original)
+        let viewModel = ReminderViewModel(feature: feature)
+        XCTAssertNotNil(viewModel.storageError)
+        await feature.removeReminder(launch().id)
+        XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), original)
+
+        // Simulate storage becoming readable again; retry must restore its contents.
+        let stored = LaunchReminder(launch: launch(), notificationID: "existing", minutesBefore: 15,
+            fireDate: now.addingTimeInterval(6300), issue: nil)
+        defaults.set(try JSONEncoder().encode([stored]), forKey: "rocketlaunch.reminders.v1")
+        await viewModel.loadIfNeeded().value
+        XCTAssertNil(viewModel.storageError)
+        XCTAssertEqual(viewModel.reminders, [stored])
+        let outcome = try await feature.setReminder(for: launch().id, minutesBefore: 5)
+        XCTAssertEqual(outcome, .saved)
+    }
+
     func testLegacyStoredReminderDecodesWithoutStatus() throws {
         let value = LaunchReminder(launch: launch(), notificationID: "legacy", minutesBefore: 15, fireDate: now, issue: nil)
         var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as! [String: Any]

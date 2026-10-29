@@ -5,7 +5,13 @@ struct RemindersView: View {
     @State private var viewModel = ReminderViewModel()
     var body: some View {
         ThemedList {
-            if viewModel.reminders.isEmpty {
+            if let error = viewModel.storageError {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(themeManager.selected.error)
+                    Button("Retry loading reminders") { viewModel.loadIfNeeded() }
+                }
+            } else if viewModel.reminders.isEmpty {
                 ContentUnavailableView("Your launch reminders", systemImage: "bell",
                     description: Text("Open a launch’s details to set an alert before liftoff."))
             }

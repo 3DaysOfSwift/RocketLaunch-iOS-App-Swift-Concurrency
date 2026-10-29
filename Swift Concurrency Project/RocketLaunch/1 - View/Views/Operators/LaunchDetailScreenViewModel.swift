@@ -32,6 +32,7 @@ final class LaunchDetailScreenViewModel {
                 switch error {
                 case ReminderError.launchUnavailable: self?.errorMessage = "Refresh the schedule and open the launch again before setting a reminder."
                 case ReminderError.invalidLeadTime: self?.errorMessage = "Choose 5, 15 or 60 minutes before launch."
+                case ReminderError.storageUnavailable: self?.errorMessage = "Saved reminders could not be read. Open Reminders and retry loading before saving another alert."
                 case ReminderError.denied: self?.errorMessage = "Allow notifications for RocketLaunch in Settings to receive reminders."
                 case ReminderError.unknownTime: self?.errorMessage = "An exact launch time is needed to set a reminder."
                 case ReminderError.tooLate: self?.errorMessage = "That reminder time has already passed. Choose a shorter lead time or another launch."
