@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RemindersView: View {
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(ReminderViewModel.self) private var viewModel
+    @State private var viewModel = ReminderViewModel()
     var body: some View {
         ThemedList {
             if viewModel.reminders.isEmpty {

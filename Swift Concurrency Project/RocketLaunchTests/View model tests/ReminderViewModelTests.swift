@@ -14,6 +14,7 @@ final class ReminderViewModelTests: XCTestCase {
             notificationClient: ReminderScreenNotifications(), reminderPersistence: persistence)
         let first = ReminderViewModel(feature: feature)
         let second = ReminderViewModel(feature: feature)
+        let details = LaunchDetailScreenViewModel(feature: feature)
         XCTAssertTrue(first.reminders.isEmpty)
         let restored = expectation(description: "second screen observes restored state")
         withObservationTracking { _ = second.reminders } onChange: { restored.fulfill() }
@@ -25,6 +26,7 @@ final class ReminderViewModelTests: XCTestCase {
         XCTAssertEqual(first.reminders, [stored])
         XCTAssertEqual(second.reminders, [stored])
         XCTAssertTrue(second.contains(launch.id))
+        XCTAssertTrue(details.contains(launch.id))
         let loadCount = await persistence.loadCount
         XCTAssertEqual(loadCount, 1)
 
@@ -35,6 +37,7 @@ final class ReminderViewModelTests: XCTestCase {
         XCTAssertTrue(first.reminders.isEmpty)
         XCTAssertTrue(second.reminders.isEmpty)
         XCTAssertFalse(second.contains(launch.id))
+        XCTAssertFalse(details.contains(launch.id))
         let saved = await persistence.reminders
         XCTAssertTrue(saved.isEmpty)
     }

@@ -44,7 +44,7 @@ struct LaunchListRow: View {
 struct LaunchDetailView: View {
     let launch: RocketLaunch
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(ReminderViewModel.self) private var reminders
+    @State private var reminders = LaunchDetailScreenViewModel()
     @State private var minutesBefore = 15
     private var viewModel: LaunchDetailViewModel { .init(launch: launch) }
 
@@ -100,6 +100,9 @@ struct LaunchDetailView: View {
         }
         .background(themeManager.selected.background)
         .modifier(ThemedListBackground())
+        .alert("Reminder", isPresented: Binding(get: { reminders.errorMessage != nil }, set: { if !$0 { reminders.errorMessage = nil } })) {
+            Button("OK") { reminders.errorMessage = nil }
+        } message: { Text(reminders.errorMessage ?? "") }
         .navigationTitle("Launch details")
         .navigationBarTitleDisplayMode(.inline)
     }

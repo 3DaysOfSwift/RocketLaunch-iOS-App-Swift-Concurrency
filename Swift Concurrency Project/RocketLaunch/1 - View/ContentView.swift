@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var reminders = ReminderViewModel()
     @State private var selection = "next"
     @Environment(ThemeManager.self) private var themeManager
 
@@ -18,10 +17,6 @@ struct ContentView: View {
             NavigationStack { RemindersView() }
                 .tabItem { Label("Reminders", systemImage: "bell") }.tag("reminders")
         }
-        .environment(reminders)
-        .alert("Reminder", isPresented: Binding(get: { reminders.errorMessage != nil }, set: { if !$0 { reminders.errorMessage = nil } })) {
-            Button("OK") { reminders.errorMessage = nil }
-        } message: { Text(reminders.errorMessage ?? "") }
         .tint(themeManager.selected.accent)
         .preferredColorScheme(themeManager.selected.colourScheme)
         .animation(.easeInOut(duration: 0.25), value: themeManager.selected)

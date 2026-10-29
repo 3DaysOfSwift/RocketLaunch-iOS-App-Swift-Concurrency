@@ -739,7 +739,7 @@ final class UnifiedReminderTests: XCTestCase {
         let finished = expectation(description: "UI command finishes")
         let client = ControlledNotifications(hold: 1) { _ in started.fulfill() }
         let (feature, _) = await model([launch()], client: client)
-        let vm = ReminderViewModel(feature: feature)
+        let vm = LaunchDetailScreenViewModel(feature: feature)
         vm.save(launch().id, minutesBefore: 5); vm.save(launch().id, minutesBefore: 5)
         await fulfillment(of: [started], timeout: 2)
         let calls = await client.calls
