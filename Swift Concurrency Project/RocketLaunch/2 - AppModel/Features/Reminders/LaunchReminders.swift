@@ -12,6 +12,8 @@ struct LaunchReminder: Identifiable, Codable, Equatable, Sendable {
     let obsoleteNotificationIDs: [String]
     enum Status: String, Codable, Sendable { case pending, scheduled, failed, deletionPending }
 
+    func hasPassed(at date: Date) -> Bool { fireDate <= date }
+
     init(launch: RocketLaunch, notificationID: String, minutesBefore: Int, fireDate: Date, issue: String?, status: Status = .scheduled, obsoleteNotificationIDs: [String] = []) {
         self.launch = launch; self.notificationID = notificationID; self.minutesBefore = minutesBefore
         self.fireDate = fireDate; self.issue = issue; self.status = status

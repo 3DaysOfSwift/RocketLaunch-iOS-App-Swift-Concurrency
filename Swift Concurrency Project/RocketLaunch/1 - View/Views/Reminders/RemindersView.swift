@@ -32,7 +32,7 @@ struct RemindersView: View {
                             Label(issue, systemImage: "exclamationmark.triangle").foregroundStyle(theme.error)
                         } else {
                             Text(reminder.fireDate, format: .dateTime.month().day().hour().minute())
-                            Text(reminder.fireDate > Date() ? "\(reminder.minutesBefore) minutes before launch" : "Reminder time passed")
+                            Text(viewModel.reminderTimeHasPassed(reminder) ? "Reminder time passed" : "\(reminder.minutesBefore) minutes before launch")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Text(reminder.launch.source.name).font(.caption).foregroundStyle(.secondary)

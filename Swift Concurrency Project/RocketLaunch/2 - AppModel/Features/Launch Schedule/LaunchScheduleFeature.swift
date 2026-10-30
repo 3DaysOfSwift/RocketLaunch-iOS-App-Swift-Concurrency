@@ -371,8 +371,12 @@ final class LaunchScheduleFeature {
 
     func hasActiveReminder(for launchID: String) -> Bool {
         reminders.contains {
-            $0.id == launchID && $0.status == .scheduled && $0.issue == nil && $0.fireDate > now()
+            $0.id == launchID && $0.status == .scheduled && $0.issue == nil && !$0.hasPassed(at: now())
         }
+    }
+
+    func reminderTimeHasPassed(_ reminder: LaunchReminder) -> Bool {
+        reminder.hasPassed(at: now())
     }
     @ObservationIgnored private var userSaveCounts: [String: Int] = [:]
     private var reminderRevision: UInt64 = 0

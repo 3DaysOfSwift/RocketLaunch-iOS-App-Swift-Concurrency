@@ -5,6 +5,16 @@ import XCTest
 
 @MainActor
 final class ReminderViewModelTests: XCTestCase {
+    func testReminderTimeBoundaryComesFromFeatureClock() throws {
+        let launch = try XCTUnwrap(LaunchFixtures.launches().first)
+        let deadline = Date(timeIntervalSince1970: 2_000_000_000)
+        let reminder = LaunchReminder(launch: launch, notificationID: "deadline", minutesBefore: 5, fireDate: deadline, issue: nil)
+        let before = ReminderViewModel(feature: LaunchScheduleFeature(sources: [], now: { deadline.addingTimeInterval(-1) }))
+        let atDeadline = ReminderViewModel(feature: LaunchScheduleFeature(sources: [], now: { deadline }))
+        XCTAssertFalse(before.reminderTimeHasPassed(reminder))
+        XCTAssertTrue(atDeadline.reminderTimeHasPassed(reminder))
+    }
+
     func testScreensObserveRestoredRemindersAndRemovalFromSharedFeature() async throws {
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         let stored = LaunchReminder(launch: launch, notificationID: "saved-reminder",

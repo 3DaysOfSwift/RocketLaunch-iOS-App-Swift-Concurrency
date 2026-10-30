@@ -41,6 +41,7 @@ final class ReminderViewModel {
         }
     }
     func contains(_ id: String) -> Bool { feature.hasActiveReminder(for: id) }
+    func reminderTimeHasPassed(_ reminder: LaunchReminder) -> Bool { feature.reminderTimeHasPassed(reminder) }
     func remove(_ id: String) {
         guard !isBusy else { return }
         isBusy = true
