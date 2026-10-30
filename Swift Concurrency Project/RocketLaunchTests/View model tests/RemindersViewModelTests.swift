@@ -40,6 +40,32 @@ final class RemindersViewModelTests: XCTestCase {
         XCTAssertTrue(stored.isEmpty)
     }
 
+    func testQueuedRemovalsFinishAfterScreenIsReleased() async throws {
+        let launches = try LaunchFixtures.launches()
+        let first = try XCTUnwrap(launches.first)
+        let second = try XCTUnwrap(launches.dropFirst().first)
+        let saved = [first, second].map { launch in
+            LaunchReminder(launch: launch, notificationID: launch.id, minutesBefore: 15,
+                fireDate: Date().addingTimeInterval(3600), issue: nil)
+        }
+        let started = expectation(description: "first save started")
+        let finished = expectation(description: "both removals persisted")
+        let storage = HeldReminderScreenPersistence(reminders: saved, onSave: { started.fulfill() },
+            onEmpty: { finished.fulfill() })
+        let feature = LaunchScheduleFeature(sources: [], notificationClient: ReminderScreenNotifications(), reminderPersistence: storage)
+        var screen: RemindersViewModel? = RemindersViewModel(launchScheduleFeature: feature)
+        await screen?.loadIfNeeded().value
+        screen?.remove(first.id)
+        await fulfillment(of: [started], timeout: 2)
+        screen?.remove(second.id)
+        weak var released = screen
+        screen = nil
+        XCTAssertNil(released)
+        await storage.release()
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertTrue(feature.reminders.isEmpty)
+    }
+
     func testScreensObserveRestoredRemindersAndRemovalFromSharedFeature() async throws {
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         let stored = LaunchReminder(launch: launch, notificationID: "saved-reminder",
@@ -96,8 +122,9 @@ private actor HeldReminderScreenPersistence: ReminderPersisting {
     private var continuation: CheckedContinuation<Void, Never>?
     private var hold = true
     private let onSave: @Sendable () -> Void
-    init(reminders: [LaunchReminder], onSave: @escaping @Sendable () -> Void) {
-        self.reminders = reminders; self.onSave = onSave
+    private let onEmpty: (@Sendable () -> Void)?
+    init(reminders: [LaunchReminder], onSave: @escaping @Sendable () -> Void, onEmpty: (@Sendable () -> Void)? = nil) {
+        self.reminders = reminders; self.onSave = onSave; self.onEmpty = onEmpty
     }
     func load() -> [LaunchReminder] { reminders }
     func save(_ reminders: [LaunchReminder]) async {
@@ -109,6 +136,7 @@ private actor HeldReminderScreenPersistence: ReminderPersisting {
             }
         }
         self.reminders = reminders
+        if reminders.isEmpty { onEmpty?() }
     }
     func release() { continuation?.resume(); continuation = nil }
 }

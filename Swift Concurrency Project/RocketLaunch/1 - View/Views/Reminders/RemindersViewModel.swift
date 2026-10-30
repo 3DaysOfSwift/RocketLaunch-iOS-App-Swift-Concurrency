@@ -55,5 +55,6 @@ final class RemindersViewModel {
             self?.actionID = nil
         }
     }
-    deinit { loadTask?.cancel(); action?.cancel() }
+    // Accepted edits must finish even if their screen disappears.
+    deinit { loadTask?.cancel() }
 }
