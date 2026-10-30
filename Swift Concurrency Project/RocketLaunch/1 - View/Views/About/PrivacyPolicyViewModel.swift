@@ -5,13 +5,13 @@ import Observation
 final class PrivacyPolicyViewModel {
     private(set) var text = ""
     private(set) var loadError: String?
-    @ObservationIgnored private let feature: SettingsFeature
+    @ObservationIgnored private let settingsFeature: SettingsFeature
     @ObservationIgnored private var requestID: UUID?
     @ObservationIgnored private var hasLoaded = false
     @ObservationIgnored private var retryTask: Task<Void, Never>?
 
-    init(feature: SettingsFeature = AppModel.shared.settingsFeature) {
-        self.feature = feature
+    init(settingsFeature: SettingsFeature = AppModel.shared.settingsFeature) {
+        self.settingsFeature = settingsFeature
     }
 
     func retry() {
@@ -30,7 +30,7 @@ final class PrivacyPolicyViewModel {
         let id = UUID()
         requestID = id
         do {
-            let policy = try await feature.loadPrivacyPolicy()
+            let policy = try await settingsFeature.loadPrivacyPolicy()
             try Task.checkCancellation()
             guard requestID == id else { return }
             text = policy
