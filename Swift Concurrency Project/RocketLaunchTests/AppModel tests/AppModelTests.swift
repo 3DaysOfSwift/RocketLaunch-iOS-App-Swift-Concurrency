@@ -34,6 +34,22 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(refreshedRequests, 2)
     }
 
+    @MainActor func testScheduleLoadsWhileReminderStorageIsSuspended() async {
+        let storageStarted = expectation(description: "Reminder storage started")
+        let persistence = ControlledReminderPersistence(holdLoad: true, started: { storageStarted.fulfill() })
+        let repository = PresentationLaunchRepository()
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], reminderPersistence: persistence)
+        let model = AppModel(launchScheduleFeature: feature)
+        let launch = Task { await model.applicationDidFinishLaunching() }
+        await fulfillment(of: [storageStarted], timeout: 2)
+        await feature.loadIfNeeded()
+        let requests = await repository.requestCount
+        XCTAssertEqual(requests, 1)
+        XCTAssertNotEqual(feature.sources.first?.phase, .idle)
+        await persistence.resumeLoad()
+        await launch.value
+    }
+
     @MainActor func testRepeatedLaunchDoesNotDuplicateActiveDownload() async {
         let began = expectation(description: "Launch download began")
         let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: {})

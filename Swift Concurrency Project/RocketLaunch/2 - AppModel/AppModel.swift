@@ -17,8 +17,9 @@ final class AppModel {
     func applicationDidFinishLaunching() async {
         guard !hasLaunched else { return }
         hasLaunched = true
-        await launchScheduleFeature.loadRemindersIfNeeded()
-        await launchScheduleFeature.loadIfNeeded()
+        async let reminders: Void = launchScheduleFeature.loadRemindersIfNeeded()
+        async let launches: Void = launchScheduleFeature.loadIfNeeded()
+        _ = await (reminders, launches)
     }
 
     func applicationDidBecomeActive() async {

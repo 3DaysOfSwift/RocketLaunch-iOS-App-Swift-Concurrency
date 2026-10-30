@@ -124,7 +124,6 @@ final class LaunchScheduleFeature {
     }
 
     private func refresh(source: LaunchSourceID, onlyIfNeeded: Bool) async {
-        await loadRemindersIfNeeded()
         let waiterID = UUID()
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
@@ -194,7 +193,7 @@ final class LaunchScheduleFeature {
                 nextRefreshAt: current.nextRefreshAt, phase: .loaded)
             rebuildOperators()
             // Cache and desired reminders change in one uninterrupted actor operation.
-            effects = reconcileReminders(with: launches)
+            if remindersLoaded { effects = reconcileReminders(with: launches) }
         case .failure(let error):
             if error is CancellationError || (error as? URLError)?.code == .cancelled {
                 sources[index] = request.previous
@@ -450,6 +449,10 @@ final class LaunchScheduleFeature {
             confirmedReminderRevision = reminderRevision
             let snapshot = currentReminderSnapshot
             for observer in reminderObservers.values { observer.yield(snapshot) }
+            // A provider may have completed while reminder storage was loading.
+            for source in sources where source.phase == .loaded {
+                startReminderEffects(reconcileReminders(with: source.launches))
+            }
         case .failure:
             reminderStorageError = "Saved reminders could not be loaded or recovered. Your stored data has been kept. Retry before changing reminders."
         }
