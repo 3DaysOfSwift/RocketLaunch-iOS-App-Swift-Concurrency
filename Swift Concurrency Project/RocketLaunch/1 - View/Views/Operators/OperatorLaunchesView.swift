@@ -77,7 +77,7 @@ struct SourceStatusView: View {
                         Text(SourceStatusPresentation.message(source, at: date)).font(.caption).foregroundStyle(.secondary)
                     }
                     if let retryDate = source.nextRefreshAt, !source.canRefresh(at: date), source.phase != .loading {
-                        Text("Refresh available after \(retryDate.formatted(date: .omitted, time: .shortened))")
+                        Text(SourceStatusPresentation.retryTime(retryDate))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }

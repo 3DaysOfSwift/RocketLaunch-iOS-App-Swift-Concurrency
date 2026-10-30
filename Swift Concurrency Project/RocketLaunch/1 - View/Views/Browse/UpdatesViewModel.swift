@@ -18,6 +18,11 @@ final class UpdatesViewModel {
     }
     var sources: [LaunchSourceSnapshot] { launchScheduleFeature.sources }
     var updates: [LaunchUpdate] { launchScheduleFeature.updates }
+    func previousLaunchTime(for update: LaunchUpdate) -> String { LaunchPresentation(launch: update.previous).launchTime }
+    func currentLaunchTime(for update: LaunchUpdate) -> String { LaunchPresentation(launch: update.launch).launchTime }
+    func sourceAndDetectionTime(for update: LaunchUpdate) -> String {
+        "\(update.launch.source.name) · \(update.detectedAt.formatted(date: .abbreviated, time: .shortened))"
+    }
     @discardableResult
     func requestRefresh(source: LaunchSourceID? = nil) -> Task<Void, Never> { refreshTasks.request(source: source) }
     func cancelRefresh() { refreshTasks.cancel() }

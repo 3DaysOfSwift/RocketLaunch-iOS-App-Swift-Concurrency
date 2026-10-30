@@ -4,6 +4,9 @@ enum SourceStatusPresentation {
     static func canRetry(_ source: LaunchSourceSnapshot, at date: Date = .now) -> Bool {
         source.canRefresh(at: date)
     }
+    static func retryTime(_ date: Date) -> String {
+        "Refresh available after \(date.formatted(date: .omitted, time: .shortened))"
+    }
     static func message(_ source: LaunchSourceSnapshot, at date: Date = .now) -> String {
         switch source.phase {
         case .idle: return String(localized: "Waiting for data")

@@ -89,11 +89,11 @@ struct UpdatesView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(update.launch.name).font(.headline)
                         if update.timeChanged {
-                            Text("Previously: \(LaunchPresentation(launch: update.previous).launchTime)")
+                            Text("Previously: \(viewModel.previousLaunchTime(for: update))")
                                 .foregroundStyle(.secondary)
-                            Text("Now: \(LaunchPresentation(launch: update.launch).launchTime)")
+                            Text("Now: \(viewModel.currentLaunchTime(for: update))")
                         } else { Text("Mission information updated") }
-                        Text("\(update.launch.source.name) · \(update.detectedAt.formatted(date: .abbreviated, time: .shortened))")
+                        Text(viewModel.sourceAndDetectionTime(for: update))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
