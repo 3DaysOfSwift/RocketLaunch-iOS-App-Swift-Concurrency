@@ -1,6 +1,23 @@
 import Foundation
 import Observation
 
+enum AppColourTheme: String, CaseIterable, Identifiable {
+    case system, midnight, ocean, forest, sunset, nebula, lunar, crimson
+    var id: String { rawValue }
+    var name: String {
+        switch self {
+        case .system: "System"
+        case .midnight: "Midnight"
+        case .ocean: "Ocean"
+        case .forest: "Forest"
+        case .sunset: "Sunset"
+        case .nebula: "Nebula"
+        case .lunar: "Lunar"
+        case .crimson: "Crimson"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class SettingsFeature {
