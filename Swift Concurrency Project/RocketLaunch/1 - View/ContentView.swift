@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selection = "next"
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appColourTheme) private var theme
 
     var body: some View {
         TabView(selection: $selection) {
@@ -17,10 +17,10 @@ struct ContentView: View {
             NavigationStack { RemindersView() }
                 .tabItem { Label("Reminders", systemImage: "bell") }.tag("reminders")
         }
-        .tint(themeManager.selected.accent)
-        .preferredColorScheme(themeManager.selected.colourScheme)
-        .animation(.easeInOut(duration: 0.25), value: themeManager.selected)
+        .tint(theme.accent)
+        .preferredColorScheme(theme.colourScheme)
+        .animation(.easeInOut(duration: 0.25), value: theme)
     }
 }
 
-#Preview { ContentView().environment(ThemeManager()) }
+#Preview { ContentView().environment(\.appColourTheme, .system) }

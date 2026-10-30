@@ -1,13 +1,13 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Environment(ThemeManager.self) private var themeManager
+    @State private var viewModel = SettingsViewModel()
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Form {
             Section {
-                Picker("Colour theme", selection: Binding(get: { themeManager.selected }, set: { themeManager.select($0) })) {
+                Picker("Colour theme", selection: $viewModel.selectedTheme) {
                     ForEach(AppColourTheme.allCases) { theme in
                         Text(theme.name).tag(theme)
                     }
@@ -18,26 +18,26 @@ struct SettingsView: View {
             } footer: {
                 Text("Double-tap the Next screen to cycle through the themes. Your choice is saved automatically. System follows your device’s appearance.")
             }
-            .listRowBackground(themeManager.selected.surface)
+            .listRowBackground(viewModel.selectedTheme.surface)
             Section("Privacy") {
                 NavigationLink("Privacy policy") { PrivacyPolicyView() }
             }
-            .listRowBackground(themeManager.selected.surface)
+            .listRowBackground(viewModel.selectedTheme.surface)
             Section("Preview") {
                 VStack(alignment: .leading, spacing: 12) {
-                    Label(themeManager.selected.name, systemImage: "sparkles").font(.headline)
+                    Label(viewModel.selectedTheme.name, systemImage: "sparkles").font(.headline)
                     Text("Ready for the next launch.").font(.title2.bold())
                 }
                 .foregroundStyle(.white)
                 .padding(.vertical, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .listRowBackground(themeManager.selected.heroGradient)
+            .listRowBackground(viewModel.selectedTheme.heroGradient)
         }
         .scrollContentBackground(.hidden)
-        .background(themeManager.selected.background)
-        .tint(themeManager.selected.accent)
-        .preferredColorScheme(themeManager.selected.colourScheme)
+        .background(viewModel.selectedTheme.background)
+        .tint(viewModel.selectedTheme.accent)
+        .preferredColorScheme(viewModel.selectedTheme.colourScheme)
         .navigationTitle("Settings")
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
     }

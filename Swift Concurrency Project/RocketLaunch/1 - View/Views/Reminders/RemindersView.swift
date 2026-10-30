@@ -1,14 +1,14 @@
 import SwiftUI
 
 struct RemindersView: View {
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appColourTheme) private var theme
     @State private var viewModel = ReminderViewModel()
     var body: some View {
         ThemedList {
             if let error = viewModel.storageError {
                 Section {
                     Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(themeManager.selected.error)
+                        .foregroundStyle(theme.error)
                     Button("Retry loading reminders") { viewModel.loadIfNeeded() }
                 }
             } else if viewModel.reminders.isEmpty {
@@ -18,7 +18,7 @@ struct RemindersView: View {
             if let error = viewModel.writeError {
                 Section {
                     Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(themeManager.selected.error)
+                        .foregroundStyle(theme.error)
                     Button("Retry saving reminders") { viewModel.retryWrite() }.disabled(viewModel.isBusy)
                 }
             }
@@ -29,7 +29,7 @@ struct RemindersView: View {
                         if reminder.status == .pending {
                             Label("Scheduling…", systemImage: "clock").font(.caption)
                         } else if let issue = reminder.issue {
-                            Label(issue, systemImage: "exclamationmark.triangle").foregroundStyle(themeManager.selected.error)
+                            Label(issue, systemImage: "exclamationmark.triangle").foregroundStyle(theme.error)
                         } else {
                             Text(reminder.fireDate, format: .dateTime.month().day().hour().minute())
                             Text(reminder.fireDate > Date() ? "\(reminder.minutesBefore) minutes before launch" : "Reminder time passed")

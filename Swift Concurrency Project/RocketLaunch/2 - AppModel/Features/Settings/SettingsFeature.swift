@@ -3,7 +3,7 @@ import Observation
 
 @MainActor
 @Observable
-final class ThemeManager {
+final class SettingsFeature {
     private(set) var selected: AppColourTheme
     @ObservationIgnored private let defaults: UserDefaults?
     private static let storageKey = "rocketlaunch.colourTheme"

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appColourTheme) private var theme
 
     var body: some View {
         ScrollView {
@@ -10,7 +10,7 @@ struct AboutView: View {
                 AppCard {
                     VStack(alignment: .leading, spacing: 14) {
                         Image(systemName: "sparkles").font(.largeTitle)
-                            .foregroundStyle(themeManager.selected.accent)
+                            .foregroundStyle(theme.accent)
                         Text("Space is for everyone.").font(.title.bold())
                         Text("When is the next rocket launch? Who’s launching it, from where, and what is the mission for? RocketLaunch gives you the essentials, completely free. No in-app purchases.")
                             .foregroundStyle(.secondary)
@@ -36,8 +36,8 @@ struct AboutView: View {
                 Text("Made for the curious.").font(.footnote).foregroundStyle(.secondary)
             }.padding(20)
         }
-        .background(themeManager.selected.background)
-        .foregroundStyle(themeManager.selected.foreground)
+        .background(theme.background)
+        .foregroundStyle(theme.foreground)
         .navigationTitle("About")
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
     }
@@ -45,7 +45,7 @@ struct AboutView: View {
 
 /// Bundled policy remains accessible without a network connection.
 struct PrivacyPolicyView: View {
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appColourTheme) private var theme
     @State private var viewModel = PrivacyPolicyViewModel()
     var body: some View {
         ScrollView {
@@ -54,8 +54,8 @@ struct PrivacyPolicyView: View {
                 .textSelection(.enabled)
                 .padding(20)
         }
-        .background(themeManager.selected.background)
-        .foregroundStyle(themeManager.selected.foreground)
+        .background(theme.background)
+        .foregroundStyle(theme.foreground)
         .task { await viewModel.load() }
         .navigationTitle("Privacy policy")
         .navigationBarTitleDisplayMode(.inline)

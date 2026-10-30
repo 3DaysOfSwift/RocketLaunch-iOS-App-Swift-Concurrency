@@ -28,13 +28,13 @@
 		210F0EFB74899257C00AF13A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F149E9826C3D5F239A29CF4 /* AppModel.swift */; };
 		226732CA8B4D451225510FE4 /* RocketLaunchAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9518104C8BA894B42782132 /* RocketLaunchAPITests.swift */; };
 		2338D39EF5D218558C7916FA /* LaunchLibraryAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9AA865F333AFF8BBCF1CB7 /* LaunchLibraryAPI.swift */; };
-		2902723AF79DE76B3BE7F686 /* ThemeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75635FEFD990C35E2482197D /* ThemeManagerTests.swift */; };
+		2902723AF79DE76B3BE7F686 /* SettingsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75635FEFD990C35E2482197D /* SettingsFeatureTests.swift */; };
 		2D814B9C3C735E2E39113D64 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A4359B32CE6C8CAC6B9ED3 /* ContentView.swift */; };
 		2D97C0DD7852443BA67149E5 /* TestData.json in Resources */ = {isa = PBXBuildFile; fileRef = A960E0841A239C890B60CC2B /* TestData.json */; };
 		351A6003F48EF35CC5ABBB85 /* RocketLaunchDataTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CEFBA188D76B1BB677E11F8 /* RocketLaunchDataTypes.swift */; };
 		368202433BCB394C59662CB7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F8AE0644CDB233F877BFC83 /* SettingsView.swift */; };
 		39CE8771AA39797646EC7338 /* LaunchDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723C2A0BF53D93A8DAB2A685 /* LaunchDecodingTests.swift */; };
-		3CB7B45425CB9DCB67D8A234 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B51B06C03E02E5BDBDB6ED9C /* ThemeManager.swift */; };
+		3CB7B45425CB9DCB67D8A234 /* SettingsFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = B51B06C03E02E5BDBDB6ED9C /* SettingsFeature.swift */; };
 		4A1E14875F4C651F2D31A00F /* LaunchScheduleFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BFD43D9F3FF9745D387E8B3 /* LaunchScheduleFeatureTests.swift */; };
 		4D2FA66A637E666D17D05682 /* LaunchScheduleViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A5C8BFB9265FBDFB7ED40B /* LaunchScheduleViewModel.swift */; };
 		4F4ED4B5F2B6530219B555D6 /* RocketLaunchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB71FDC981BB48D015DEE9EC /* RocketLaunchAPI.swift */; };
@@ -74,6 +74,8 @@
 		D8B5F0FF9A974D4CB7A7AC23 /* OperatorLaunchDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8677132C5E2B47AD9C55A137 /* OperatorLaunchDetailViewModelTests.swift */; };
 		9D6AAD1C9B4744D286E4FE86 /* UpdatedLaunchDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 414013655F9244ABAC4E5CB7 /* UpdatedLaunchDetailViewModelTests.swift */; };
 		CDC9EAFE5AA54EC5BD4B405C /* ReminderLaunchDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BC8B0F48F94666AC18FC7A /* ReminderLaunchDetailViewModelTests.swift */; };
+		1E4B90B9DF2B44AC8C0E6486 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92F7CBC1F48842838C824D86 /* SettingsViewModel.swift */; };
+		BAD84E87FBE8476185E8C696 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B30AC05D5964CD1AB6ACDC0 /* SettingsViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -121,7 +123,7 @@
 		71DCC2F5E5B68050A7A30C8A /* LaunchScheduleFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleFeature.swift; sourceTree = "<group>"; };
 		723C2A0BF53D93A8DAB2A685 /* LaunchDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDecodingTests.swift; sourceTree = "<group>"; };
 		72E8129612F8172D7763F3D5 /* LaunchScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleView.swift; sourceTree = "<group>"; };
-		75635FEFD990C35E2482197D /* ThemeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManagerTests.swift; sourceTree = "<group>"; };
+		75635FEFD990C35E2482197D /* SettingsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFeatureTests.swift; sourceTree = "<group>"; };
 		796262C758B2DE50DEE95636 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		7C17D993347D966D584C1CBD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8727599EBDD915AFBD1759E5 /* RocketLaunchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = RocketLaunchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -133,7 +135,7 @@
 		A6A4359B32CE6C8CAC6B9ED3 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A960E0841A239C890B60CC2B /* TestData.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = TestData.json; sourceTree = "<group>"; };
 		B1CA5E0B93EB63A3F674247A /* RocketLaunchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RocketLaunchApp.swift; sourceTree = "<group>"; };
-		B51B06C03E02E5BDBDB6ED9C /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
+		B51B06C03E02E5BDBDB6ED9C /* SettingsFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Settings/SettingsFeature.swift"; sourceTree = "<group>"; };
 		C29A9ADF0C789F4AC1FFDD51 /* RemindersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersView.swift; sourceTree = "<group>"; };
 		C9518104C8BA894B42782132 /* RocketLaunchAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RocketLaunchAPITests.swift; sourceTree = "<group>"; };
 		CA9200000000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -156,6 +158,8 @@
 		8677132C5E2B47AD9C55A137 /* OperatorLaunchDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorLaunchDetailViewModelTests.swift; sourceTree = "<group>"; };
 		414013655F9244ABAC4E5CB7 /* UpdatedLaunchDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatedLaunchDetailViewModelTests.swift; sourceTree = "<group>"; };
 		40BC8B0F48F94666AC18FC7A /* ReminderLaunchDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderLaunchDetailViewModelTests.swift; sourceTree = "<group>"; };
+		92F7CBC1F48842838C824D86 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		4B30AC05D5964CD1AB6ACDC0 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -189,7 +193,6 @@
 			isa = PBXGroup;
 			children = (
 				0708E9DA54F15EB2B22F4235 /* AppColourTheme.swift */,
-				B51B06C03E02E5BDBDB6ED9C /* ThemeManager.swift */,
 			);
 			path = Theme;
 			sourceTree = "<group>";
@@ -285,6 +288,7 @@
 		2EA1047E28D9F93EC2BB5EED /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				B51B06C03E02E5BDBDB6ED9C /* SettingsFeature.swift */,
 				6CB6337847237203B7FAEAB7 /* Launch Schedule */,
 				BE26C1A0D7A71973E1094637 /* Reminders */,
 			);
@@ -389,11 +393,12 @@
 				1BA66B206CD54C658994C65F /* UpcomingViewModelTests.swift */,
 				B12345678901234567890102 /* ReminderViewModelTests.swift */,
 				EF1487D16D33444396BBF0C0 /* LaunchDetailScreenViewModelTests.swift */,
+				4B30AC05D5964CD1AB6ACDC0 /* SettingsViewModelTests.swift */,
 				40BC8B0F48F94666AC18FC7A /* ReminderLaunchDetailViewModelTests.swift */,
 				414013655F9244ABAC4E5CB7 /* UpdatedLaunchDetailViewModelTests.swift */,
 				8677132C5E2B47AD9C55A137 /* OperatorLaunchDetailViewModelTests.swift */,
 				335F39F60A814F3B8469F5C9 /* UpcomingLaunchDetailViewModelTests.swift */,
-				75635FEFD990C35E2482197D /* ThemeManagerTests.swift */,
+				75635FEFD990C35E2482197D /* SettingsFeatureTests.swift */,
 				BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */,
 			);
 			path = "View model tests";
@@ -412,6 +417,7 @@
 			isa = PBXGroup;
 			children = (
 				1F8AE0644CDB233F877BFC83 /* SettingsView.swift */,
+				92F7CBC1F48842838C824D86 /* SettingsViewModel.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -591,12 +597,13 @@
 				2D814B9C3C735E2E39113D64 /* ContentView.swift in Sources */,
 				9E9C591FFEE3B2A3822F3A1A /* RocketLaunchApp.swift in Sources */,
 				C5AC034AAAE9C2E0236B94CA /* AppColourTheme.swift in Sources */,
-				3CB7B45425CB9DCB67D8A234 /* ThemeManager.swift in Sources */,
+				3CB7B45425CB9DCB67D8A234 /* SettingsFeature.swift in Sources */,
 				A77192A88CC668C7B385A0D7 /* LaunchScheduleView.swift in Sources */,
 				4D2FA66A637E666D17D05682 /* LaunchScheduleViewModel.swift in Sources */,
 				210F0EFB74899257C00AF13A /* AppModel.swift in Sources */,
 				650D1F72675866403091D9B5 /* LaunchScheduleFeature.swift in Sources */,
 				368202433BCB394C59662CB7 /* SettingsView.swift in Sources */,
+				1E4B90B9DF2B44AC8C0E6486 /* SettingsViewModel.swift in Sources */,
 				D373992CBC7135C2085B33DA /* LaunchReminders.swift in Sources */,
 				88713411E296CA5A546C798F /* RemindersView.swift in Sources */,
 				7323CD0427F3266796D2804F /* ReminderViewModel.swift in Sources */,
@@ -650,11 +657,12 @@
 				8F9E3FF2CE76471F9D1B3D04 /* UpcomingViewModelTests.swift in Sources */,
 				B12345678901234567890101 /* ReminderViewModelTests.swift in Sources */,
 				51E48199E82D47B3B5328207 /* LaunchDetailScreenViewModelTests.swift in Sources */,
+				BAD84E87FBE8476185E8C696 /* SettingsViewModelTests.swift in Sources */,
 				CDC9EAFE5AA54EC5BD4B405C /* ReminderLaunchDetailViewModelTests.swift in Sources */,
 				9D6AAD1C9B4744D286E4FE86 /* UpdatedLaunchDetailViewModelTests.swift in Sources */,
 				D8B5F0FF9A974D4CB7A7AC23 /* OperatorLaunchDetailViewModelTests.swift in Sources */,
 				03973ACF124D438099A53A37 /* UpcomingLaunchDetailViewModelTests.swift in Sources */,
-				2902723AF79DE76B3BE7F686 /* ThemeManagerTests.swift in Sources */,
+				2902723AF79DE76B3BE7F686 /* SettingsFeatureTests.swift in Sources */,
 				65FA53030A69472CBDBED8E5 /* PrivacyPolicyViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -5,10 +5,12 @@ import Foundation
 final class AppModel {
     static let shared = AppModel.live()
     let launchScheduleFeature: LaunchScheduleFeature
+    let settingsFeature: SettingsFeature
     private var hasLaunched: Bool
 
-    init(launchScheduleFeature: LaunchScheduleFeature) {
+    init(launchScheduleFeature: LaunchScheduleFeature, settingsFeature: SettingsFeature = SettingsFeature()) {
         self.launchScheduleFeature = launchScheduleFeature
+        self.settingsFeature = settingsFeature
         self.hasLaunched = false
     }
 
@@ -33,6 +35,6 @@ final class AppModel {
             .init(id: .rocketLaunchLive, repository: repository),
             .init(id: .launchLibrary, repository: library, minimumRefreshInterval: 300),
             .init(id: .spaceX, repository: spaceX, minimumRefreshInterval: 60)
-        ], reminderStorage: .standard))
+        ], reminderStorage: .standard), settingsFeature: SettingsFeature(defaults: .standard))
     }
 }

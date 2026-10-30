@@ -16,7 +16,15 @@ final class LaunchScheduleViewModel {
     @ObservationIgnored private var sourceTasks: [LaunchSourceID: Task<Void, Never>] = [:]
     @ObservationIgnored private var sourceRequestIDs: [LaunchSourceID: UUID] = [:]
 
-    init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) { self.feature = feature }
+    @ObservationIgnored private let settingsFeature: SettingsFeature
+
+    init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature,
+         settingsFeature: SettingsFeature = AppModel.shared.settingsFeature) {
+        self.feature = feature
+        self.settingsFeature = settingsFeature
+    }
+
+    func selectNextTheme() { settingsFeature.selectNextTheme() }
 
     var snapshot: LaunchScheduleSnapshot { feature.snapshot }
     var upcomingLaunches: [RocketLaunch] { snapshot.upcomingLaunches }

@@ -2,12 +2,12 @@ import XCTest
 import Observation
 @testable import RocketLaunch
 
-final class ThemeManagerTests: XCTestCase {
+final class SettingsFeatureTests: XCTestCase {
     @MainActor func testDefaultThemeFollowsSystemPalette() async {
-        XCTAssertEqual(ThemeManager().selected, .system)
+        XCTAssertEqual(SettingsFeature().selected, .system)
     }
     @MainActor func testThemeChangesAreObservable() async {
-        let manager = ThemeManager()
+        let manager = SettingsFeature()
         let changed = expectation(description: "theme")
         withObservationTracking { _ = manager.selected } onChange: { changed.fulfill() }
         manager.select(.midnight)
@@ -15,7 +15,7 @@ final class ThemeManagerTests: XCTestCase {
         XCTAssertEqual(manager.selected, .midnight)
     }
     @MainActor func testCycleVisitsEveryThemeAndWrapsToSystem() {
-        let manager = ThemeManager()
+        let manager = SettingsFeature()
         var visited: Set<AppColourTheme> = []
         for _ in 0..<AppColourTheme.allCases.count {
             visited.insert(manager.selected)
@@ -28,10 +28,10 @@ final class ThemeManagerTests: XCTestCase {
         let name = "rocketlaunch-theme-tests-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
-        let manager = ThemeManager(defaults: defaults)
+        let manager = SettingsFeature(defaults: defaults)
         manager.select(.forest)
-        XCTAssertEqual(ThemeManager(defaults: defaults).selected, .forest)
+        XCTAssertEqual(SettingsFeature(defaults: defaults).selected, .forest)
         defaults.set("unknown", forKey: "rocketlaunch.colourTheme")
-        XCTAssertEqual(ThemeManager(defaults: defaults).selected, .system)
+        XCTAssertEqual(SettingsFeature(defaults: defaults).selected, .system)
     }
 }

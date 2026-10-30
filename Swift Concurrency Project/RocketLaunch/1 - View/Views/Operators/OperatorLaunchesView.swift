@@ -41,7 +41,7 @@ struct LaunchListRow: View {
 }
 
 struct SourceStatusView: View {
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appColourTheme) private var theme
     let sources: [LaunchSourceSnapshot]
     let refresh: (LaunchSourceID) -> Void
     var body: some View {
@@ -66,7 +66,7 @@ struct SourceStatusView: View {
                     }
                     if case .failed = source.phase {
                         Label(SourceStatusPresentation.message(source, at: date), systemImage: "exclamationmark.triangle")
-                            .font(.caption).foregroundStyle(themeManager.selected.error)
+                            .font(.caption).foregroundStyle(theme.error)
                     } else {
                         Text(SourceStatusPresentation.message(source, at: date)).font(.caption).foregroundStyle(.secondary)
                     }

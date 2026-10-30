@@ -7,7 +7,7 @@ struct LaunchScheduleView: View {
     @State private var showsSettings = false
     @State private var showsAbout = false
     @State private var showsSources = false
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appColourTheme) private var theme
 
     var body: some View {
         ScrollView {
@@ -30,7 +30,7 @@ struct LaunchScheduleView: View {
                 }
                 if let error = viewModel.errorMessage {
                     Label(error, systemImage: "exclamationmark.circle")
-                        .foregroundStyle(themeManager.selected.error)
+                        .foregroundStyle(theme.error)
                         .accessibilityIdentifier("launchError")
                 }
                 if !viewModel.isLoading {
@@ -54,9 +54,9 @@ struct LaunchScheduleView: View {
             .padding(20)
             .padding(.bottom, 24)
         }
-        .simultaneousGesture(TapGesture(count: 2).onEnded { themeManager.selectNextTheme() })
-        .background(themeManager.selected.background)
-        .foregroundStyle(themeManager.selected.foreground)
+        .simultaneousGesture(TapGesture(count: 2).onEnded { viewModel.selectNextTheme() })
+        .background(theme.background)
+        .foregroundStyle(theme.foreground)
         .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle("Next launch")
         .navigationDestination(isPresented: $viewModel.showingLaunch) { LaunchDetailView() }
@@ -87,7 +87,7 @@ struct LaunchScheduleView: View {
                             .padding(.horizontal, 20).padding(.bottom, 24)
                     }
                     .frame(maxWidth: .infinity)
-                    .background(themeManager.selected.visorBackground, in: RoundedRectangle(cornerRadius: 28))
+                    .background(theme.visorBackground, in: RoundedRectangle(cornerRadius: 28))
                 } else {
                     visorArtwork
                         .overlay { countdown(viewModel.countdown(at: context.date)).padding(.horizontal, 42) }
@@ -125,13 +125,13 @@ struct LaunchScheduleView: View {
                     .font(.system(size: countdownSize, weight: .light, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.6)
-                    .shadow(color: themeManager.selected.visorGlow, radius: 12)
+                    .shadow(color: theme.visorGlow, radius: 12)
             }
             Text(presentation.status)
                 .font(presentation.clock == nil ? .title3.weight(.medium) : .caption)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .foregroundStyle(themeManager.selected.visorForeground)
+        .foregroundStyle(theme.visorForeground)
         .multilineTextAlignment(.center)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(presentation.accessibilityText)
@@ -167,11 +167,11 @@ struct LaunchScheduleView: View {
             Label("Launch details", systemImage: "arrow.right")
         }
         .buttonStyle(.borderedProminent)
-        .foregroundStyle(themeManager.selected.buttonForeground)
+        .foregroundStyle(theme.buttonForeground)
         if let url = launch.details.watchURL {
             Link(destination: url) { Label("Watch launch", systemImage: "play.circle.fill") }
         }
     }
 }
 
-#Preview { NavigationStack { LaunchScheduleView() }.environment(ThemeManager()) }
+#Preview { NavigationStack { LaunchScheduleView() }.environment(\.appColourTheme, .system) }

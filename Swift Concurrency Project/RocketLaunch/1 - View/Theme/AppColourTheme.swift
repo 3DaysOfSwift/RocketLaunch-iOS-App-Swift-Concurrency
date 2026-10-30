@@ -69,3 +69,14 @@ enum AppColourTheme: String, CaseIterable, Identifiable {
         Color(red: Double((hex >> 16) & 255) / 255, green: Double((hex >> 8) & 255) / 255, blue: Double(hex & 255) / 255)
     }
 }
+
+private struct AppColourThemeKey: EnvironmentKey {
+    static let defaultValue = AppColourTheme.system
+}
+
+extension EnvironmentValues {
+    var appColourTheme: AppColourTheme {
+        get { self[AppColourThemeKey.self] }
+        set { self[AppColourThemeKey.self] = newValue }
+    }
+}

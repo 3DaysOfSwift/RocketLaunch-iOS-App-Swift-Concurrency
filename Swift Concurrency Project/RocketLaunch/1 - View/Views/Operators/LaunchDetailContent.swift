@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LaunchDetailContent: View {
     let launch: RocketLaunch
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.appColourTheme) private var theme
     let reminderSaved: Bool
     let isBusy: Bool
     @Binding var minutesBefore: Int
@@ -59,7 +59,7 @@ struct LaunchDetailContent: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }.padding(20)
         }
-        .background(themeManager.selected.background)
+        .background(theme.background)
         .modifier(ThemedListBackground())
     }
     private func detail(_ title: String, _ value: String) -> some View {
