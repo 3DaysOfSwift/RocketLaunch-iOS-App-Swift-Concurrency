@@ -66,6 +66,22 @@ final class SettingsFeatureTests: XCTestCase {
         await restored.loadIfNeeded()
         XCTAssertEqual(restored.selected, .forest)
     }
+    @MainActor func testInvalidLegacyValueIsNotSilentlyOverwritten() async throws {
+        let name = "rocketlaunch-theme-tests-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { defaults.removePersistentDomain(forName: name); try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("theme.txt")
+        defaults.set(42, forKey: "rocketlaunch.colourTheme")
+        let manager = SettingsFeature(persistence: ThemePersistence(storage: .file(url, legacySuite: name)))
+        await manager.loadIfNeeded()
+        XCTAssertNotNil(manager.storageError)
+        await manager.select(.forest).value
+        XCTAssertEqual(manager.selected, .system)
+        XCTAssertEqual(defaults.integer(forKey: "rocketlaunch.colourTheme"), 42)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
     @MainActor func testMissingMigratedFileDoesNotRestoreStaleLegacyPreference() async throws {
         let name = "rocketlaunch-theme-tests-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
