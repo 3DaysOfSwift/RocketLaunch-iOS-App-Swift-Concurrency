@@ -60,7 +60,6 @@
 		CA9200000000000000000004 /* PrivacyPolicy.txt in Resources */ = {isa = PBXBuildFile; fileRef = CA9200000000000000000003 /* PrivacyPolicy.txt */; };
 		D373992CBC7135C2085B33DA /* LaunchReminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880D15A28EDF0CD06A0A0901 /* LaunchReminders.swift */; };
 		D742B6F54A5210A60DE2925C /* OperatorLaunchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECF3AA58DF64286E918A8453 /* OperatorLaunchesView.swift */; };
-		D952B3A092D495835A57648C /* BrowseViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96320E21EBBF4D064BD23E03 /* BrowseViews.swift */; };
 		F5ED04DC95EFAC57323D87BD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7C17D993347D966D584C1CBD /* Assets.xcassets */; };
 		F6058977FFEB8E6858DBBD67 /* AppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CDAEEE334939E0FB3E5EDFC /* AppModelTests.swift */; };
 		0FBB7796C992416FBE5929BB /* LaunchDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB608C6536947FEA92A95EB /* LaunchDetailView.swift */; };
@@ -79,6 +78,10 @@
 		CDC9EAFE5AA54EC5BD4B405C /* ReminderLaunchDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BC8B0F48F94666AC18FC7A /* ReminderLaunchDetailViewModelTests.swift */; };
 		1E4B90B9DF2B44AC8C0E6486 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92F7CBC1F48842838C824D86 /* SettingsViewModel.swift */; };
 		BAD84E87FBE8476185E8C696 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B30AC05D5964CD1AB6ACDC0 /* SettingsViewModelTests.swift */; };
+		CA1100000000000000000003 /* UpcomingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1100000000000000000002 /* UpcomingView.swift */; };
+		CA1100000000000000000006 /* OperatorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1100000000000000000005 /* OperatorsView.swift */; };
+		CA1100000000000000000009 /* UpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1100000000000000000008 /* UpdatesView.swift */; };
+		CA1100000000000000000012 /* PrivacyPolicyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1100000000000000000011 /* PrivacyPolicyView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -98,7 +101,7 @@
 		91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLaunchNotificationsTests.swift; sourceTree = "<group>"; };
 		BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunchTests/View model tests/PrivacyPolicyViewModelTests.swift"; sourceTree = SOURCE_ROOT; };
 		3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Services/BundledPrivacyPolicyLoader.swift"; sourceTree = SOURCE_ROOT; };
-		561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/1 - View/Views/About/PrivacyPolicyViewModel.swift"; sourceTree = SOURCE_ROOT; };
+		561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyPolicyViewModel.swift; sourceTree = "<group>"; };
 		EF1487D16D33444396BBF0C0 /* LaunchDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailViewModelTests.swift; sourceTree = "<group>"; };
 		7401725948B4428EBA03353D /* LaunchDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailViewModel.swift; sourceTree = "<group>"; };
 		9600D1359AF745B6B3F32A71 /* OperatorLaunchesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorLaunchesViewModelTests.swift; sourceTree = "<group>"; };
@@ -134,7 +137,6 @@
 		7C17D993347D966D584C1CBD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8727599EBDD915AFBD1759E5 /* RocketLaunchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = RocketLaunchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		880D15A28EDF0CD06A0A0901 /* LaunchReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchReminders.swift; sourceTree = "<group>"; };
-		96320E21EBBF4D064BD23E03 /* BrowseViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseViews.swift; sourceTree = "<group>"; };
 		96FA0C1B57CF16F4D484B9E3 /* LaunchFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchFixtures.swift; sourceTree = "<group>"; };
 		9BFD43D9F3FF9745D387E8B3 /* LaunchScheduleFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleFeatureTests.swift; sourceTree = "<group>"; };
 		A2CC0C13153D6DA54B7687B6 /* BrowseFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseFilters.swift; sourceTree = "<group>"; };
@@ -166,6 +168,10 @@
 		40BC8B0F48F94666AC18FC7A /* ReminderLaunchDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderLaunchDetailViewModelTests.swift; sourceTree = "<group>"; };
 		92F7CBC1F48842838C824D86 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		4B30AC05D5964CD1AB6ACDC0 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
+		CA1100000000000000000002 /* UpcomingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingView.swift; sourceTree = "<group>"; };
+		CA1100000000000000000005 /* OperatorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorsView.swift; sourceTree = "<group>"; };
+		CA1100000000000000000008 /* UpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesView.swift; sourceTree = "<group>"; };
+		CA1100000000000000000011 /* PrivacyPolicyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyPolicyView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -442,9 +448,9 @@
 		AA8ACBD186B991A40F505A85 /* About */ = {
 			isa = PBXGroup;
 			children = (
+				CA1100000000000000000010 /* PrivacyPolicy */,
 				D2EA7DB1A9044D47551CE4CA /* AboutView.swift */,
 				A6C8D1B7E9F240F5A6C5B102 /* AboutViewModel.swift */,
-				561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */,
 			);
 			path = About;
 			sourceTree = "<group>";
@@ -452,13 +458,12 @@
 		AB18C5F1D05AB1692261E605 /* Browse */ = {
 			isa = PBXGroup;
 			children = (
+				CA1100000000000000000007 /* Updates */,
+				CA1100000000000000000004 /* Operators */,
+				CA1100000000000000000001 /* Upcoming */,
 				A2CC0C13153D6DA54B7687B6 /* BrowseFilters.swift */,
 				FF0BC76613E64F8796F8D117 /* SourceStatusPresentation.swift */,
-				F223D69C4EC34311ABCD8EA6 /* UpdatesViewModel.swift */,
-				176ADCC061FE4DF5B7F0BE84 /* OperatorsViewModel.swift */,
-				20697B84C52040CCA0E56D81 /* UpcomingViewModel.swift */,
 				27EDD5D91CDF411FBB7E2042 /* LaunchRefreshTasks.swift */,
-				96320E21EBBF4D064BD23E03 /* BrowseViews.swift */,
 			);
 			path = Browse;
 			sourceTree = "<group>";
@@ -505,6 +510,42 @@
 				64D80A155F9C5412A27F945D /* Views */,
 			);
 			path = "1 - View";
+			sourceTree = "<group>";
+		};
+		CA1100000000000000000001 /* Upcoming */ = {
+			isa = PBXGroup;
+			children = (
+				CA1100000000000000000002 /* UpcomingView.swift */,
+				20697B84C52040CCA0E56D81 /* UpcomingViewModel.swift */,
+			);
+			path = Upcoming;
+			sourceTree = "<group>";
+		};
+		CA1100000000000000000004 /* Operators */ = {
+			isa = PBXGroup;
+			children = (
+				CA1100000000000000000005 /* OperatorsView.swift */,
+				176ADCC061FE4DF5B7F0BE84 /* OperatorsViewModel.swift */,
+			);
+			path = Operators;
+			sourceTree = "<group>";
+		};
+		CA1100000000000000000007 /* Updates */ = {
+			isa = PBXGroup;
+			children = (
+				CA1100000000000000000008 /* UpdatesView.swift */,
+				F223D69C4EC34311ABCD8EA6 /* UpdatesViewModel.swift */,
+			);
+			path = Updates;
+			sourceTree = "<group>";
+		};
+		CA1100000000000000000010 /* PrivacyPolicy */ = {
+			isa = PBXGroup;
+			children = (
+				CA1100000000000000000011 /* PrivacyPolicyView.swift */,
+				561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */,
+			);
+			path = PrivacyPolicy;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -611,6 +652,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA1100000000000000000012 /* PrivacyPolicyView.swift in Sources */,
+				CA1100000000000000000009 /* UpdatesView.swift in Sources */,
+				CA1100000000000000000006 /* OperatorsView.swift in Sources */,
+				CA1100000000000000000003 /* UpcomingView.swift in Sources */,
 				2D814B9C3C735E2E39113D64 /* ContentView.swift in Sources */,
 				9E9C591FFEE3B2A3822F3A1A /* RocketLaunchApp.swift in Sources */,
 				C5AC034AAAE9C2E0236B94CA /* AppColourTheme.swift in Sources */,
@@ -624,7 +669,6 @@
 				D373992CBC7135C2085B33DA /* LaunchReminders.swift in Sources */,
 				88713411E296CA5A546C798F /* RemindersView.swift in Sources */,
 				7323CD0427F3266796D2804F /* RemindersViewModel.swift in Sources */,
-				D952B3A092D495835A57648C /* BrowseViews.swift in Sources */,
 				50F7307AE1F9BC19D6C6D5C3 /* BrowseFilters.swift in Sources */,
 				5963A982E9ED4B1DB26769FB /* SourceStatusPresentation.swift in Sources */,
 				6A968013E6F24D6B8C809711 /* UpdatesViewModel.swift in Sources */,
