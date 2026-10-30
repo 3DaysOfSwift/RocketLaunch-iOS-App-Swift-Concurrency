@@ -3,10 +3,10 @@ import XCTest
 
 @MainActor
 final class LaunchDetailScreenViewModelTests: XCTestCase {
-    func testFailureIsOwnedByTheScreenThatRequestedIt() async {
+    func testFailureIsOwnedByTheScreenThatRequestedIt() async throws {
         let feature = LaunchScheduleFeature(sources: [])
-        let first = LaunchDetailScreenViewModel(feature: feature)
-        let second = LaunchDetailScreenViewModel(feature: feature)
+        let first = LaunchDetailScreenViewModel(launch: try XCTUnwrap(LaunchFixtures.launches().first), feature: feature)
+        let second = LaunchDetailScreenViewModel(launch: try XCTUnwrap(LaunchFixtures.launches().first), feature: feature)
         await first.save("missing", minutesBefore: 15).value
         XCTAssertEqual(first.errorMessage, "Refresh the schedule and open the launch again before setting a reminder.")
         XCTAssertNil(second.errorMessage)
@@ -15,9 +15,9 @@ final class LaunchDetailScreenViewModelTests: XCTestCase {
         XCTAssertFalse(first.contains("missing"))
     }
 
-    func testCancellationBeforeDispatchDoesNotPresentAnError() async {
+    func testCancellationBeforeDispatchDoesNotPresentAnError() async throws {
         let feature = LaunchScheduleFeature(sources: [])
-        let viewModel = LaunchDetailScreenViewModel(feature: feature)
+        let viewModel = LaunchDetailScreenViewModel(launch: try XCTUnwrap(LaunchFixtures.launches().first), feature: feature)
         let save = viewModel.save("missing", minutesBefore: 15)
         save.cancel()
         await save.value
@@ -28,7 +28,7 @@ final class LaunchDetailScreenViewModelTests: XCTestCase {
 
     func testReleasingScreenCancelsItsPendingSave() async throws {
         let feature = LaunchScheduleFeature(sources: [])
-        var screen: LaunchDetailScreenViewModel? = LaunchDetailScreenViewModel(feature: feature)
+        var screen: LaunchDetailScreenViewModel? = LaunchDetailScreenViewModel(launch: try XCTUnwrap(LaunchFixtures.launches().first), feature: feature)
         weak var released = screen
         let save = try XCTUnwrap(screen?.save("missing", minutesBefore: 15))
         screen = nil
@@ -44,12 +44,10 @@ final class LaunchDetailScreenViewModelTests: XCTestCase {
         let other = try XCTUnwrap(records.dropFirst().first)
         XCTAssertNotEqual(selected.id, other.id)
         let feature = LaunchScheduleFeature(sources: [])
-        feature.selectLaunch(selected, in: .next)
-        let model = LaunchDetailScreenViewModel(feature: feature)
+        let model = LaunchDetailScreenViewModel(launch: selected, feature: feature)
         model.minutesBefore = 60
-        for context in LaunchSelectionContext.allCases where context != .next {
-            feature.selectLaunch(other, in: context)
-        }
+        let otherScreen = LaunchDetailScreenViewModel(launch: other, feature: feature)
+        XCTAssertEqual(otherScreen.launch, other)
         XCTAssertEqual(model.launch, selected)
         XCTAssertEqual(model.minutesBefore, 60)
         let save = try XCTUnwrap(model.save())
@@ -59,23 +57,14 @@ final class LaunchDetailScreenViewModelTests: XCTestCase {
         XCTAssertEqual(model.errorMessage, "Refresh the schedule and open the launch again before setting a reminder.")
         XCTAssertFalse(model.isBusy)
         XCTAssertTrue(feature.reminders.isEmpty)
-        let anotherScreen = LaunchDetailScreenViewModel(feature: feature)
+        let anotherScreen = LaunchDetailScreenViewModel(launch: try XCTUnwrap(LaunchFixtures.launches().first), feature: feature)
         XCTAssertNil(anotherScreen.errorMessage)
         XCTAssertEqual(anotherScreen.minutesBefore, 15)
     }
 
-    func testNoSelectionDoesNotStartSaving() {
-        let model = LaunchDetailScreenViewModel(feature: LaunchScheduleFeature(sources: []))
-        XCTAssertNil(model.launch)
-        XCTAssertNil(model.save())
-        XCTAssertFalse(model.isBusy)
-        XCTAssertNil(model.errorMessage)
-    }
-
     func testSelectedSaveCancelledBeforeDispatchDoesNotPresentFailure() async throws {
         let feature = LaunchScheduleFeature(sources: [])
-        feature.selectLaunch(try XCTUnwrap(LaunchFixtures.launches().first), in: .next)
-        let model = LaunchDetailScreenViewModel(feature: feature)
+        let model = LaunchDetailScreenViewModel(launch: try XCTUnwrap(LaunchFixtures.launches().first), feature: feature)
         let task = try XCTUnwrap(model.save())
         task.cancel()
         await task.value
@@ -109,18 +98,18 @@ final class LaunchDetailScreenViewModelTests: XCTestCase {
         operatorScreen.showLaunch(first)
         XCTAssertTrue(next.showingLaunch && upcoming.showingLaunch && updates.showingLaunch
             && reminders.showingLaunch && operatorScreen.showingLaunch)
-        let nextDetail = LaunchDetailScreenViewModel(feature: feature)
-        let upcomingDetail = UpcomingLaunchDetailViewModel(feature: feature)
+        let nextDetail = LaunchDetailScreenViewModel(launch: try XCTUnwrap(next.selectedLaunch), feature: feature)
+        let upcomingDetail = UpcomingLaunchDetailViewModel(launch: try XCTUnwrap(upcoming.selectedLaunch), feature: feature)
         XCTAssertEqual(nextDetail.launch, first)
         XCTAssertEqual(upcomingDetail.launch, second)
-        XCTAssertEqual(OperatorLaunchDetailViewModel(feature: feature).launch, first)
-        XCTAssertEqual(UpdatedLaunchDetailViewModel(feature: feature).launch, first)
-        XCTAssertEqual(ReminderLaunchDetailViewModel(feature: feature).launch, second)
+        XCTAssertEqual(OperatorLaunchDetailViewModel(launch: try XCTUnwrap(operatorScreen.selectedLaunch), feature: feature).launch, first)
+        XCTAssertEqual(UpdatedLaunchDetailViewModel(launch: try XCTUnwrap(updates.selectedLaunch), feature: feature).launch, first)
+        XCTAssertEqual(ReminderLaunchDetailViewModel(launch: try XCTUnwrap(reminders.selectedLaunch), feature: feature).launch, second)
         upcoming.showingLaunch = false
         upcoming.showLaunch(first)
-        XCTAssertEqual(upcomingDetail.launch, first)
+        XCTAssertEqual(upcomingDetail.launch, second)
         XCTAssertEqual(nextDetail.launch, first)
-        XCTAssertEqual(ReminderLaunchDetailViewModel(feature: feature).launch, second)
+        XCTAssertEqual(ReminderLaunchDetailViewModel(launch: try XCTUnwrap(reminders.selectedLaunch), feature: feature).launch, second)
         XCTAssertTrue(next.showingLaunch)
     }
 }

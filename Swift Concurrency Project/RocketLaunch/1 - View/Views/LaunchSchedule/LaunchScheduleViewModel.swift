@@ -5,8 +5,9 @@ import Observation
 @Observable
 final class LaunchScheduleViewModel {
     var showingLaunch = false
+    private(set) var selectedLaunch: RocketLaunch?
     func showLaunch(_ launch: RocketLaunch) {
-        feature.selectLaunch(launch, in: .next)
+        selectedLaunch = launch
         showingLaunch = true
     }
 

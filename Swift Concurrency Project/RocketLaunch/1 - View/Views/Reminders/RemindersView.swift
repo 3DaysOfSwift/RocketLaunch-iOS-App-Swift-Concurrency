@@ -48,6 +48,8 @@ struct RemindersView: View {
         }
         .modifier(ThemedListBackground())
         .navigationTitle("Reminders")
-        .navigationDestination(isPresented: $viewModel.showingLaunch) { ReminderLaunchDetailView() }
+        .navigationDestination(isPresented: $viewModel.showingLaunch) {
+            if let launch = viewModel.selectedLaunch { ReminderLaunchDetailView(launch: launch) }
+        }
     }
 }

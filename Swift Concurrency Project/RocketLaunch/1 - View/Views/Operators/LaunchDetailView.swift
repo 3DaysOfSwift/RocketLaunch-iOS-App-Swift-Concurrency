@@ -1,7 +1,11 @@
 import SwiftUI
 
 struct LaunchDetailView: View {
-    @State private var viewModel = LaunchDetailScreenViewModel()
+    @State private var viewModel: LaunchDetailScreenViewModel
+
+    init(launch: RocketLaunch) {
+        _viewModel = State(initialValue: LaunchDetailScreenViewModel(launch: launch))
+    }
 
     var body: some View {
         Group {

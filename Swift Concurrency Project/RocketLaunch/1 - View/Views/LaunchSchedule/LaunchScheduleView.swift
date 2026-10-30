@@ -59,7 +59,9 @@ struct LaunchScheduleView: View {
         .foregroundStyle(theme.foreground)
         .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle("Next launch")
-        .navigationDestination(isPresented: $viewModel.showingLaunch) { LaunchDetailView() }
+        .navigationDestination(isPresented: $viewModel.showingLaunch) {
+            if let launch = viewModel.selectedLaunch { LaunchDetailView(launch: launch) }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {

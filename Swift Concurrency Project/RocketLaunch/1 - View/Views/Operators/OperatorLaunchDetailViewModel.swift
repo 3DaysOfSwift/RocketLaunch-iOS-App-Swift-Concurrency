@@ -4,7 +4,7 @@ import Observation
 @MainActor @Observable
 final class OperatorLaunchDetailViewModel {
     var minutesBefore = 15
-    var launch: RocketLaunch? { feature.selectedLaunch(in: .operators) }
+    let launch: RocketLaunch?
     var reminderSaved: Bool { launch.map { feature.hasActiveReminder(for: $0.id) } ?? false }
 
     @discardableResult
@@ -18,7 +18,10 @@ final class OperatorLaunchDetailViewModel {
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private var action: Task<Void, Never>?
 
-    init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) { self.feature = feature }
+    init(launch: RocketLaunch, feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {
+        self.launch = launch
+        self.feature = feature
+    }
 
     func contains(_ id: String) -> Bool {
         feature.hasActiveReminder(for: id)

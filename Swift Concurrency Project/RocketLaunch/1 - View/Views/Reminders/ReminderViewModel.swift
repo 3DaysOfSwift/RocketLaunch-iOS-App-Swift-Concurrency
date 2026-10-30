@@ -4,8 +4,9 @@ import Observation
 @MainActor @Observable
 final class ReminderViewModel {
     var showingLaunch = false
+    private(set) var selectedLaunch: RocketLaunch?
     func showLaunch(_ launch: RocketLaunch) {
-        feature.selectLaunch(launch, in: .reminders)
+        selectedLaunch = launch
         showingLaunch = true
     }
 

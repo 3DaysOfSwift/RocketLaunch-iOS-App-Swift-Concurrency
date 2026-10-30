@@ -10,12 +10,10 @@ final class UpdatedLaunchDetailViewModelTests: XCTestCase {
         let other = try XCTUnwrap(records.dropFirst().first)
         XCTAssertNotEqual(selected.id, other.id)
         let feature = LaunchScheduleFeature(sources: [])
-        feature.selectLaunch(selected, in: .updates)
-        let model = UpdatedLaunchDetailViewModel(feature: feature)
+        let model = UpdatedLaunchDetailViewModel(launch: selected, feature: feature)
         model.minutesBefore = 60
-        for context in LaunchSelectionContext.allCases where context != .updates {
-            feature.selectLaunch(other, in: context)
-        }
+        let otherScreen = UpdatedLaunchDetailViewModel(launch: other, feature: feature)
+        XCTAssertEqual(otherScreen.launch, other)
         XCTAssertEqual(model.launch, selected)
         XCTAssertEqual(model.minutesBefore, 60)
         let save = try XCTUnwrap(model.save())
@@ -25,23 +23,15 @@ final class UpdatedLaunchDetailViewModelTests: XCTestCase {
         XCTAssertEqual(model.errorMessage, "Refresh the schedule and open the launch again before setting a reminder.")
         XCTAssertFalse(model.isBusy)
         XCTAssertTrue(feature.reminders.isEmpty)
-        let anotherScreen = UpdatedLaunchDetailViewModel(feature: feature)
+        let anotherScreen = UpdatedLaunchDetailViewModel(launch: other, feature: feature)
         XCTAssertNil(anotherScreen.errorMessage)
         XCTAssertEqual(anotherScreen.minutesBefore, 15)
     }
 
-    func testNoSelectionDoesNotStartSaving() {
-        let model = UpdatedLaunchDetailViewModel(feature: LaunchScheduleFeature(sources: []))
-        XCTAssertNil(model.launch)
-        XCTAssertNil(model.save())
-        XCTAssertFalse(model.isBusy)
-        XCTAssertNil(model.errorMessage)
-    }
-
     func testSelectedSaveCancelledBeforeDispatchDoesNotPresentFailure() async throws {
         let feature = LaunchScheduleFeature(sources: [])
-        feature.selectLaunch(try XCTUnwrap(LaunchFixtures.launches().first), in: .updates)
-        let model = UpdatedLaunchDetailViewModel(feature: feature)
+        let launch = try XCTUnwrap(LaunchFixtures.launches().first)
+        let model = UpdatedLaunchDetailViewModel(launch: launch, feature: feature)
         let task = try XCTUnwrap(model.save())
         task.cancel()
         await task.value

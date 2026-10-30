@@ -14,7 +14,7 @@ final class ReminderViewModelTests: XCTestCase {
             notificationClient: ReminderScreenNotifications(), reminderPersistence: persistence)
         let first = ReminderViewModel(feature: feature)
         let second = ReminderViewModel(feature: feature)
-        let details = LaunchDetailScreenViewModel(feature: feature)
+        let details = LaunchDetailScreenViewModel(launch: launch, feature: feature)
         XCTAssertTrue(first.reminders.isEmpty)
         let restored = expectation(description: "second screen observes restored state")
         withObservationTracking { _ = second.reminders } onChange: { restored.fulfill() }

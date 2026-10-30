@@ -1,7 +1,11 @@
 import SwiftUI
 
 struct UpcomingLaunchDetailView: View {
-    @State private var viewModel = UpcomingLaunchDetailViewModel()
+    @State private var viewModel: UpcomingLaunchDetailViewModel
+
+    init(launch: RocketLaunch) {
+        _viewModel = State(initialValue: UpcomingLaunchDetailViewModel(launch: launch))
+    }
 
     var body: some View {
         Group {

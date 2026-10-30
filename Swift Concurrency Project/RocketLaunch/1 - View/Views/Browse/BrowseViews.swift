@@ -28,7 +28,9 @@ struct UpcomingView: View {
         .modifier(ThemedListBackground())
         .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle("Upcoming")
-        .navigationDestination(isPresented: $viewModel.showingLaunch) { UpcomingLaunchDetailView() }
+        .navigationDestination(isPresented: $viewModel.showingLaunch) {
+            if let launch = viewModel.selectedLaunch { UpcomingLaunchDetailView(launch: launch) }
+        }
         .searchable(text: $viewModel.filters.search, prompt: "Mission, rocket or operator")
         .toolbar { Button { viewModel.requestRefresh() } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("Refresh launches") }
     }
@@ -103,7 +105,9 @@ struct UpdatesView: View {
         .modifier(ThemedListBackground())
         .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle("Changes")
-        .navigationDestination(isPresented: $viewModel.showingLaunch) { UpdatedLaunchDetailView() }
+        .navigationDestination(isPresented: $viewModel.showingLaunch) {
+            if let launch = viewModel.selectedLaunch { UpdatedLaunchDetailView(launch: launch) }
+        }
         .toolbar { Button("Refresh") { viewModel.requestRefresh() } }
     }
 }

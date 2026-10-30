@@ -23,7 +23,9 @@ struct OperatorLaunchesView: View {
         .modifier(ThemedListBackground())
         .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle(viewModel.title)
-        .navigationDestination(isPresented: $viewModel.showingLaunch) { OperatorLaunchDetailView() }
+        .navigationDestination(isPresented: $viewModel.showingLaunch) {
+            if let launch = viewModel.selectedLaunch { OperatorLaunchDetailView(launch: launch) }
+        }
     }
 }
 
