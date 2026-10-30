@@ -396,6 +396,28 @@ final class ProgressiveLaunchTests: XCTestCase {
         XCTAssertNil(projection35.operators[0].launches[0].details.plannedTime)
     }
 
+    @MainActor func testFailedSourceKeepsItsErrorWhenCooldownExpires() async throws {
+        let started = expectation(description: "source request started")
+        let repository = ControlledLaunchRepository { _ in started.fulfill() }
+        let clock = TestClock(Date(timeIntervalSince1970: 2_000_000_000))
+        let feature = LaunchScheduleFeature(sources: [.init(id: .launchLibrary, repository: repository, minimumRefreshInterval: 300)], now: { clock.read() })
+        let refresh = Task { await feature.refresh() }
+        await fulfillment(of: [started], timeout: 2)
+        await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
+        await refresh.value
+        let before = try XCTUnwrap(feature.sources.first)
+        XCTAssertEqual(before.phase, .failed)
+        XCTAssertEqual(before.failure, .offline)
+        XCTAssertNotNil(before.nextRefreshAt)
+        clock.advance(301)
+        feature.updateNextLaunch()
+        let after = try XCTUnwrap(feature.sources.first)
+        XCTAssertEqual(after.phase, .failed)
+        XCTAssertEqual(after.failure, .offline)
+        XCTAssertNil(after.nextRefreshAt)
+        XCTAssertEqual(feature.loadFailure, .offline)
+    }
+
     @MainActor func testSourceCooldownAvoidsDuplicateRequests() async {
         let started = expectation(description: "started")
         let repository = ControlledLaunchRepository { _ in started.fulfill() }
