@@ -71,6 +71,22 @@ final class LaunchDecodingTests: XCTestCase {
 }
 
 final class LaunchLibraryDecodingTests: XCTestCase {
+    func testFetchDecodesResponseThroughNetworkingManager() async throws {
+        let (session, id) = StubURLProtocol.session(response: .init(data: fixture(precision: "Minute")))
+        defer { session.invalidateAndCancel(); StubURLProtocol.remove(id) }
+        let endpoint = try XCTUnwrap(URL(string: "https://example.invalid/launches"))
+        let api = LaunchLibraryAPI(networking: NetworkingManager(session: session), endpoint: endpoint)
+        let launches = try await api.fetchUpcomingLaunches()
+        XCTAssertEqual(launches.first?.id, "launchLibrary:abc")
+    }
+    func testFetchPreservesHTTPFailure() async throws {
+        let (session, id) = StubURLProtocol.session(response: .init(data: fixture(precision: "Minute"), statusCode: 503))
+        defer { session.invalidateAndCancel(); StubURLProtocol.remove(id) }
+        let endpoint = try XCTUnwrap(URL(string: "https://example.invalid/launches"))
+        let api = LaunchLibraryAPI(networking: NetworkingManager(session: session), endpoint: endpoint)
+        do { _ = try await api.fetchUpcomingLaunches(); XCTFail("Expected HTTP failure") }
+        catch { XCTAssertEqual(error as? LaunchRepositoryError, .httpStatus(503)) }
+    }
     func testMapsOperatorCountryAndPreciseTime() throws {
         let launch = try XCTUnwrap(LaunchLibraryAPI.decodeResponse(fixture(precision: "Minute")).first)
         XCTAssertEqual(launch.source, .launchLibrary)
