@@ -61,14 +61,26 @@ final class LocalLaunchNotificationsTests: XCTestCase {
         XCTAssertEqual(reminder.status, .scheduled)
         let installed = await center.pendingNotificationRequests()
         XCTAssertTrue(installed.contains { $0.identifier == reminder.notificationID })
-        await feature.removeReminder(launch.id)
-        XCTAssertTrue(feature.reminders.isEmpty)
+        let replacementResult = try await feature.setReminder(for: launch.id, minutesBefore: 5)
+        XCTAssertEqual(replacementResult, .saved)
+        let replacement = try XCTUnwrap(feature.reminders.first)
+        defer { center.removePendingNotificationRequests(withIdentifiers: [replacement.notificationID]) }
+        XCTAssertNotEqual(replacement.notificationID, reminder.notificationID)
         var pending = await center.pendingNotificationRequests()
         for _ in 0..<20 where pending.contains(where: { $0.identifier == reminder.notificationID }) {
             try await Task.sleep(for: .milliseconds(100))
             pending = await center.pendingNotificationRequests()
         }
         XCTAssertFalse(pending.contains { $0.identifier == reminder.notificationID })
+        XCTAssertTrue(pending.contains { $0.identifier == replacement.notificationID })
+        await feature.removeReminder(launch.id)
+        XCTAssertTrue(feature.reminders.isEmpty)
+        pending = await center.pendingNotificationRequests()
+        for _ in 0..<20 where pending.contains(where: { $0.identifier == replacement.notificationID }) {
+            try await Task.sleep(for: .milliseconds(100))
+            pending = await center.pendingNotificationRequests()
+        }
+        XCTAssertFalse(pending.contains { $0.identifier == replacement.notificationID })
     }
 
     func testPermissionFailureCanRetryAndInstallThenCancel() async throws {
