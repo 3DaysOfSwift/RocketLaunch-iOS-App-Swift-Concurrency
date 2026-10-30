@@ -56,7 +56,7 @@ actor ThemePersistence: ThemePersisting {
         if defaults.bool(forKey: Self.fileCreatedKey) { throw CocoaError(.fileNoSuchFile) }
         if let value = defaults.object(forKey: Self.legacyKey) {
             guard let raw = value as? String else { throw CocoaError(.fileReadCorruptFile) }
-            guard let theme = AppColourTheme(rawValue: raw) else { return .system }
+            guard let theme = AppColourTheme(rawValue: raw) else { throw CocoaError(.fileReadCorruptFile) }
             try write(theme, to: url)
             defaults.set(true, forKey: Self.fileCreatedKey)
             return theme
