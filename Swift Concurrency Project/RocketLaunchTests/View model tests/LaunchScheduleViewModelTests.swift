@@ -216,6 +216,16 @@ extension LaunchScheduleViewModelTests {
         XCTAssertTrue(SourceStatusPresentation.canRetry(source, at: deadline))
     }
 
+    @MainActor func testStaleSourceDecisionUsesModelTimeAndSource() {
+        let date = Date(timeIntervalSince1970: 2_000_000_000)
+        let launch = countdownLaunch(at: date, sortTime: date)
+        let spaceX = LaunchSourceSnapshot(id: .spaceX, launches: [launch], phase: .loaded)
+        let other = LaunchSourceSnapshot(id: .launchLibrary, launches: [launch], phase: .loaded)
+        XCTAssertFalse(spaceX.isOutdated(at: date))
+        XCTAssertTrue(spaceX.isOutdated(at: date.addingTimeInterval(1)))
+        XCTAssertFalse(other.isOutdated(at: date.addingTimeInterval(1)))
+    }
+
     @MainActor func testCountdownAdvancesAndWaitsForScheduleAtDeadline() async {
         let scenario = LaunchScenario()
         let feature = scenario.feature

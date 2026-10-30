@@ -840,6 +840,15 @@ struct LaunchSourceSnapshot: Equatable, Sendable, Identifiable {
         self.nextRefreshAt = nextRefreshAt; self.phase = phase
     }
     enum Phase: Equatable, Sendable { case idle, loading, loaded, failed(LaunchLoadFailure) }
+
+    func canRefresh(at date: Date) -> Bool {
+        phase != .loading && (nextRefreshAt.map { $0 <= date } ?? true)
+    }
+
+    func isOutdated(at date: Date) -> Bool {
+        id == .spaceX && phase == .loaded && !launches.isEmpty &&
+            !launches.contains { ($0.details.sortTime ?? .distantPast) >= date }
+    }
 }
 
 struct LaunchOperator: Equatable, Sendable, Identifiable {
