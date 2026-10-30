@@ -854,6 +854,25 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), legacy)
     }
 
+    @MainActor func testReminderFirstLoadReportsUnavailableDirectoryAndRetries() async throws {
+        let suite = "rocket-first-load-" + UUID().uuidString
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let blocker = Data("not a directory".utf8)
+        try blocker.write(to: directory)
+        let storage = ReminderStorage.file(directory.appendingPathComponent("reminders.json"), legacySuite: suite)
+        let feature = LaunchScheduleFeature(sources: [], reminderStorage: storage)
+        let screen = RemindersViewModel(launchScheduleFeature: feature)
+
+        await screen.loadIfNeeded().value
+        XCTAssertNotNil(screen.storageError)
+        XCTAssertEqual(try Data(contentsOf: directory), blocker)
+        try FileManager.default.removeItem(at: directory)
+        await screen.loadIfNeeded().value
+        XCTAssertNil(screen.storageError)
+        XCTAssertTrue(screen.reminders.isEmpty)
+    }
+
     func testFileStorageReportsWriteFailureWithoutReplacingLegacyData() async throws {
         let suite = "rocket-file-failure-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

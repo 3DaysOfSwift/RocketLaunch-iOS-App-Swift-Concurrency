@@ -161,6 +161,7 @@ actor ReminderPersistence: ReminderPersisting {
         case .suite: data = defaults?.data(forKey: "rocketlaunch.reminders.v1")
         case .standard, .file:
             guard let fileURL else { throw StorageError.unavailable }
+            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             if FileManager.default.fileExists(atPath: fileURL.path) {
                 data = try Data(contentsOf: fileURL)
             } else if defaults?.bool(forKey: Self.fileCreatedKey) == true {

@@ -47,6 +47,7 @@ actor ThemePersistence: ThemePersisting {
     func load() throws -> AppColourTheme {
         if case .memory = storage { return memoryTheme }
         let (url, defaults) = try fileAndDefaults()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         if FileManager.default.fileExists(atPath: url.path) {
             let raw = try String(contentsOf: url, encoding: .utf8)
             guard let theme = AppColourTheme(rawValue: raw) else { throw CocoaError(.fileReadCorruptFile) }

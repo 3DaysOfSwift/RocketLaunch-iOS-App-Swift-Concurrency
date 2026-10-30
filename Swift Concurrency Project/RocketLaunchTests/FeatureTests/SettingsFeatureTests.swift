@@ -82,6 +82,25 @@ final class SettingsFeatureTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
 
+    @MainActor func testFirstLoadReportsUnavailableDirectoryAndRetries() async throws {
+        let name = "rocketlaunch-theme-tests-" + UUID().uuidString
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name); try? FileManager.default.removeItem(at: directory) }
+        let blocker = Data("not a directory".utf8)
+        try blocker.write(to: directory)
+        let feature = SettingsFeature(persistence: ThemePersistence(storage: .file(directory.appendingPathComponent("theme.txt"), legacySuite: name)))
+
+        await feature.loadIfNeeded()
+        XCTAssertNotNil(feature.storageError)
+        XCTAssertTrue(feature.canRetryLoading)
+        XCTAssertEqual(try Data(contentsOf: directory), blocker)
+        try FileManager.default.removeItem(at: directory)
+        await feature.loadIfNeeded()
+        XCTAssertNil(feature.storageError)
+        XCTAssertFalse(feature.canRetryLoading)
+        XCTAssertEqual(feature.selected, .system)
+    }
+
     @MainActor func testUnknownLegacyThemeReportsErrorWithoutOverwritingAndCanRetry() async throws {
         let name = "rocketlaunch-theme-tests-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
