@@ -83,6 +83,50 @@ final class LocalLaunchNotificationsTests: XCTestCase {
         XCTAssertFalse(pending.contains { $0.identifier == replacement.notificationID })
     }
 
+    func testProviderTimeChangeReplacesSystemNotification() async throws {
+        let center = UNUserNotificationCenter.current()
+        #if CFA_NOTIFICATION_SYSTEM_TEST
+        if await center.notificationSettings().authorizationStatus == .notDetermined {
+            _ = try await center.requestAuthorization(options: [.alert, .sound, .provisional])
+        }
+        #endif
+        let status = await center.notificationSettings().authorizationStatus
+        guard status == .authorized || status == .provisional else {
+            throw XCTSkip("Notification permission is not granted for the test host.")
+        }
+        let now = Date()
+        let id = "provider-test-" + UUID().uuidString
+        let estimated = EstimatedLaunchDate(month: nil, day: nil, year: nil)
+        let first = RocketLaunch(id: id, source: .rocketLaunchLive, name: "Test launch", missions: [],
+            estimatedDate: estimated, details: LaunchDetails(plannedTime: now.addingTimeInterval(7200)))
+        let updated = RocketLaunch(id: id, source: .rocketLaunchLive, name: "Test launch", missions: [],
+            estimatedDate: estimated, details: LaunchDetails(plannedTime: now.addingTimeInterval(10800)))
+        let repository = NotificationLaunchRepository(launch: first)
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], now: { now })
+        await feature.refresh()
+        try await feature.setReminder(for: first.id, minutesBefore: 15)
+        let original = try XCTUnwrap(feature.reminders.first)
+        defer { center.removePendingNotificationRequests(withIdentifiers: [original.notificationID]) }
+        await repository.update(updated)
+        await feature.refresh()
+        for _ in 0..<50 {
+            if let current = feature.reminders.first, current.notificationID != original.notificationID, current.status == .scheduled { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let replacement = try XCTUnwrap(feature.reminders.first)
+        defer { center.removePendingNotificationRequests(withIdentifiers: [replacement.notificationID]) }
+        XCTAssertNotEqual(replacement.notificationID, original.notificationID)
+        XCTAssertEqual(replacement.status, .scheduled)
+        XCTAssertEqual(replacement.fireDate, now.addingTimeInterval(10800 - 900))
+        var pending = await center.pendingNotificationRequests()
+        for _ in 0..<20 where pending.contains(where: { $0.identifier == original.notificationID }) {
+            try await Task.sleep(for: .milliseconds(100))
+            pending = await center.pendingNotificationRequests()
+        }
+        XCTAssertFalse(pending.contains { $0.identifier == original.notificationID })
+        XCTAssertTrue(pending.contains { $0.identifier == replacement.notificationID })
+    }
+
     func testPermissionFailureCanRetryAndInstallThenCancel() async throws {
         let system = NotificationSystemStub()
         let client = LocalLaunchNotifications(system: system)
@@ -271,7 +315,8 @@ private actor NotificationSystemStub: LaunchNotificationSystem {
 }
 
 private actor NotificationLaunchRepository: LaunchRepository {
-    let launch: RocketLaunch
+    private var launch: RocketLaunch
     init(launch: RocketLaunch) { self.launch = launch }
+    func update(_ launch: RocketLaunch) { self.launch = launch }
     func fetchUpcomingLaunches() async throws -> [RocketLaunch] { [launch] }
 }
