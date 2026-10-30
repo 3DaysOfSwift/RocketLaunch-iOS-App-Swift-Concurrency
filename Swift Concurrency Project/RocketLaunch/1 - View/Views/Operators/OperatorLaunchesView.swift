@@ -17,7 +17,7 @@ struct OperatorLaunchesView: View {
                 }
                 ForEach(viewModel.launches(for: operatorID)) { launch in
                     NavigationLink { LaunchDetailView(launch: launch) } label: {
-                        LaunchListRow(viewModel: LaunchDetailViewModel(launch: launch), source: launch.source.name)
+                        LaunchListRow(presentation: LaunchPresentation(launch: launch), source: launch.source.name)
                     }
                 }
             }
@@ -29,13 +29,13 @@ struct OperatorLaunchesView: View {
 }
 
 struct LaunchListRow: View {
-    let viewModel: LaunchDetailViewModel
+    let presentation: LaunchPresentation
     let source: String
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(viewModel.launchTitle).font(.headline)
-            Text(viewModel.launchTime).font(.subheadline)
-            Text(viewModel.vehicle).font(.subheadline).foregroundStyle(.secondary)
+            Text(presentation.launchTitle).font(.headline)
+            Text(presentation.launchTime).font(.subheadline)
+            Text(presentation.vehicle).font(.subheadline).foregroundStyle(.secondary)
             Text(source).font(.caption).foregroundStyle(.secondary)
         }.padding(.vertical, 6)
     }
@@ -46,24 +46,24 @@ struct LaunchDetailView: View {
     @Environment(ThemeManager.self) private var themeManager
     @State private var reminders = LaunchDetailScreenViewModel()
     @State private var minutesBefore = 15
-    private var viewModel: LaunchDetailViewModel { .init(launch: launch) }
+    private var presentation: LaunchPresentation { .init(launch: launch) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text(viewModel.launchTitle).font(.largeTitle.bold())
+                Text(presentation.launchTitle).font(.largeTitle.bold())
                 AppCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label(viewModel.launchTime, systemImage: "clock").font(.title3.bold())
-                        Text(viewModel.timingNote).foregroundStyle(.secondary)
+                        Label(presentation.launchTime, systemImage: "clock").font(.title3.bold())
+                        Text(presentation.timingNote).foregroundStyle(.secondary)
                     }
                 }
                 AppCard {
                     VStack(alignment: .leading, spacing: 16) {
-                        detail("Operator", viewModel.provider)
-                        detail("Rocket", viewModel.vehicle)
-                        detail("Launch country", viewModel.country)
-                        detail("Launch site", viewModel.site)
+                        detail("Operator", presentation.provider)
+                        detail("Rocket", presentation.vehicle)
+                        detail("Launch country", presentation.country)
+                        detail("Launch site", presentation.site)
                     }
                 }
                 if let url = launch.details.watchURL {
@@ -93,7 +93,7 @@ struct LaunchDetailView: View {
                     }
                 }
                 Text("What for?").font(.headline)
-                Text(viewModel.missionSummary)
+                Text(presentation.missionSummary)
                 Text("Data by \(launch.source.name). Details reflect the downloaded record you selected.")
                     .font(.footnote).foregroundStyle(.secondary)
             }.padding(20)

@@ -17,7 +17,7 @@ final class LaunchScheduleViewModel {
 
     var launchName: String { snapshot.state.launch?.name ?? String(localized: "None") }
     var mission: String { snapshot.state.launch?.primaryMissionDescription ?? String(localized: "None") }
-    private var detail: LaunchDetailViewModel { .init(launch: snapshot.state.launch) }
+    private var detail: LaunchPresentation { .init(launch: snapshot.state.launch) }
     var launchTitle: String { detail.launchTitle }
     var missionSummary: String { detail.missionSummary }
     var provider: String { detail.provider }
@@ -143,8 +143,9 @@ final class LaunchScheduleViewModel {
     deinit { refreshTask?.cancel(); sourceTasks.values.forEach { $0.cancel() } }
 }
 
+/// Formats a launch snapshot for display; owns no Feature or interaction state.
 @MainActor
-struct LaunchDetailViewModel {
+struct LaunchPresentation {
     let launch: RocketLaunch?
     var launchTitle: String {
         guard let name = launch?.name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

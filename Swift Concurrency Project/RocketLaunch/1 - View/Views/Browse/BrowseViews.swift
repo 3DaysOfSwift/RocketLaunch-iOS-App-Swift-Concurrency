@@ -15,7 +15,7 @@ struct UpcomingView: View {
             Section {
                 ForEach(viewModel.launches) { launch in
                     NavigationLink { LaunchDetailView(launch: launch) } label: {
-                        LaunchListRow(viewModel: .init(launch: launch), source: launch.source.name)
+                        LaunchListRow(presentation: .init(launch: launch), source: launch.source.name)
                     }
                 }
                 if viewModel.launches.isEmpty {
@@ -86,9 +86,9 @@ struct UpdatesView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(update.launch.name).font(.headline)
                         if update.timeChanged {
-                            Text("Previously: \(LaunchDetailViewModel(launch: update.previous).launchTime)")
+                            Text("Previously: \(LaunchPresentation(launch: update.previous).launchTime)")
                                 .foregroundStyle(.secondary)
-                            Text("Now: \(LaunchDetailViewModel(launch: update.launch).launchTime)")
+                            Text("Now: \(LaunchPresentation(launch: update.launch).launchTime)")
                         } else { Text("Mission information updated") }
                         Text("\(update.launch.source.name) · \(update.detectedAt.formatted(date: .abbreviated, time: .shortened))")
                             .font(.caption).foregroundStyle(.secondary)
