@@ -8,16 +8,11 @@ struct RocketLaunchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // Hosted unit tests inject their own features; keep live networking dormant.
-            if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
-                ContentView().environment(\.appColourTheme, settingsFeature.selected)
-                    .task(id: scenePhase) {
-                        guard scenePhase == .active else { return }
-                        await AppModel.shared.applicationDidBecomeActive()
-                    }
-            } else {
-                Color.clear
-            }
+            ContentView().environment(\.appColourTheme, settingsFeature.selected)
+                .task(id: scenePhase) {
+                    guard scenePhase == .active else { return }
+                    await AppModel.shared.applicationDidBecomeActive()
+                }
         }
     }
 }
