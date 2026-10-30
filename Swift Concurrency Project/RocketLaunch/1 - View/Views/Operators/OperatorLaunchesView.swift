@@ -19,7 +19,7 @@ struct OperatorLaunchesView: View {
                 }
                 ForEach(viewModel.launches) { launch in
                     Button { viewModel.showLaunch(launch) } label: {
-                        LaunchListRow(presentation: LaunchPresentation(launch: launch), source: launch.source.name)
+                        LaunchListRow(presentation: viewModel.presentation(for: launch), source: launch.source.name)
                     }.buttonStyle(.plain)
                 }
             }

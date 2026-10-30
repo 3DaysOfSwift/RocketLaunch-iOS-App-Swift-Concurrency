@@ -13,6 +13,7 @@ final class UpcomingLaunchDetailViewModel {
         set { reminderDraftMinutes = newValue }
     }
     let launch: RocketLaunch?
+    var presentation: LaunchPresentation { .init(launch: launch) }
     var reminderSaved: Bool { launch.map { launchScheduleFeature.hasActiveReminder(for: $0.id) } ?? false }
 
     @discardableResult

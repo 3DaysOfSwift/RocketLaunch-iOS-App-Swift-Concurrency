@@ -22,6 +22,7 @@ final class OperatorLaunchesViewModel {
 
     var title: String { selectedOperator.name }
     var launches: [RocketLaunch] { launches(for: selectedOperator.id) }
+    func presentation(for launch: RocketLaunch) -> LaunchPresentation { .init(launch: launch) }
     var sources: [LaunchSourceSnapshot] { relevantSources(for: selectedOperator.id) }
 
     func launches(for operatorID: String) -> [RocketLaunch] {

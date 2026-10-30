@@ -10,7 +10,7 @@ struct OperatorLaunchDetailView: View {
     var body: some View {
         Group {
             if let launch = viewModel.launch {
-                LaunchDetailContent(launch: launch, reminderSaved: viewModel.reminderSaved,
+                LaunchDetailContent(launch: launch, presentation: viewModel.presentation, reminderSaved: viewModel.reminderSaved,
                     isBusy: viewModel.isBusy, minutesBefore: $viewModel.minutesBefore,
                     save: { viewModel.save() })
             } else {

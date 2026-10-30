@@ -2,12 +2,12 @@ import SwiftUI
 
 struct LaunchDetailContent: View {
     let launch: RocketLaunch
+    let presentation: LaunchPresentation
     @Environment(\.appColourTheme) private var theme
     let reminderSaved: Bool
     let isBusy: Bool
     @Binding var minutesBefore: Int
     let save: () -> Void
-    private var presentation: LaunchPresentation { .init(launch: launch) }
 
     var body: some View {
         ScrollView {

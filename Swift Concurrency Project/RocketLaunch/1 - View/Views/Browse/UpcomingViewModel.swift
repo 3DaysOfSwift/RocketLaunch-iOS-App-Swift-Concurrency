@@ -20,6 +20,7 @@ final class UpcomingViewModel {
     var operators: [LaunchOperator] { launchScheduleFeature.operators }
     var launches: [RocketLaunch] { launchScheduleFeature.launches(matching: filters.query) }
     var countries: [String] { launchScheduleFeature.launchCountries }
+    func presentation(for launch: RocketLaunch) -> LaunchPresentation { .init(launch: launch) }
     var sources: [LaunchSourceSnapshot] { launchScheduleFeature.sources }
     var isLoading: Bool { if case .loading = launchScheduleFeature.state { return true }; return false }
     @discardableResult
