@@ -15,6 +15,31 @@ final class RemindersViewModelTests: XCTestCase {
         XCTAssertTrue(atDeadline.reminderTimeHasPassed(reminder))
     }
 
+    func testDistinctRemovalsQueueWhileTheFirstSaveIsSuspended() async throws {
+        let launches = try LaunchFixtures.launches()
+        let first = try XCTUnwrap(launches.first)
+        let second = try XCTUnwrap(launches.dropFirst().first)
+        let saved = [first, second].map { launch in
+            LaunchReminder(launch: launch, notificationID: launch.id, minutesBefore: 15,
+                fireDate: Date().addingTimeInterval(3600), issue: nil)
+        }
+        let started = expectation(description: "first removal starts saving")
+        let storage = HeldReminderScreenPersistence(reminders: saved, onSave: { started.fulfill() })
+        let feature = LaunchScheduleFeature(sources: [], notificationClient: ReminderScreenNotifications(), reminderPersistence: storage)
+        let screen = RemindersViewModel(launchScheduleFeature: feature)
+        await screen.loadIfNeeded().value
+        screen.remove(first.id)
+        await fulfillment(of: [started], timeout: 2)
+        screen.remove(second.id)
+        XCTAssertTrue(screen.isBusy)
+        await storage.release()
+        for _ in 0..<100 where screen.isBusy { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(screen.isBusy)
+        XCTAssertTrue(screen.reminders.isEmpty)
+        let stored = await storage.reminders
+        XCTAssertTrue(stored.isEmpty)
+    }
+
     func testScreensObserveRestoredRemindersAndRemovalFromSharedFeature() async throws {
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         let stored = LaunchReminder(launch: launch, notificationID: "saved-reminder",
@@ -64,4 +89,26 @@ private actor ReminderScreenPersistence: ReminderPersisting {
 private actor ReminderScreenNotifications: LaunchNotificationClient {
     func schedule(id: String, title: String, date: Date, askPermission: Bool) async throws {}
     func cancel(_ id: String) async {}
+}
+
+private actor HeldReminderScreenPersistence: ReminderPersisting {
+    private(set) var reminders: [LaunchReminder]
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var hold = true
+    private let onSave: @Sendable () -> Void
+    init(reminders: [LaunchReminder], onSave: @escaping @Sendable () -> Void) {
+        self.reminders = reminders; self.onSave = onSave
+    }
+    func load() -> [LaunchReminder] { reminders }
+    func save(_ reminders: [LaunchReminder]) async {
+        if hold {
+            hold = false
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                onSave()
+            }
+        }
+        self.reminders = reminders
+    }
+    func release() { continuation?.resume(); continuation = nil }
 }
