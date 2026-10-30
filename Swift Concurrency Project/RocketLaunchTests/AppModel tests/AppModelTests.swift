@@ -381,6 +381,43 @@ final class UnifiedReminderTests: XCTestCase {
         observer.cancel()
     }
 
+    func testDelayedReminderLoadReconcilesScheduleAlreadyDownloaded() async throws {
+        let loadStarted = expectation(description: "Reminder load started")
+        let original = launch(3600)
+        let updated = launch(7200)
+        let reminder = LaunchReminder(launch: original, notificationID: "old-notification", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(3300), issue: nil)
+        let storage = HeldLoadReminderPersistence(initial: [reminder]) { loadStarted.fulfill() }
+        let client = ControlledNotifications()
+        try await client.schedule(id: reminder.notificationID, title: original.name, date: reminder.fireDate, askPermission: false)
+        let repository = MutableLaunchRepository([updated])
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            now: { [now] in now }, notificationClient: client, reminderPersistence: storage)
+        let loading = Task { await feature.loadRemindersIfNeeded() }
+        await fulfillment(of: [loadStarted], timeout: 2)
+        await feature.refresh()
+        XCTAssertEqual(feature.sources.first?.launches, [updated])
+        XCTAssertTrue(feature.reminders.isEmpty)
+        let reconciled = expectation(description: "Reminder rescheduled with new launch time")
+        let observer = Task {
+            for await value in await feature.reminderSnapshots() {
+                if value.reminders.first?.status == .scheduled && value.reminders.first?.launch == updated {
+                    reconciled.fulfill()
+                    return
+                }
+            }
+        }
+        await storage.releaseLoad()
+        await loading.value
+        await fulfillment(of: [reconciled], timeout: 2)
+        observer.cancel()
+        let saved = await storage.records
+        let active = await client.active
+        XCTAssertEqual(saved, feature.reminders)
+        XCTAssertEqual(saved.first?.fireDate, now.addingTimeInterval(6900))
+        XCTAssertEqual(active, Set(saved.map(\.notificationID)))
+    }
+
     func testOverlappingReminderReadsShareStorageLoad() async {
         let began = expectation(description: "storage load suspended")
         let persistence = ControlledReminderPersistence(holdLoad: true, started: { began.fulfill() })
@@ -1600,6 +1637,22 @@ private actor MutableLaunchRepository: LaunchRepository {
     func set(_ values: [RocketLaunch]) { self.values = values }
     func fetchUpcomingLaunches() async throws -> [RocketLaunch] { values }
 }
+private actor HeldLoadReminderPersistence: ReminderPersisting {
+    private(set) var records: [LaunchReminder]
+    private var continuation: CheckedContinuation<Void, Never>?
+    private let onHold: @Sendable () -> Void
+    init(initial: [LaunchReminder], onHold: @escaping @Sendable () -> Void) {
+        records = initial
+        self.onHold = onHold
+    }
+    func load() async -> [LaunchReminder] {
+        await withCheckedContinuation { continuation = $0; onHold() }
+        return records
+    }
+    func releaseLoad() { continuation?.resume(); continuation = nil }
+    func save(_ reminders: [LaunchReminder]) { records = reminders }
+}
+
 private actor HoldingFirstCancellationNotifications: LaunchNotificationClient {
     private(set) var active: Set<String> = []
     private var continuation: CheckedContinuation<Void, Never>?
