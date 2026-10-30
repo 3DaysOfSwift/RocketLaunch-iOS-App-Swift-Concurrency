@@ -23,6 +23,8 @@ final class LaunchScheduleFeature {
     }
     @ObservationIgnored private var requests: [LaunchSourceID: Request] = [:]
     @ObservationIgnored private var reminderEffectTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var pendingReminderEffects: [String: ReminderEffect] = [:]
+    @ObservationIgnored private var pendingReminderRemovals: [String: String] = [:]
 
     convenience init(repository: any LaunchRepository) {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
@@ -212,12 +214,23 @@ final class LaunchScheduleFeature {
 
     private func startReminderEffects(_ effects: [ReminderEffect]) {
         guard !effects.isEmpty else { return }
+        for effect in effects {
+            var tracked = effect
+            tracked.isAutomatic = true
+            pendingReminderEffects[effect.desired.id] = tracked
+        }
         let id = UUID()
         // Retain the model until these external effects settle and stale IDs are
         // cleaned up. Screen cancellation must not abandon committed reminder intent.
         let persistence = reminderPersistenceTask
         reminderEffectTasks[id] = Task {
-            _ = await persistence?.value
+            if let persistence, !(await persistence.value) {
+                self.reminderEffectTasks[id] = nil
+                return
+            }
+            for effect in effects where self.pendingReminderEffects[effect.desired.id]?.desired.notificationID == effect.desired.notificationID {
+                self.pendingReminderEffects[effect.desired.id] = nil
+            }
             await withTaskGroup(of: Void.self) { group in
                 for effect in effects {
                     group.addTask { _ = try? await self.deliverReminder(effect, askPermission: false) }
@@ -351,6 +364,11 @@ final class LaunchScheduleFeature {
     private(set) var reminderWriteError: String?
     @ObservationIgnored private var remindersLoaded = false
     private(set) var reminders: [LaunchReminder] = []
+    @ObservationIgnored private var proposedReminders: [LaunchReminder] = []
+    @ObservationIgnored private var lastEnqueuedReminders: [LaunchReminder] = []
+    @ObservationIgnored private var confirmedPredecessors: [String: String] = [:]
+    @ObservationIgnored private var confirmedDeletions: [String: String] = [:]
+    @ObservationIgnored private var deletionCleanupRecords: [String: LaunchReminder] = [:]
 
     func hasActiveReminder(for launchID: String) -> Bool {
         reminders.contains {
@@ -359,6 +377,7 @@ final class LaunchScheduleFeature {
     }
     @ObservationIgnored private var userSaveCounts: [String: Int] = [:]
     private var reminderRevision: UInt64 = 0
+    private var confirmedReminderRevision: UInt64 = 0
     @ObservationIgnored private var reminderObservers: [UUID: AsyncStream<RemindersSnapshot>.Continuation] = [:]
 
     var reminderSnapshot: RemindersSnapshot {
@@ -368,7 +387,7 @@ final class LaunchScheduleFeature {
         }
     }
     private var currentReminderSnapshot: RemindersSnapshot {
-        .init(revision: reminderRevision, reminders: reminders)
+        .init(revision: confirmedReminderRevision, reminders: reminders)
     }
     func reminderSnapshots() async -> AsyncStream<RemindersSnapshot> {
         await loadRemindersIfNeeded()
@@ -389,7 +408,26 @@ final class LaunchScheduleFeature {
             id = pendingID
         } else {
             let persistence = reminderPersistence
-            task = Task { try await persistence.load() }
+            let notifications = notificationClient
+            task = Task {
+                let stored = try await persistence.load()
+                let recovered = stored.filter { $0.status != .deletionPending }.map { reminder in
+                    if reminder.status == .pending {
+                        return reminder.replacing(status: .failed, issue: "Scheduling was interrupted. Set this reminder again.", obsoleteNotificationIDs: [])
+                    }
+                    return reminder.replacing(obsoleteNotificationIDs: [])
+                }
+                if recovered != stored {
+                    // Cleanup is idempotent; a failed write leaves the identifiers available on the next retry.
+                    for reminder in stored {
+                        var ids = Set(reminder.obsoleteNotificationIDs)
+                        if reminder.status == .pending || reminder.status == .deletionPending { ids.insert(reminder.notificationID) }
+                        for id in ids { await notifications.cancel(id) }
+                    }
+                    try await persistence.save(recovered)
+                }
+                return recovered
+            }
             id = UUID()
             reminderLoadTask = task
             reminderLoadID = id
@@ -402,54 +440,164 @@ final class LaunchScheduleFeature {
         reminderLoadID = nil
         switch result {
         case .success(let stored):
+            proposedReminders = stored
             reminders = stored
             remindersLoaded = true
             reminderStorageError = nil
-            for index in reminders.indices where reminders[index].status == .pending {
-                reminders[index] = reminders[index].replacing(status: .failed, issue: "Scheduling was interrupted. Set this reminder again.")
-            }
             reminderRevision += 1
+            reminders = proposedReminders
+            lastEnqueuedReminders = proposedReminders
+            confirmedReminderRevision = reminderRevision
             let snapshot = currentReminderSnapshot
             for observer in reminderObservers.values { observer.yield(snapshot) }
         case .failure:
-            reminderStorageError = "Saved reminders could not be read. Your stored data has been kept. Retry before changing reminders."
+            reminderStorageError = "Saved reminders could not be loaded or recovered. Your stored data has been kept. Retry before changing reminders."
         }
     }
     @discardableResult
     private func persistReminders() -> Task<Bool, Never> {
         reminderRevision += 1
-        let value = currentReminderSnapshot
+        let revision = reminderRevision
+        let before = Dictionary(lastEnqueuedReminders.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        let after = Dictionary(proposedReminders.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        let changedIDs = Set(before.keys).union(after.keys).filter { before[$0] != after[$0] }
+        lastEnqueuedReminders = proposedReminders
         let previous = reminderPersistenceTask
         let persistence = reminderPersistence
-        // Queue immutable snapshots in mutation order. Actor message arrival alone
-        // does not guarantee the order of tasks created by successive mutations.
+        // Rebase each operation on the last successful write so a failed
+        // proposal cannot leak into a later, unrelated operation.
         let task = Task { [weak self] in
             _ = await previous?.value
+            guard let self else { return false }
+            var candidate = self.reminders
+            candidate.removeAll { changedIDs.contains($0.id) }
+            for id in changedIDs {
+                if var updated = after[id] {
+                    if let old = self.reminders.first(where: { $0.id == id }), old.notificationID != updated.notificationID {
+                        let obsolete = Set(updated.obsoleteNotificationIDs + old.obsoleteNotificationIDs + [old.notificationID])
+                        updated = updated.replacing(obsoleteNotificationIDs: obsolete.sorted())
+                    }
+                    candidate.append(updated)
+                }
+            }
+            candidate.sort { $0.fireDate < $1.fireDate }
+            var cleanup = self.deletionCleanupRecords
+            for id in changedIDs where after[id] == nil {
+                if let old = self.reminders.first(where: { $0.id == id }) {
+                    cleanup[old.notificationID] = old.replacing(status: .deletionPending)
+                }
+            }
             do {
-                try await persistence.save(value.reminders)
-                if self?.reminderRevision == value.revision { self?.reminderWriteError = nil }
+                try await persistence.save(candidate + Array(cleanup.values))
+                self.deletionCleanupRecords = cleanup
+                for id in changedIDs {
+                    if let old = self.reminders.first(where: { $0.id == id }),
+                       let new = candidate.first(where: { $0.id == id }),
+                       old.notificationID != new.notificationID {
+                        self.confirmedPredecessors[new.notificationID] = old.notificationID
+                    } else if let old = self.reminders.first(where: { $0.id == id }),
+                              !candidate.contains(where: { $0.id == id }) {
+                        self.confirmedDeletions[id] = old.notificationID
+                    }
+                }
+                self.reminders = candidate
+                self.confirmedReminderRevision = revision
+                let value = RemindersSnapshot(revision: revision, reminders: candidate)
+                for observer in self.reminderObservers.values { observer.yield(value) }
+                if self.reminderRevision == revision && self.pendingReminderEffects.isEmpty && self.pendingReminderRemovals.isEmpty { self.reminderWriteError = nil }
                 return true
             } catch {
-                if self?.reminderRevision == value.revision {
-                    self?.reminderWriteError = "Reminder changes could not be saved. Retry saving before closing the app."
+                for id in changedIDs {
+                    guard let effect = self.pendingReminderEffects[id],
+                          after[id]?.notificationID == effect.desired.notificationID,
+                          self.proposedReminders.first(where: { $0.id == id })?.notificationID == effect.desired.notificationID else { continue }
+                    self.proposedReminders.removeAll { $0.id == id }
+                    if let confirmed = self.reminders.first(where: { $0.id == id }) {
+                        self.proposedReminders.append(confirmed)
+                    }
+                    self.proposedReminders.sort { $0.fireDate < $1.fireDate }
+                }
+                self.reminderWriteError = "Reminder changes could not be saved. Retry the action."
+                if self.reminderRevision == revision {
+                    self.lastEnqueuedReminders = self.reminders
                 }
                 return false
             }
         }
         reminderPersistenceTask = task
-        for observer in reminderObservers.values { observer.yield(value) }
         return task
+    }
+
+    private func finishDeletionCleanup(_ notificationID: String) async {
+        let previous = reminderPersistenceTask
+        let persistence = reminderPersistence
+        let task = Task { [weak self] in
+            _ = await previous?.value
+            guard let self, let record = self.deletionCleanupRecords[notificationID] else { return true }
+            for id in Set(record.obsoleteNotificationIDs + [notificationID]) {
+                await self.notificationClient.cancel(id)
+            }
+            var remaining = self.deletionCleanupRecords
+            remaining[notificationID] = nil
+            do {
+                try await persistence.save(self.reminders + Array(remaining.values))
+                self.deletionCleanupRecords = remaining
+                return true
+            } catch {
+                // The persisted record remains available for cleanup on the next launch.
+                return false
+            }
+        }
+        reminderPersistenceTask = task
+        _ = await task.value
     }
 
     func retryReminderWrite() async {
         guard remindersLoaded, reminderWriteError != nil else { return }
-        _ = await persistReminders().value
+        let removals = pendingReminderRemovals.filter { id, notificationID in
+            reminders.first(where: { $0.id == id })?.notificationID == notificationID &&
+            proposedReminders.first(where: { $0.id == id })?.notificationID == notificationID
+        }
+        for id in removals.keys { proposedReminders.removeAll { $0.id == id } }
+        for effect in pendingReminderEffects.values {
+            let current = proposedReminders.first(where: { $0.id == effect.desired.id })
+            let confirmed = reminders.first(where: { $0.id == effect.desired.id })
+            guard current?.notificationID == confirmed?.notificationID else { continue }
+            proposedReminders.removeAll { $0.id == effect.desired.id }
+            proposedReminders.append(effect.desired)
+        }
+        proposedReminders.sort { $0.fireDate < $1.fireDate }
+        guard await persistReminders().value else {
+            for (id, notificationID) in removals where !proposedReminders.contains(where: { $0.id == id }) {
+                if let saved = reminders.first(where: { $0.id == id && $0.notificationID == notificationID }) {
+                    proposedReminders.append(saved)
+                }
+            }
+            proposedReminders.sort { $0.fireDate < $1.fireDate }
+            return
+        }
+        for (id, notificationID) in removals where pendingReminderRemovals[id] == notificationID {
+            guard !reminders.contains(where: { $0.id == id && $0.notificationID == notificationID }) else { continue }
+            pendingReminderRemovals[id] = nil
+            let cancelledID = confirmedDeletions.removeValue(forKey: id) ?? notificationID
+            await notificationClient.cancel(cancelledID)
+            await finishDeletionCleanup(cancelledID)
+        }
+        let effects = pendingReminderEffects.values.filter { effect in
+            reminders.contains(where: { $0.notificationID == effect.desired.notificationID })
+        }
+        for effect in effects where pendingReminderEffects[effect.desired.id]?.desired.notificationID == effect.desired.notificationID {
+            pendingReminderEffects[effect.desired.id] = nil
+        }
+        for effect in effects { _ = try? await deliverReminder(effect, askPermission: false) }
+        if pendingReminderEffects.isEmpty, pendingReminderRemovals.isEmpty, reminders == proposedReminders { reminderWriteError = nil }
     }
 
     private struct ReminderEffect: Sendable {
         let desired: LaunchReminder
         let previousNotificationID: String?
         var mayRequestPermission = false
+        var isAutomatic = false
     }
 
     @discardableResult
@@ -465,96 +613,110 @@ final class LaunchScheduleFeature {
         guard let time = launch.details.plannedTime else { throw ReminderError.unknownTime }
         let fireDate = time.addingTimeInterval(-Double(minutesBefore) * 60)
         guard fireDate > now() else { throw ReminderError.tooLate }
-        guard reminders.count < 50 || reminders.contains(where: { $0.id == launchID }) else { throw ReminderError.limit }
-        let previousReminder = reminders.first { $0.id == launchID }
+        guard proposedReminders.count < 50 || proposedReminders.contains(where: { $0.id == launchID }) else { throw ReminderError.limit }
+        let previousReminder = proposedReminders.first { $0.id == launchID }
         let effect = prepareReminder(launch: launch, minutesBefore: minutesBefore, fireDate: fireDate)
+        // A new choice supersedes an earlier failed deletion, even if this write also fails.
+        pendingReminderRemovals[launchID] = nil
+        // Record the retry intent before the write can expose an error to the UI.
+        pendingReminderEffects[launchID] = ReminderEffect(desired: effect.desired,
+            previousNotificationID: effect.previousNotificationID, mayRequestPermission: true)
         let persistence = persistReminders()
-        let admissionRevision = reminderRevision
         userSaveCounts[launchID, default: 0] += 1
         defer {
             let remaining = (userSaveCounts[launchID] ?? 1) - 1
             userSaveCounts[launchID] = remaining == 0 ? nil : remaining
         }
         guard await persistence.value else {
-            if let index = reminders.firstIndex(where: { $0.notificationID == effect.desired.notificationID }) {
-                let interveningChange = reminderRevision != admissionRevision
-                if let previousReminder {
-                    reminders[index] = previousReminder
-                    reminders.sort { $0.fireDate < $1.fireDate }
-                } else {
-                    reminders[index] = reminders[index].replacing(status: .failed, issue: "The reminder could not be saved. Set this reminder again after retrying storage.")
-                }
-                reminderRevision += 1
-                let snapshot = currentReminderSnapshot
-                for observer in reminderObservers.values { observer.yield(snapshot) }
-                // Another queued snapshot may contain this now-rejected desired state.
-                // Append the correction after it so storage converges with the Model.
-                if interveningChange { _ = await persistReminders().value }
+            if let index = proposedReminders.firstIndex(where: { $0.notificationID == effect.desired.notificationID }) {
+                if let previousReminder { proposedReminders[index] = previousReminder }
+                else { proposedReminders.remove(at: index) }
+                proposedReminders.sort { $0.fireDate < $1.fireDate }
             }
             throw ReminderError.storageWriteFailed
         }
-        return try await deliverReminder(effect, askPermission: true)
+        if pendingReminderEffects[launchID]?.desired.notificationID == effect.desired.notificationID,
+           proposedReminders.first(where: { $0.id == launchID })?.notificationID == effect.desired.notificationID {
+            pendingReminderEffects[launchID] = nil
+        }
+        let outcome = try await deliverReminder(effect, askPermission: true)
+        if pendingReminderEffects.isEmpty, pendingReminderRemovals.isEmpty, reminders == proposedReminders { reminderWriteError = nil }
+        return outcome
     }
 
     /// Lookup, validation and desired-state replacement happen before any await.
     private func prepareReminder(launch: RocketLaunch, minutesBefore: Int, fireDate: Date) -> ReminderEffect {
-        let old = reminders.first(where: { $0.id == launch.id })
+        let old = proposedReminders.first(where: { $0.id == launch.id })
         let desired = LaunchReminder(launch: launch, notificationID: "rocketlaunch." + UUID().uuidString,
             minutesBefore: minutesBefore, fireDate: fireDate, issue: nil, status: .pending)
-        reminders.removeAll { $0.id == launch.id }
-        reminders.append(desired)
-        reminders.sort { $0.fireDate < $1.fireDate }
+        proposedReminders.removeAll { $0.id == launch.id }
+        proposedReminders.append(desired)
+        proposedReminders.sort { $0.fireDate < $1.fireDate }
         return .init(desired: desired, previousNotificationID: old?.notificationID, mayRequestPermission: (userSaveCounts[launch.id] ?? 0) > 0)
     }
 
     private func reconcileReminders(with launches: [RocketLaunch]) -> [ReminderEffect] {
         var effects: [ReminderEffect] = []
         var changed = false
+        var discardedStaleRetry = false
         for launch in launches {
-            guard let old = reminders.first(where: { $0.id == launch.id }), old.launch != launch else { continue }
+            if let pending = pendingReminderEffects[launch.id], pending.isAutomatic,
+               pending.desired.launch != launch,
+               proposedReminders.first(where: { $0.id == launch.id })?.launch == launch {
+                pendingReminderEffects[launch.id] = nil
+                discardedStaleRetry = true
+            }
+            guard let old = proposedReminders.first(where: { $0.id == launch.id }), old.launch != launch else { continue }
             changed = true
             if old.launch.details.plannedTime == launch.details.plannedTime {
-                if let index = reminders.firstIndex(where: { $0.id == launch.id }) { reminders[index] = reminders[index].replacing(launch: launch) }
+                if let index = proposedReminders.firstIndex(where: { $0.id == launch.id }) { proposedReminders[index] = proposedReminders[index].replacing(launch: launch) }
                 continue
             }
             let fireDate = launch.details.plannedTime?.addingTimeInterval(-Double(old.minutesBefore) * 60)
             var effect = prepareReminder(launch: launch, minutesBefore: old.minutesBefore, fireDate: fireDate ?? old.fireDate)
             if fireDate.map({ $0 <= now() }) ?? true,
-               let index = reminders.firstIndex(where: { $0.id == launch.id }) {
-                reminders[index] = reminders[index].replacing(status: .failed, issue: "Launch time changed. Open this launch to set a new reminder.")
-                effect = .init(desired: reminders[index], previousNotificationID: old.notificationID)
+               let index = proposedReminders.firstIndex(where: { $0.id == launch.id }) {
+                proposedReminders[index] = proposedReminders[index].replacing(status: .failed, issue: "Launch time changed. Open this launch to set a new reminder.")
+                effect = .init(desired: proposedReminders[index], previousNotificationID: old.notificationID)
             }
             effects.append(effect)
         }
         if changed { persistReminders() }
+        else if discardedStaleRetry, pendingReminderEffects.isEmpty, pendingReminderRemovals.isEmpty, proposedReminders == reminders {
+            reminderWriteError = nil
+        }
         return effects
     }
 
     private func deliverReminder(_ effect: ReminderEffect, askPermission: Bool) async throws -> ReminderSaveOutcome {
         let desired = effect.desired
-        if let oldID = effect.previousNotificationID { await notificationClient.cancel(oldID) }
-        guard reminders.contains(where: { $0.notificationID == desired.notificationID }) else { return .superseded }
+        let oldID = confirmedPredecessors.removeValue(forKey: desired.notificationID) ?? effect.previousNotificationID
+        let persisted = reminders.first(where: { $0.notificationID == desired.notificationID })
+        var obsolete = Set(persisted?.obsoleteNotificationIDs ?? [])
+        if let oldID { obsolete.insert(oldID) }
+        for id in obsolete { await notificationClient.cancel(id) }
+        guard proposedReminders.contains(where: { $0.notificationID == desired.notificationID }) else { return .superseded }
         guard desired.status == .pending else { return .superseded }
         do {
             try await notificationClient.schedule(id: desired.notificationID, title: desired.launch.name,
                 date: desired.fireDate, askPermission: askPermission || effect.mayRequestPermission)
-            guard let index = reminders.firstIndex(where: { $0.notificationID == desired.notificationID }) else {
+            guard let index = proposedReminders.firstIndex(where: { $0.notificationID == desired.notificationID }) else {
                 await notificationClient.cancel(desired.notificationID)
                 return .superseded
             }
             guard desired.fireDate > now() else { throw ReminderError.tooLate }
-            reminders[index] = reminders[index].replacing(status: .scheduled)
+            proposedReminders[index] = proposedReminders[index].replacing(status: .scheduled, obsoleteNotificationIDs: [])
             let persistence = persistReminders()
             guard await persistence.value else { throw ReminderError.storageWriteFailed }
-            return reminders.contains(where: { $0.notificationID == desired.notificationID }) ? .saved : .superseded
+            return proposedReminders.contains(where: { $0.notificationID == desired.notificationID }) ? .saved : .superseded
         } catch {
-            let current = reminders.firstIndex(where: { $0.notificationID == desired.notificationID })
+            let current = proposedReminders.firstIndex(where: { $0.notificationID == desired.notificationID })
             if let index = current {
-                reminders[index] = reminders[index].replacing(status: .failed, issue: "The notification could not be scheduled. Set this reminder again.")
+                proposedReminders[index] = proposedReminders[index].replacing(status: .failed, issue: "The notification could not be scheduled. Set this reminder again.")
                 _ = await persistReminders().value
             }
             await notificationClient.cancel(desired.notificationID)
-            guard reminders.contains(where: { $0.notificationID == desired.notificationID }) else { return .superseded }
+            guard proposedReminders.contains(where: { $0.notificationID == desired.notificationID }) else { return .superseded }
             throw error
         }
     }
@@ -565,10 +727,32 @@ final class LaunchScheduleFeature {
         guard !Task.isCancelled else { return }
         await loadRemindersIfNeeded()
         guard !Task.isCancelled, remindersLoaded else { return }
-        guard let old = reminders.first(where: { $0.id == launchID }) else { return }
-        reminders.removeAll { $0.id == launchID }
-        _ = await persistReminders().value
-        await notificationClient.cancel(old.notificationID)
+        guard let old = proposedReminders.first(where: { $0.id == launchID }) else { return }
+        // A later removal supersedes any failed attempt to create or replace this reminder.
+        pendingReminderEffects[launchID] = nil
+        if let confirmed = reminders.first(where: { $0.id == launchID }) {
+            pendingReminderRemovals[launchID] = confirmed.notificationID
+        }
+        proposedReminders.removeAll { $0.id == launchID }
+        guard await persistReminders().value else {
+            if !proposedReminders.contains(where: { $0.id == launchID }),
+               let confirmed = reminders.first(where: { $0.id == launchID }) {
+                pendingReminderRemovals[launchID] = confirmed.notificationID
+                proposedReminders.append(confirmed)
+                proposedReminders.sort { $0.fireDate < $1.fireDate }
+            }
+            return
+        }
+        if !proposedReminders.contains(where: { $0.id == launchID }) {
+            pendingReminderRemovals[launchID] = nil
+            pendingReminderEffects[launchID] = nil
+            if pendingReminderEffects.isEmpty, pendingReminderRemovals.isEmpty, proposedReminders == reminders {
+                reminderWriteError = nil
+            }
+        }
+        let confirmedID = confirmedDeletions.removeValue(forKey: launchID) ?? old.notificationID
+        await notificationClient.cancel(confirmedID)
+        await finishDeletionCleanup(confirmedID)
     }
 
     private static func failure(for error: any Error) -> LaunchLoadFailure {

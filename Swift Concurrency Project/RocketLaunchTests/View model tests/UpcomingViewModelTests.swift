@@ -3,6 +3,27 @@ import XCTest
 
 @MainActor
 final class UpcomingViewModelTests: XCTestCase {
+    func testIndependentScreenSelectionsSurviveSharedFeatureRefresh() async throws {
+        let launches = try LaunchFixtures.launches()
+        let firstLaunch = try XCTUnwrap(launches.first)
+        let secondLaunch = try XCTUnwrap(launches.dropFirst().first)
+        let scenario = LaunchScenario()
+        await scenario.prepare(.loaded(firstLaunch))
+        let firstScreen = UpcomingViewModel(feature: scenario.feature)
+        let secondScreen = UpcomingViewModel(feature: scenario.feature)
+        firstScreen.showLaunch(firstLaunch)
+        secondScreen.showLaunch(secondLaunch)
+        let firstDetail = UpcomingLaunchDetailViewModel(launch: try XCTUnwrap(firstScreen.selectedLaunch), feature: scenario.feature)
+        let secondDetail = UpcomingLaunchDetailViewModel(launch: try XCTUnwrap(secondScreen.selectedLaunch), feature: scenario.feature)
+
+        await scenario.repository.respond(.success([]))
+        await firstScreen.requestRefresh().value
+        XCTAssertEqual(firstDetail.launch, firstLaunch)
+        XCTAssertEqual(secondDetail.launch, secondLaunch)
+        XCTAssertEqual(firstScreen.selectedLaunch, firstLaunch)
+        XCTAssertEqual(secondScreen.selectedLaunch, secondLaunch)
+    }
+
     func testFiltersDoNotMutateSharedSchedule() async throws {
         let scenario = LaunchScenario()
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)

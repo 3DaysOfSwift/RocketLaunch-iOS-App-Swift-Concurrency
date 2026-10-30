@@ -388,18 +388,13 @@ final class UnifiedReminderTests: XCTestCase {
         let id = launch().id
         let first = Task { try await feature.setReminder(for: id, minutesBefore: 15) }
         await fulfillment(of: [began], timeout: 2)
-        let laterPublished = expectation(description: "new desired reminder published")
-        let observer = Task {
-            for await value in await feature.reminderSnapshots() {
-                if value.reminders.first?.minutesBefore == 5 {
-                    laterPublished.fulfill()
-                    return
-                }
-            }
+        let secondStarted = expectation(description: "second request started")
+        let second = Task { @MainActor in
+            secondStarted.fulfill()
+            return try await feature.setReminder(for: id, minutesBefore: 5)
         }
-        let second = Task { try await feature.setReminder(for: id, minutesBefore: 5) }
-        await fulfillment(of: [laterPublished], timeout: 2)
-        observer.cancel()
+        await fulfillment(of: [secondStarted], timeout: 2)
+        XCTAssertTrue(feature.reminders.isEmpty, "Pending writes must not publish")
         let writesBeforeRelease = await persistence.writes
         let notificationCallsBeforeRelease = await client.calls
         XCTAssertEqual(writesBeforeRelease.count, 1)
@@ -417,6 +412,102 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertEqual(writes.last, saved.reminders)
         XCTAssertEqual(saved.reminders.first?.status, .scheduled)
         XCTAssertEqual(active, Set(saved.reminders.map(\.notificationID)))
+    }
+
+    func testUncommittedReminderIsNotPublishedWhileStorageIsSuspended() async throws {
+        let began = expectation(description: "storage write suspended")
+        let persistence = ControlledReminderPersistence(started: { began.fulfill() })
+        let (feature, _) = await model([launch()], persistence: persistence)
+        let save = Task { try await feature.setReminder(for: launch().id, minutesBefore: 15) }
+        await fulfillment(of: [began], timeout: 2)
+
+        XCTAssertTrue(feature.reminders.isEmpty, "Uncommitted reminders must not be exposed as saved state")
+        let snapshot = await feature.reminderSnapshot
+        XCTAssertTrue(snapshot.reminders.isEmpty, "Observers must receive only persisted state")
+
+        await persistence.resumeSave()
+        _ = try await save.value
+        XCTAssertEqual(feature.reminders.first?.status, .scheduled)
+    }
+
+    func testFailedWriteDoesNotLeakIntoAnotherQueuedReminder() async throws {
+        let held = expectation(description: "first write suspended")
+        let queued = expectation(description: "second operation started")
+        let storage = FailingReminderPersistence(failingWrites: [1], holdWrites: [1], onHold: { _ in held.fulfill() })
+        let client = ControlledNotifications()
+        let first = launch(id: 1)
+        let second = launch(id: 2)
+        let (feature, _) = await model([first, second], client: client, persistence: storage)
+        let failedSave = Task { try await feature.setReminder(for: first.id, minutesBefore: 5) }
+        await fulfillment(of: [held], timeout: 2)
+        let nextSave = Task { @MainActor in
+            queued.fulfill()
+            return try await feature.setReminder(for: second.id, minutesBefore: 5)
+        }
+        await fulfillment(of: [queued], timeout: 2)
+        await storage.releaseWrite()
+        do { _ = try await failedSave.value; XCTFail("Expected storage failure") }
+        catch ReminderError.storageWriteFailed {}
+        let outcome = try await nextSave.value
+        XCTAssertEqual(outcome, .saved)
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(stored.map(\.id), [second.id])
+        XCTAssertEqual(feature.reminders, stored)
+        XCTAssertEqual(active, Set(stored.map(\.notificationID)))
+    }
+
+    func testFailedReplacementFollowedByQueuedReplacementKeepsOnlyConfirmedNotification() async throws {
+        let held = expectation(description: "failed replacement held")
+        let queued = expectation(description: "later replacement queued")
+        let storage = FailingReminderPersistence(failingWrites: [3], holdWrites: [3], onHold: { _ in held.fulfill() })
+        let client = ControlledNotifications()
+        let item = launch()
+        let (feature, _) = await model([item], client: client, persistence: storage)
+        try await feature.setReminder(for: item.id, minutesBefore: 15)
+        let first = Task { try await feature.setReminder(for: item.id, minutesBefore: 5) }
+        await fulfillment(of: [held], timeout: 2)
+        let second = Task { @MainActor in
+            queued.fulfill()
+            return try await feature.setReminder(for: item.id, minutesBefore: 60)
+        }
+        await fulfillment(of: [queued], timeout: 2)
+        await storage.releaseWrite()
+        do { _ = try await first.value; XCTFail("Expected storage failure") }
+        catch ReminderError.storageWriteFailed {}
+        let outcome = try await second.value
+        XCTAssertEqual(outcome, .saved)
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(stored, feature.reminders)
+        XCTAssertEqual(stored.first?.minutesBefore, 60)
+        XCTAssertEqual(active, Set(stored.map(\.notificationID)))
+    }
+
+    func testDeleteDuringFailedReplacementCancelsConfirmedNotification() async throws {
+        let held = expectation(description: "replacement write held")
+        let queued = expectation(description: "deletion requested")
+        let storage = FailingReminderPersistence(failingWrites: [3], holdWrites: [3], onHold: { _ in held.fulfill() })
+        let client = ControlledNotifications()
+        let item = launch()
+        let (feature, _) = await model([item], client: client, persistence: storage)
+        try await feature.setReminder(for: item.id, minutesBefore: 15)
+        let replacement = Task { try await feature.setReminder(for: item.id, minutesBefore: 5) }
+        await fulfillment(of: [held], timeout: 2)
+        let removal = Task { @MainActor in
+            queued.fulfill()
+            await feature.removeReminder(item.id)
+        }
+        await fulfillment(of: [queued], timeout: 2)
+        await storage.releaseWrite()
+        do { _ = try await replacement.value; XCTFail("Expected failed replacement") }
+        catch ReminderError.storageWriteFailed {}
+        await removal.value
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertTrue(stored.isEmpty)
+        XCTAssertTrue(feature.reminders.isEmpty)
+        XCTAssertTrue(active.isEmpty)
     }
 
     func testNewRefreshDownloadsWhilePreviousNotificationIsSuspended() async throws {
@@ -473,6 +564,227 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertEqual(value.reminders.first?.status, .failed)
         XCTAssertNotNil(value.reminders.first?.issue)
     }
+
+    func testRestartCancelsNotificationForInterruptedPendingReminder() async throws {
+        let suite = "rocket-interrupted-alert-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let pending = LaunchReminder(launch: launch(), notificationID: "interrupted", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(600), issue: nil, status: .pending)
+        defaults.set(try JSONEncoder().encode([pending]), forKey: "rocketlaunch.reminders.v1")
+        let client = ControlledNotifications()
+        try await client.schedule(id: pending.notificationID, title: pending.launch.name, date: pending.fireDate, askPermission: false)
+        let feature = LaunchScheduleFeature(sources: [], notificationClient: client, reminderStorage: .suite(suite))
+        await feature.loadRemindersIfNeeded()
+        let active = await client.active
+        XCTAssertTrue(active.isEmpty)
+        XCTAssertEqual(feature.reminders.first?.status, .failed)
+    }
+
+    func testInterruptedDeletionNeedsPersistentNotificationCleanup() async throws {
+        let cancellationStarted = expectation(description: "deletion cancellation started")
+        let client = HoldingFirstCancellationNotifications { cancellationStarted.fulfill() }
+        let storage = FailingReminderPersistence(failingWrites: [])
+        let item = launch()
+        let (feature, _) = await model([item], client: client, persistence: storage)
+        try await feature.setReminder(for: item.id, minutesBefore: 15)
+        let deletion = Task { await feature.removeReminder(item.id) }
+        await fulfillment(of: [cancellationStarted], timeout: 2)
+
+        let recovered = LaunchScheduleFeature(sources: [], notificationClient: client, reminderPersistence: storage)
+        await recovered.loadRemindersIfNeeded()
+        let activeAfterRecovery = await client.active
+        XCTAssertTrue(activeAfterRecovery.isEmpty)
+        XCTAssertTrue(recovered.reminders.isEmpty)
+        await client.releaseCancellation()
+        await deletion.value
+    }
+
+    func testDeletionCleanupWriteFailureIsRecoveredOnRestart() async throws {
+        let client = ControlledNotifications()
+        let storage = FailingReminderPersistence(failingWrites: [4])
+        let item = launch()
+        let (feature, _) = await model([item], client: client, persistence: storage)
+        try await feature.setReminder(for: item.id, minutesBefore: 15)
+        await feature.removeReminder(item.id)
+        XCTAssertTrue(feature.reminders.isEmpty)
+        let saved = await storage.records
+        XCTAssertEqual(saved.first?.status, .deletionPending)
+        let recovered = LaunchScheduleFeature(sources: [], notificationClient: client, reminderPersistence: storage)
+        await recovered.loadRemindersIfNeeded()
+        let cleaned = await storage.records
+        let active = await client.active
+        XCTAssertTrue(cleaned.isEmpty)
+        XCTAssertTrue(active.isEmpty)
+        XCTAssertTrue(recovered.reminders.isEmpty)
+    }
+
+    func testNewReminderSurvivesOverlappingDeletionCleanup() async throws {
+        let cancellationStarted = expectation(description: "deletion cancellation started")
+        let client = HoldingFirstCancellationNotifications { cancellationStarted.fulfill() }
+        let storage = FailingReminderPersistence(failingWrites: [])
+        let item = launch()
+        let (feature, _) = await model([item], client: client, persistence: storage)
+        try await feature.setReminder(for: item.id, minutesBefore: 15)
+        let originalID = try XCTUnwrap(feature.reminders.first?.notificationID)
+        let deletion = Task { await feature.removeReminder(item.id) }
+        await fulfillment(of: [cancellationStarted], timeout: 2)
+        try await feature.setReminder(for: item.id, minutesBefore: 5)
+        let newID = try XCTUnwrap(feature.reminders.first?.notificationID)
+        XCTAssertNotEqual(originalID, newID)
+        await client.releaseCancellation()
+        await deletion.value
+        let active = await client.active
+        let saved = await storage.records
+        XCTAssertEqual(active, [newID])
+        XCTAssertEqual(saved, feature.reminders)
+        XCTAssertEqual(saved.first?.minutesBefore, 5)
+    }
+
+    func testInterruptedReplacementPersistsPreviousNotificationForRecovery() async throws {
+        let cancellationStarted = expectation(description: "replacement cancellation started")
+        let client = HoldingFirstCancellationNotifications { cancellationStarted.fulfill() }
+        let storage = FailingReminderPersistence(failingWrites: [])
+        let item = launch()
+        let (feature, _) = await model([item], client: client, persistence: storage)
+        try await feature.setReminder(for: item.id, minutesBefore: 15)
+        let previousID = try XCTUnwrap(feature.reminders.first?.notificationID)
+        let replacement = Task { try await feature.setReminder(for: item.id, minutesBefore: 5) }
+        await fulfillment(of: [cancellationStarted], timeout: 2)
+        let saved = await storage.records
+        XCTAssertEqual(saved.first?.status, .pending)
+        XCTAssertEqual(saved.first?.obsoleteNotificationIDs, [previousID])
+
+        let recovered = LaunchScheduleFeature(sources: [], notificationClient: client, reminderPersistence: storage)
+        await recovered.loadRemindersIfNeeded()
+        let activeAfterRecovery = await client.active
+        XCTAssertTrue(activeAfterRecovery.isEmpty)
+        XCTAssertEqual(recovered.reminders.first?.status, .failed)
+        await client.releaseCancellation()
+        _ = try? await replacement.value
+    }
+
+    func testRestartCancelsBothReplacementAndPreviousNotification() async throws {
+        let suite = "rocket-interrupted-replacement-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let pending = LaunchReminder(launch: launch(), notificationID: "new", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(600), issue: nil, status: .pending, obsoleteNotificationIDs: ["old"])
+        defaults.set(try JSONEncoder().encode([pending]), forKey: "rocketlaunch.reminders.v1")
+        let client = ControlledNotifications()
+        try await client.schedule(id: "old", title: "old", date: pending.fireDate, askPermission: false)
+        try await client.schedule(id: "new", title: "new", date: pending.fireDate, askPermission: false)
+        let feature = LaunchScheduleFeature(sources: [], notificationClient: client, reminderStorage: .suite(suite))
+        await feature.loadRemindersIfNeeded()
+        let active = await client.active
+        XCTAssertTrue(active.isEmpty)
+        XCTAssertEqual(feature.reminders.first?.status, .failed)
+        XCTAssertEqual(feature.reminders.first?.obsoleteNotificationIDs, [])
+    }
+
+    func testFailedRecoveryDoesNotPublishOrOverwritePendingReminder() async throws {
+        let pending = LaunchReminder(launch: launch(), notificationID: "interrupted", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(600), issue: nil, status: .pending)
+        let storage = FailingRecoveryPersistence(pending: pending)
+        let feature = LaunchScheduleFeature(sources: [], reminderPersistence: storage)
+        await feature.loadRemindersIfNeeded()
+        XCTAssertTrue(feature.reminders.isEmpty)
+        XCTAssertNotNil(feature.reminderStorageError)
+        let original = await storage.records
+        XCTAssertEqual(original, [pending])
+
+        await feature.loadRemindersIfNeeded()
+        let recovered = await storage.records
+        XCTAssertEqual(recovered, feature.reminders)
+        XCTAssertEqual(recovered.first?.status, .failed)
+        XCTAssertNil(feature.reminderStorageError)
+    }
+
+    func testMemoryReminderStorageReturnsItsSavedSnapshot() async throws {
+        let storage = ReminderPersistence(storage: .memory)
+        let reminder = LaunchReminder(launch: launch(), notificationID: "memory", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(600), issue: nil)
+        try await storage.save([reminder])
+        let loaded = try await storage.load()
+        XCTAssertEqual(loaded, [reminder])
+    }
+    func testFileStorageMigratesLegacyRemindersWithoutDiscardingBackup() async throws {
+        let suite = "rocket-migrate-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let file = directory.appendingPathComponent("reminders.json")
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let reminder = LaunchReminder(launch: launch(), notificationID: "legacy", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(600), issue: nil)
+        let legacy = try JSONEncoder().encode([reminder])
+        defaults.set(legacy, forKey: "rocketlaunch.reminders.v1")
+        let storage = ReminderPersistence(storage: .file(file, legacySuite: suite))
+        let migrated = try await storage.load()
+        XCTAssertEqual(migrated, [reminder])
+        XCTAssertEqual(try Data(contentsOf: file), legacy)
+        try await storage.save([])
+        let reopened = ReminderPersistence(storage: .file(file, legacySuite: suite))
+        let restored = try await reopened.load()
+        XCTAssertTrue(restored.isEmpty)
+        XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), legacy)
+    }
+
+    func testFileStorageReportsWriteFailureWithoutReplacingLegacyData() async throws {
+        let suite = "rocket-file-failure-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        try Data("not a directory".utf8).write(to: directory)
+        let storage = ReminderPersistence(storage: .file(directory.appendingPathComponent("reminders.json"), legacySuite: suite))
+        do {
+            try await storage.save([])
+            XCTFail("Expected file write failure")
+        } catch {}
+        XCTAssertEqual(try Data(contentsOf: directory), Data("not a directory".utf8))
+    }
+
+    func testCorruptLegacyReminderDataIsPreservedAndNotMigrated() async throws {
+        let suite = "rocket-corrupt-migration-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let file = directory.appendingPathComponent("reminders.json")
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let legacy = Data("invalid data".utf8)
+        defaults.set(legacy, forKey: "rocketlaunch.reminders.v1")
+        let storage = ReminderPersistence(storage: .file(file, legacySuite: suite))
+        do { _ = try await storage.load(); XCTFail("Expected corrupt data error") } catch {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), legacy)
+    }
+
+    func testCorruptCurrentFileDoesNotFallBackToStaleLegacyData() async throws {
+        let suite = "rocket-corrupt-file-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let file = directory.appendingPathComponent("reminders.json")
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let corrupt = Data("invalid data".utf8)
+        try corrupt.write(to: file)
+        defaults.set(try JSONEncoder().encode([LaunchReminder]()), forKey: "rocketlaunch.reminders.v1")
+        let storage = ReminderPersistence(storage: .file(file, legacySuite: suite))
+        do { _ = try await storage.load(); XCTFail("Expected corrupt file error") } catch {}
+        XCTAssertEqual(try Data(contentsOf: file), corrupt)
+    }
+
+    func testUnexpectedLegacyValueTypeDoesNotBecomeEmptyReminders() async throws {
+        let suite = "rocket-wrong-type-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let file = directory.appendingPathComponent("reminders.json")
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        defaults.set("unexpected", forKey: "rocketlaunch.reminders.v1")
+        let storage = ReminderPersistence(storage: .file(file, legacySuite: suite))
+        do { _ = try await storage.load(); XCTFail("Expected storage error") } catch {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(defaults.string(forKey: "rocketlaunch.reminders.v1"), "unexpected")
+    }
+
     func testSaveByIDUsesCurrentCacheDespiteOldScreenValue() async throws {
         let old = launch(3600)
         let (feature, repository) = await model([old])
@@ -816,48 +1128,47 @@ final class UnifiedReminderTests: XCTestCase {
 
     private func verifyOverlappingWriteRecovery(cancelDuringCorrection: Bool, failCorrection: Bool) async throws {
         let held = expectation(description: "new save held in storage")
-        let correction = cancelDuringCorrection ? expectation(description: "corrected state held in storage") : nil
-        let storage = FailingReminderPersistence(failingWrites: failCorrection ? [3, 5] : [3],
-            holdWrites: cancelDuringCorrection ? [3, 5] : [3], onHold: { call in
-                if call == 3 { held.fulfill() } else { correction?.fulfill() }
+        let deletionHeld = cancelDuringCorrection ? expectation(description: "deletion held in storage") : nil
+        let queued = expectation(description: "deletion requested")
+        let storage = FailingReminderPersistence(failingWrites: failCorrection ? [3, 4] : [3],
+            holdWrites: cancelDuringCorrection ? [3, 4] : [3], onHold: { call in
+                if call == 3 { held.fulfill() } else { deletionHeld?.fulfill() }
             })
         let client = ControlledNotifications()
         let first = launch(id: 1)
         let second = launch(id: 2)
         let (feature, _) = await model([first, second], client: client, persistence: storage)
         try await feature.setReminder(for: second.id, minutesBefore: 5)
+        let original = feature.reminders
         let save = Task { try await feature.setReminder(for: first.id, minutesBefore: 5) }
         await fulfillment(of: [held], timeout: 2)
-        let removed = expectation(description: "removal has queued its snapshot")
-        let stream = await feature.reminderSnapshots()
-        let observer = Task {
-            for await snapshot in stream {
-                if !snapshot.reminders.contains(where: { $0.id == second.id }) { removed.fulfill(); return }
-            }
+        let removal = Task { @MainActor in
+            queued.fulfill()
+            await feature.removeReminder(second.id)
         }
-        let removal = Task { await feature.removeReminder(second.id) }
-        await fulfillment(of: [removed], timeout: 2)
-        observer.cancel()
+        await fulfillment(of: [queued], timeout: 2)
+        XCTAssertEqual(feature.reminders, original)
         await storage.releaseWrite()
-        if let correction {
-            await fulfillment(of: [correction], timeout: 2)
-            save.cancel()
+        if let deletionHeld {
+            await fulfillment(of: [deletionHeld], timeout: 2)
+            XCTAssertEqual(feature.reminders, original)
+            removal.cancel()
             await storage.releaseWrite()
         }
-        do { try await save.value; XCTFail("Expected storage failure") }
+        do { _ = try await save.value; XCTFail("Expected storage failure") }
         catch ReminderError.storageWriteFailed {}
         await removal.value
-        XCTAssertEqual(feature.reminders.first?.status, .failed)
         if failCorrection {
+            XCTAssertEqual(feature.reminders, original)
             XCTAssertNotNil(feature.reminderWriteError)
-            let beforeRetry = await storage.records
-            XCTAssertNotEqual(beforeRetry, feature.reminders)
-            await feature.retryReminderWrite()
+            let active = await client.active
+            XCTAssertEqual(active, Set(original.map(\.notificationID)))
+            await feature.removeReminder(second.id)
         }
-        XCTAssertNil(feature.reminderWriteError)
         let stored = await storage.records
-        XCTAssertEqual(stored, feature.reminders)
         let active = await client.active
+        XCTAssertTrue(stored.isEmpty)
+        XCTAssertEqual(stored, feature.reminders)
         XCTAssertTrue(active.isEmpty)
     }
 
@@ -870,7 +1181,7 @@ final class UnifiedReminderTests: XCTestCase {
             XCTFail("Expected storage error")
         } catch ReminderError.storageWriteFailed {}
         XCTAssertNotNil(feature.reminderWriteError)
-        XCTAssertEqual(feature.reminders.first?.status, .failed)
+        XCTAssertTrue(feature.reminders.isEmpty)
         let calls = await client.calls
         XCTAssertEqual(calls, 0)
         let outcome = try await feature.setReminder(for: launch().id, minutesBefore: 5)
@@ -878,6 +1189,63 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertNil(feature.reminderWriteError)
         let stored = await storage.records
         XCTAssertEqual(stored, feature.reminders)
+    }
+
+    func testRetryAfterFailedUserSavePersistsAndSchedulesRequestedReminder() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [1])
+        let client = ControlledNotifications()
+        let item = launch()
+        let (feature, _) = await model([item], client: client, persistence: storage)
+        do { _ = try await feature.setReminder(for: item.id, minutesBefore: 15); XCTFail("Expected storage error") }
+        catch ReminderError.storageWriteFailed {}
+        XCTAssertTrue(feature.reminders.isEmpty)
+        await feature.retryReminderWrite()
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(stored, feature.reminders)
+        XCTAssertEqual(stored.first?.minutesBefore, 15)
+        XCTAssertEqual(stored.first?.status, .scheduled)
+        XCTAssertEqual(active, Set(stored.map(\.notificationID)))
+    }
+
+    func testRetryPreservesTwoFailedUserReminderIntents() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [1, 2])
+        let client = ControlledNotifications()
+        let first = launch(id: 1)
+        let second = launch(id: 2)
+        let (feature, _) = await model([first, second], client: client, persistence: storage)
+        for item in [first, second] {
+            do { _ = try await feature.setReminder(for: item.id, minutesBefore: 15); XCTFail("Expected storage error") }
+            catch ReminderError.storageWriteFailed {}
+        }
+        XCTAssertTrue(feature.reminders.isEmpty)
+        await feature.retryReminderWrite()
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(Set(stored.map(\.id)), Set([first.id, second.id]))
+        XCTAssertEqual(stored, feature.reminders)
+        XCTAssertTrue(stored.allSatisfy { $0.status == .scheduled })
+        XCTAssertEqual(active, Set(stored.map(\.notificationID)))
+    }
+
+    func testImmediateRetryAfterVisibleWriteErrorDoesNotLoseUserIntent() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [1])
+        let client = ControlledNotifications()
+        let item = launch()
+        let (feature, _) = await model([item], client: client, persistence: storage)
+        let failed = expectation(description: "write error becomes observable")
+        withObservationTracking { _ = feature.reminderWriteError } onChange: { failed.fulfill() }
+        let save = Task { try await feature.setReminder(for: item.id, minutesBefore: 15) }
+        await fulfillment(of: [failed], timeout: 2)
+        await feature.retryReminderWrite()
+        do { _ = try await save.value; XCTFail("Expected storage error") }
+        catch ReminderError.storageWriteFailed {}
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(stored.first?.minutesBefore, 15)
+        XCTAssertEqual(stored.first?.status, .scheduled)
+        XCTAssertEqual(stored, feature.reminders)
+        XCTAssertEqual(active, Set(stored.map(\.notificationID)))
     }
 
     func testFailedReplacementWritePreservesExistingReminderAndNotification() async throws {
@@ -898,6 +1266,140 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertNotNil(feature.reminderWriteError)
     }
 
+    func testFailedAutomaticRescheduleRetriesStorageBeforeReplacingNotification() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [3])
+        let client = ControlledNotifications()
+        let originalLaunch = launch(3600)
+        let (feature, repository) = await model([originalLaunch], client: client, persistence: storage)
+        try await feature.setReminder(for: originalLaunch.id, minutesBefore: 5)
+        let original = feature.reminders
+        let failed = expectation(description: "automatic reschedule write failed")
+        withObservationTracking { _ = feature.reminderWriteError } onChange: { failed.fulfill() }
+        await repository.set([launch(7200)])
+        await feature.refresh()
+        await fulfillment(of: [failed], timeout: 2)
+        await Task.yield()
+        XCTAssertEqual(feature.reminders, original)
+        let beforeRetry = await client.active
+        XCTAssertEqual(beforeRetry, Set(original.map(\.notificationID)))
+
+        await feature.retryReminderWrite()
+        let saved = await storage.records
+        let active = await client.active
+        XCTAssertEqual(saved, feature.reminders)
+        XCTAssertEqual(saved.first?.launch, launch(7200))
+        XCTAssertEqual(saved.first?.status, .scheduled)
+        XCTAssertEqual(active, Set(saved.map(\.notificationID)))
+    }
+
+    func testUnrelatedSaveDoesNotHideFailedAutomaticReschedule() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [3])
+        let client = ControlledNotifications()
+        let first = launch(3600, id: 1)
+        let second = launch(3600, id: 2)
+        let (feature, repository) = await model([first, second], client: client, persistence: storage)
+        try await feature.setReminder(for: first.id, minutesBefore: 5)
+        let failed = expectation(description: "reschedule write failed")
+        withObservationTracking { _ = feature.reminderWriteError } onChange: { failed.fulfill() }
+        await repository.set([launch(7200, id: 1), second])
+        await feature.refresh()
+        await fulfillment(of: [failed], timeout: 2)
+        try await feature.setReminder(for: second.id, minutesBefore: 5)
+        XCTAssertNotNil(feature.reminderWriteError)
+        await feature.retryReminderWrite()
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(stored, feature.reminders)
+        XCTAssertEqual(stored.first(where: { $0.id == first.id })?.launch, launch(7200, id: 1))
+        XCTAssertEqual(active, Set(stored.map(\.notificationID)))
+    }
+
+    func testRetryOfFailedBatchRescheduleUpdatesBothNotifications() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [5])
+        let client = ControlledNotifications()
+        let first = launch(3600, id: 1)
+        let second = launch(3600, id: 2)
+        let (feature, repository) = await model([first, second], client: client, persistence: storage)
+        try await feature.setReminder(for: first.id, minutesBefore: 5)
+        try await feature.setReminder(for: second.id, minutesBefore: 5)
+        let before = feature.reminders
+        let failed = expectation(description: "batch reschedule write failed")
+        withObservationTracking { _ = feature.reminderWriteError } onChange: { failed.fulfill() }
+        await repository.set([launch(7200, id: 1), launch(7200, id: 2)])
+        await feature.refresh()
+        await fulfillment(of: [failed], timeout: 2)
+        XCTAssertEqual(feature.reminders, before)
+        await feature.retryReminderWrite()
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(stored, feature.reminders)
+        XCTAssertEqual(stored.count, 2)
+        XCTAssertTrue(stored.allSatisfy { $0.status == .scheduled && $0.launch.details.plannedTime == now.addingTimeInterval(7200) })
+        XCTAssertEqual(active, Set(stored.map(\.notificationID)))
+    }
+
+    func testRemovalAfterFailedRescheduleCannotRestoreDeletedReminderOnRetry() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [3])
+        let client = ControlledNotifications()
+        let item = launch(3600)
+        let (feature, repository) = await model([item], client: client, persistence: storage)
+        try await feature.setReminder(for: item.id, minutesBefore: 5)
+        let failed = expectation(description: "automatic write failed")
+        withObservationTracking { _ = feature.reminderWriteError } onChange: { failed.fulfill() }
+        await repository.set([launch(7200)])
+        await feature.refresh()
+        await fulfillment(of: [failed], timeout: 2)
+        await feature.removeReminder(item.id)
+        await feature.retryReminderWrite()
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertTrue(feature.reminders.isEmpty)
+        XCTAssertTrue(stored.isEmpty)
+        XCTAssertTrue(active.isEmpty)
+    }
+
+    func testUserReplacementAfterFailedRescheduleIsNotOverwrittenByRetry() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [3])
+        let client = ControlledNotifications()
+        let item = launch(3600)
+        let (feature, repository) = await model([item], client: client, persistence: storage)
+        try await feature.setReminder(for: item.id, minutesBefore: 5)
+        let failed = expectation(description: "automatic write failed")
+        withObservationTracking { _ = feature.reminderWriteError } onChange: { failed.fulfill() }
+        await repository.set([launch(7200)])
+        await feature.refresh()
+        await fulfillment(of: [failed], timeout: 2)
+        try await feature.setReminder(for: item.id, minutesBefore: 15)
+        await feature.retryReminderWrite()
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(feature.reminders, stored)
+        XCTAssertEqual(stored.first?.minutesBefore, 15)
+        XCTAssertEqual(active, Set(stored.map(\.notificationID)))
+    }
+
+    func testScheduleRevertingAfterFailedRescheduleDoesNotRetryStaleTime() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [3])
+        let client = ControlledNotifications()
+        let item = launch(3600)
+        let (feature, repository) = await model([item], client: client, persistence: storage)
+        try await feature.setReminder(for: item.id, minutesBefore: 5)
+        let original = feature.reminders
+        let failed = expectation(description: "automatic write failed")
+        withObservationTracking { _ = feature.reminderWriteError } onChange: { failed.fulfill() }
+        await repository.set([launch(7200)])
+        await feature.refresh()
+        await fulfillment(of: [failed], timeout: 2)
+        await repository.set([item])
+        await feature.refresh()
+        await feature.retryReminderWrite()
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(stored, original)
+        XCTAssertEqual(feature.reminders, original)
+        XCTAssertEqual(active, Set(original.map(\.notificationID)))
+    }
+
     func testFinalPersistenceFailureCancelsInstalledNotification() async throws {
         let storage = FailingReminderPersistence(failingWrites: [2, 3])
         let client = ControlledNotifications()
@@ -906,7 +1408,7 @@ final class UnifiedReminderTests: XCTestCase {
             try await feature.setReminder(for: launch().id, minutesBefore: 5)
             XCTFail("Expected final storage error")
         } catch ReminderError.storageWriteFailed {}
-        XCTAssertEqual(feature.reminders.first?.status, .failed)
+        XCTAssertEqual(feature.reminders.first?.status, .pending)
         XCTAssertNotNil(feature.reminderWriteError)
         let active = await client.active
         XCTAssertTrue(active.isEmpty)
@@ -916,20 +1418,67 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertEqual(stored, feature.reminders)
     }
 
-    func testRemovalPersistenceFailureStillCleansNotificationAndCanRetry() async throws {
+    func testRemovalPersistenceFailureKeepsSavedReminderAndNotificationUntilRetry() async throws {
         let storage = FailingReminderPersistence(failingWrites: [3])
         let client = ControlledNotifications()
         let (feature, _) = await model([launch()], client: client, persistence: storage)
         try await feature.setReminder(for: launch().id, minutesBefore: 5)
+        let original = feature.reminders
         await feature.removeReminder(launch().id)
-        XCTAssertTrue(feature.reminders.isEmpty)
+        XCTAssertEqual(feature.reminders, original)
         XCTAssertNotNil(feature.reminderWriteError)
         let active = await client.active
-        XCTAssertTrue(active.isEmpty)
+        XCTAssertEqual(active, Set(original.map(\.notificationID)))
         await feature.retryReminderWrite()
         XCTAssertNil(feature.reminderWriteError)
         let stored = await storage.records
         XCTAssertTrue(stored.isEmpty)
+        XCTAssertTrue(feature.reminders.isEmpty)
+        let remaining = await client.active
+        XCTAssertTrue(remaining.isEmpty)
+    }
+
+    func testFailedDeletionSupersedesFailedReplacementWhenRetried() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [3, 4])
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client, persistence: storage)
+        try await feature.setReminder(for: launch().id, minutesBefore: 15)
+        let original = feature.reminders
+        do {
+            try await feature.setReminder(for: launch().id, minutesBefore: 5)
+            XCTFail("Expected replacement storage error")
+        } catch ReminderError.storageWriteFailed {}
+        await feature.removeReminder(launch().id)
+        XCTAssertEqual(feature.reminders, original)
+        await feature.retryReminderWrite()
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertTrue(stored.isEmpty)
+        XCTAssertTrue(feature.reminders.isEmpty)
+        XCTAssertTrue(active.isEmpty)
+        XCTAssertNil(feature.reminderWriteError)
+    }
+
+    func testFailedReplacementSupersedesFailedDeletionWhenRetried() async throws {
+        let storage = FailingReminderPersistence(failingWrites: [3, 4])
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client, persistence: storage)
+        try await feature.setReminder(for: launch().id, minutesBefore: 15)
+        let original = feature.reminders
+        await feature.removeReminder(launch().id)
+        do {
+            try await feature.setReminder(for: launch().id, minutesBefore: 5)
+            XCTFail("Expected replacement storage error")
+        } catch ReminderError.storageWriteFailed {}
+        XCTAssertEqual(feature.reminders, original)
+        await feature.retryReminderWrite()
+        let stored = await storage.records
+        let active = await client.active
+        XCTAssertEqual(stored.first?.minutesBefore, 5)
+        XCTAssertEqual(stored.first?.status, .scheduled)
+        XCTAssertEqual(stored, feature.reminders)
+        XCTAssertEqual(active, Set(stored.map(\.notificationID)))
+        XCTAssertNil(feature.reminderWriteError)
     }
 
     func testUnreadableReminderDataIsNotOverwrittenByNewSave() async throws {
@@ -1035,6 +1584,23 @@ private actor MutableLaunchRepository: LaunchRepository {
     func set(_ values: [RocketLaunch]) { self.values = values }
     func fetchUpcomingLaunches() async throws -> [RocketLaunch] { values }
 }
+private actor HoldingFirstCancellationNotifications: LaunchNotificationClient {
+    private(set) var active: Set<String> = []
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var held = false
+    private let onHold: @Sendable () -> Void
+    init(onHold: @escaping @Sendable () -> Void) { self.onHold = onHold }
+    func schedule(id: String, title: String, date: Date, askPermission: Bool) async throws { active.insert(id) }
+    func cancel(_ id: String) async {
+        if !held {
+            held = true
+            await withCheckedContinuation { continuation = $0; onHold() }
+        }
+        active.remove(id)
+    }
+    func releaseCancellation() { continuation?.resume(); continuation = nil }
+}
+
 private actor ControlledNotifications: LaunchNotificationClient {
     let hold: Int?
     let started: @Sendable (Int) -> Void
@@ -1171,6 +1737,18 @@ private actor ControlledNotifications: LaunchNotificationClient {
         XCTAssertEqual(count, 1)
         let value = feature.snapshot
         XCTAssertEqual(value.state, .empty)
+    }
+}
+
+private actor FailingRecoveryPersistence: ReminderPersisting {
+    enum Failure: Error { case write }
+    private(set) var records: [LaunchReminder]
+    private var failNextWrite = true
+    init(pending: LaunchReminder) { records = [pending] }
+    func load() -> [LaunchReminder] { records }
+    func save(_ reminders: [LaunchReminder]) throws {
+        if failNextWrite { failNextWrite = false; throw Failure.write }
+        records = reminders
     }
 }
 

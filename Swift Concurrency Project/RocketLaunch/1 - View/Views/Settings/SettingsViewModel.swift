@@ -2,14 +2,14 @@ import Observation
 
 @MainActor @Observable
 final class SettingsViewModel {
-    private let feature: SettingsFeature
+    private let settingsFeature: SettingsFeature
 
-    init(feature: SettingsFeature = AppModel.shared.settingsFeature) {
-        self.feature = feature
+    init(settingsFeature: SettingsFeature = AppModel.shared.settingsFeature) {
+        self.settingsFeature = settingsFeature
     }
 
     var selectedTheme: AppColourTheme {
-        get { feature.selected }
-        set { feature.select(newValue) }
+        get { settingsFeature.selected }
+        set { settingsFeature.select(newValue) }
     }
 }

@@ -13,8 +13,8 @@ final class SettingsFeature {
         selected = defaults?.string(forKey: Self.storageKey).flatMap(AppColourTheme.init(rawValue:)) ?? .system
     }
     func select(_ theme: AppColourTheme) {
-        selected = theme
         defaults?.set(theme.rawValue, forKey: Self.storageKey)
+        selected = theme
     }
     func selectNextTheme() {
         let themes = AppColourTheme.allCases
