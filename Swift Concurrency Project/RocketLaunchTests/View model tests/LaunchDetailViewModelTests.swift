@@ -73,6 +73,23 @@ final class LaunchDetailViewModelTests: XCTestCase {
         XCTAssertTrue(feature.reminders.isEmpty)
     }
 
+    func testSaveExplainsWhenDisplayedLaunchTimeIsOutOfDate() async throws {
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let estimated = EstimatedLaunchDate(month: nil, day: nil, year: nil)
+        let displayed = RocketLaunch(id: "stale", source: .rocketLaunchLive, name: "Launch",
+            missions: [], estimatedDate: estimated, details: LaunchDetails(plannedTime: date))
+        let latest = RocketLaunch(id: "stale", source: .rocketLaunchLive, name: "Launch",
+            missions: [], estimatedDate: estimated, details: LaunchDetails(plannedTime: date.addingTimeInterval(3600)))
+        let scenario = LaunchScenario()
+        await scenario.prepare(.loaded(latest))
+        let screen = LaunchDetailViewModel(launch: displayed, launchScheduleFeature: scenario.feature)
+        let save = try XCTUnwrap(screen.save())
+        await save.value
+        XCTAssertEqual(screen.launch, displayed)
+        XCTAssertEqual(screen.errorMessage, "The launch time has changed. Go back and open the latest launch before setting a reminder.")
+        XCTAssertTrue(scenario.feature.reminders.isEmpty)
+    }
+
     func testIndependentDetailsKeepTheirSnapshotsWhenCatalogueChanges() async throws {
         let records = try LaunchFixtures.launches()
         let first = try XCTUnwrap(records.first)
