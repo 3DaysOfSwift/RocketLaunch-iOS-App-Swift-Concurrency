@@ -1,4 +1,5 @@
 import XCTest
+import Observation
 @testable import RocketLaunch
 
 @MainActor
@@ -17,9 +18,13 @@ final class PrivacyPolicyViewModelTests: XCTestCase {
         let loader = PolicyFixture(failFirst: true)
         let viewModel = PrivacyPolicyViewModel(feature: SettingsFeature(privacyPolicyLoader: loader))
         await viewModel.load()
-        XCTAssertEqual(viewModel.text, "The privacy policy could not be loaded. Please consult the project’s PRIVACY.md document.")
-        await viewModel.load()
+        XCTAssertEqual(viewModel.loadError, "The privacy policy could not be loaded. Please try again.")
+        let recovered = expectation(description: "Privacy policy retry completes")
+        withObservationTracking { _ = viewModel.text } onChange: { recovered.fulfill() }
+        viewModel.retry()
+        await fulfillment(of: [recovered], timeout: 2)
         XCTAssertEqual(viewModel.text, "Bundled policy")
+        XCTAssertNil(viewModel.loadError)
     }
 
     func testCancelledCallerDoesNotPublishLatePolicyAndCanRetry() async {

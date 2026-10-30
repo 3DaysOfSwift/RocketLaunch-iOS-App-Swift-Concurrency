@@ -50,10 +50,17 @@ struct PrivacyPolicyView: View {
     @State private var viewModel = PrivacyPolicyViewModel()
     var body: some View {
         ScrollView {
-            Text(viewModel.text)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
-                .padding(20)
+            VStack(alignment: .leading, spacing: 16) {
+                if let error = viewModel.loadError {
+                    Text(error)
+                    Button("Retry") { viewModel.retry() }
+                } else {
+                    Text(viewModel.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(20)
         }
         .background(theme.background)
         .foregroundStyle(theme.foreground)
