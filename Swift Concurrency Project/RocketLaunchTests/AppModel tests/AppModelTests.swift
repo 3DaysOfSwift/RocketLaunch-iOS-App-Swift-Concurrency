@@ -16,7 +16,7 @@ final class AppModelTests: XCTestCase {
     @MainActor func testRetainsProvidedFeatureWithoutStartingWork() async {
         let repository = PresentationLaunchRepository()
         let feature = LaunchScheduleFeature(repository: repository)
-        let appModel = AppModel(launchScheduleFeature: feature)
+        let appModel = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
         XCTAssertTrue(appModel.launchScheduleFeature === feature)
         let requests = await repository.requestCount
         XCTAssertEqual(requests, 0)
@@ -24,7 +24,7 @@ final class AppModelTests: XCTestCase {
     @MainActor func testLaunchLoadsOnceAndScreenRefreshRemainsAvailable() async {
         let repository = PresentationLaunchRepository()
         let feature = LaunchScheduleFeature(repository: repository)
-        let model = AppModel(launchScheduleFeature: feature)
+        let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
         await model.applicationDidFinishLaunching()
         await model.applicationDidFinishLaunching()
         let initialRequests = await repository.requestCount
@@ -39,7 +39,7 @@ final class AppModelTests: XCTestCase {
         let persistence = ControlledReminderPersistence(holdLoad: true, started: { storageStarted.fulfill() })
         let repository = PresentationLaunchRepository()
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], reminderPersistence: persistence)
-        let model = AppModel(launchScheduleFeature: feature)
+        let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
         let launch = Task { await model.applicationDidFinishLaunching() }
         await fulfillment(of: [storageStarted], timeout: 2)
         await feature.loadIfNeeded()
@@ -54,7 +54,7 @@ final class AppModelTests: XCTestCase {
         let began = expectation(description: "Launch download began")
         let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: {})
         let feature = LaunchScheduleFeature(repository: repository)
-        let model = AppModel(launchScheduleFeature: feature)
+        let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
         var launchFinished = false
         let launch = Task {
             await model.applicationDidFinishLaunching()
@@ -75,7 +75,7 @@ final class AppModelTests: XCTestCase {
         let began = expectation(description: "Launch download began")
         let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: {})
         let feature = LaunchScheduleFeature(repository: repository)
-        let model = AppModel(launchScheduleFeature: feature)
+        let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
         let launch = Task { await model.applicationDidFinishLaunching() }
         await waitFor([began])
         let screen = LaunchScheduleViewModel(launchScheduleFeature: feature)
@@ -97,7 +97,7 @@ final class AppModelTests: XCTestCase {
         let feature = LaunchScheduleFeature(sources: [
             .init(id: .launchLibrary, repository: repository, minimumRefreshInterval: 60)
         ], now: { clock.read() })
-        let model = AppModel(launchScheduleFeature: feature)
+        let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
         await model.applicationDidFinishLaunching()
         XCTAssertNotNil(feature.sources.first?.nextRefreshAt)
         clock.advance(61)
@@ -120,7 +120,7 @@ final class AppModelTests: XCTestCase {
         let feature = LaunchScheduleFeature(sources: [
             .init(id: .launchLibrary, repository: PresentationLaunchRepository(), minimumRefreshInterval: 60)
         ], now: { clock.read() })
-        let model = AppModel(launchScheduleFeature: feature)
+        let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
         await model.applicationDidFinishLaunching()
         let before = feature.snapshot
         clock.advance(61)
@@ -182,8 +182,8 @@ final class AppModelTests: XCTestCase {
         let firstFeature = LaunchScheduleFeature(repository: a)
         let b = PresentationLaunchRepository()
         let secondFeature = LaunchScheduleFeature(repository: b)
-        let first = AppModel(launchScheduleFeature: firstFeature)
-        _ = AppModel(launchScheduleFeature: secondFeature)
+        let first = AppModel(launchScheduleFeature: firstFeature, settingsFeature: SettingsFeature())
+        _ = AppModel(launchScheduleFeature: secondFeature, settingsFeature: SettingsFeature())
         await first.launchScheduleFeature.refresh()
         let aCount = await a.requestCount
         XCTAssertEqual(aCount, 1)

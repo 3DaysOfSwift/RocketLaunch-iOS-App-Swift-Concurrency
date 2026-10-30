@@ -8,7 +8,7 @@ final class AppModel {
     let settingsFeature: SettingsFeature
     private var hasLaunched: Bool
 
-    init(launchScheduleFeature: LaunchScheduleFeature, settingsFeature: SettingsFeature = SettingsFeature()) {
+    init(launchScheduleFeature: LaunchScheduleFeature, settingsFeature: SettingsFeature) {
         self.launchScheduleFeature = launchScheduleFeature
         self.settingsFeature = settingsFeature
         self.hasLaunched = false
