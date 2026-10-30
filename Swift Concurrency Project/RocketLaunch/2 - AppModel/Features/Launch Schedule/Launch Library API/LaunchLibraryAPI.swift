@@ -1,15 +1,15 @@
 import Foundation
 
 actor LaunchLibraryAPI: LaunchRepository {
-    private let session: URLSession
+    private let networking: NetworkingManager
     private let endpoint: URL
-    init(session: URLSession, endpoint: URL) { self.session = session; self.endpoint = endpoint }
+    init(networking: NetworkingManager, endpoint: URL) { self.networking = networking; self.endpoint = endpoint }
 
     func fetchUpcomingLaunches() async throws -> [RocketLaunch] {
         try Task.checkCancellation()
         var request = URLRequest(url: endpoint)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await networking.data(for: request)
         try Task.checkCancellation()
         guard let response = response as? HTTPURLResponse else { throw LaunchRepositoryError.invalidResponse }
         guard (200..<300).contains(response.statusCode) else { throw LaunchRepositoryError.httpStatus(response.statusCode) }

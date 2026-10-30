@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D4E5F6000000000001 /* NetworkingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000002 /* NetworkingManager.swift */; };
 		A6C8D1B7E9F240F5A6C5B104 /* AboutViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C8D1B7E9F240F5A6C5B105 /* AboutViewModelTests.swift */; };
 		A6C8D1B7E9F240F5A6C5B101 /* AboutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C8D1B7E9F240F5A6C5B102 /* AboutViewModel.swift */; };
 		6076452ABDB84C33A4CF2D59 /* LocalLaunchNotificationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */; };
@@ -91,6 +92,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D4E5F6000000000002 /* NetworkingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Services/NetworkingManager.swift"; sourceTree = SOURCE_ROOT; };
 		A6C8D1B7E9F240F5A6C5B105 /* AboutViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModelTests.swift; sourceTree = "<group>"; };
 		A6C8D1B7E9F240F5A6C5B102 /* AboutViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModel.swift; sourceTree = "<group>"; };
 		91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLaunchNotificationsTests.swift; sourceTree = "<group>"; };
@@ -189,6 +191,7 @@
 			isa = PBXGroup;
 			children = (
 				3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */,
+				A1B2C3D4E5F6000000000002 /* NetworkingManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -646,6 +649,7 @@
 				5900175C78A56AE96FD7AA37 /* AboutView.swift in Sources */,
 				A6C8D1B7E9F240F5A6C5B101 /* AboutViewModel.swift in Sources */,
 				8BEA8F7D62864813BB5EF773 /* BundledPrivacyPolicyLoader.swift in Sources */,
+				A1B2C3D4E5F6000000000001 /* NetworkingManager.swift in Sources */,
 				B9291F07BAC8477F9CFDCFD5 /* PrivacyPolicyViewModel.swift in Sources */,
 				C71295EF9F333CF055E11A17 /* AppPresentation.swift in Sources */,
 				BFCB555EF76613F20AC19FED /* LaunchRepository.swift in Sources */,

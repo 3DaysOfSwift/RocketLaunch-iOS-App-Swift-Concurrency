@@ -2,17 +2,17 @@ import Foundation
 
 /// URL loading suspends; decoding stays on this actor, outside the Main Actor.
 actor RocketLaunchAPI: LaunchRepository {
-    private let session: URLSession
+    private let networking: NetworkingManager
     private let endpoint: URL
 
-    init(session: URLSession, endpoint: URL) {
-        self.session = session
+    init(networking: NetworkingManager, endpoint: URL) {
+        self.networking = networking
         self.endpoint = endpoint
     }
 
     func fetchUpcomingLaunches() async throws -> [RocketLaunch] {
         try Task.checkCancellation()
-        let (data, response) = try await session.data(from: endpoint)
+        let (data, response) = try await networking.data(for: URLRequest(url: endpoint))
         try Task.checkCancellation()
         guard let response = response as? HTTPURLResponse else {
             throw LaunchRepositoryError.invalidResponse

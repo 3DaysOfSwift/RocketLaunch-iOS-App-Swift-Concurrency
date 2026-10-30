@@ -144,7 +144,7 @@ final class SpaceXAPITests: XCTestCase {
     func testHTTPFailureRemainsAnError() async throws {
         let (session, id) = StubURLProtocol.session(response: .init(data: fixture(), statusCode: 503))
         defer { session.invalidateAndCancel(); StubURLProtocol.remove(id) }
-        let api = SpaceXAPI(session: session, endpoint: URL(string: "https://example.invalid/query")!)
+        let api = SpaceXAPI(networking: NetworkingManager(session: session), endpoint: URL(string: "https://example.invalid/query")!)
         do { _ = try await api.fetchUpcomingLaunches(); XCTFail("Expected HTTP failure") }
         catch { XCTAssertEqual(error as? LaunchRepositoryError, .httpStatus(503)) }
     }
