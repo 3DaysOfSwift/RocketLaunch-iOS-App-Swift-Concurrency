@@ -28,6 +28,7 @@ actor ThemePersistence: ThemePersisting {
     private let storage: Storage
     private var memoryTheme: AppColourTheme = .system
     private static let legacyKey = "rocketlaunch.colourTheme"
+    private static let fileCreatedKey = "rocketlaunch.colourTheme.fileCreated.v1"
 
     init(storage: Storage) { self.storage = storage }
 
@@ -49,10 +50,13 @@ actor ThemePersistence: ThemePersisting {
         if FileManager.default.fileExists(atPath: url.path) {
             let raw = try String(contentsOf: url, encoding: .utf8)
             guard let theme = AppColourTheme(rawValue: raw) else { throw CocoaError(.fileReadCorruptFile) }
+            defaults.set(true, forKey: Self.fileCreatedKey)
             return theme
         }
+        if defaults.bool(forKey: Self.fileCreatedKey) { throw CocoaError(.fileNoSuchFile) }
         if let raw = defaults.string(forKey: Self.legacyKey), let theme = AppColourTheme(rawValue: raw) {
             try write(theme, to: url)
+            defaults.set(true, forKey: Self.fileCreatedKey)
             return theme
         }
         return .system
@@ -65,8 +69,9 @@ actor ThemePersistence: ThemePersisting {
 
     func save(_ theme: AppColourTheme) throws {
         if case .memory = storage { memoryTheme = theme; return }
-        let (url, _) = try fileAndDefaults()
+        let (url, defaults) = try fileAndDefaults()
         try write(theme, to: url)
+        defaults.set(true, forKey: Self.fileCreatedKey)
     }
 }
 

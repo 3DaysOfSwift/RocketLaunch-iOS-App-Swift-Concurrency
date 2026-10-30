@@ -8,16 +8,23 @@ private actor ThemeFixture: ThemePersisting {
     var writes: [AppColourTheme] = []
     var gate: CheckedContinuation<Void, Never>?
     var hold = false
+    var onStart: (@Sendable () -> Void)?
+    func onSaveStart(_ callback: @escaping @Sendable () -> Void) { onStart = callback }
     func configure(fail: Bool = false, hold: Bool = false) { self.fail = fail; self.hold = hold }
     func load() -> AppColourTheme { theme }
     func save(_ value: AppColourTheme) async throws {
         writes.append(value)
-        if hold { hold = false; await withCheckedContinuation { gate = $0 } }
+        if hold {
+            hold = false
+            await withCheckedContinuation { continuation in
+                gate = continuation
+                onStart?()
+            }
+        }
         if fail { throw CocoaError(.fileWriteUnknown) }
         theme = value
     }
     func release() { gate?.resume(); gate = nil }
-    func hasStarted() -> Bool { gate != nil }
     func recorded() -> [AppColourTheme] { writes }
 }
 
@@ -59,6 +66,23 @@ final class SettingsFeatureTests: XCTestCase {
         await restored.loadIfNeeded()
         XCTAssertEqual(restored.selected, .forest)
     }
+    @MainActor func testMissingMigratedFileDoesNotRestoreStaleLegacyPreference() async throws {
+        let name = "rocketlaunch-theme-tests-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { defaults.removePersistentDomain(forName: name); try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("theme.txt")
+        defaults.set("ocean", forKey: "rocketlaunch.colourTheme")
+        let manager = SettingsFeature(persistence: ThemePersistence(storage: .file(url, legacySuite: name)))
+        await manager.select(.forest).value
+        try FileManager.default.removeItem(at: url)
+        let restored = SettingsFeature(persistence: ThemePersistence(storage: .file(url, legacySuite: name)))
+        await restored.loadIfNeeded()
+        XCTAssertNotNil(restored.storageError)
+        await restored.select(.sunset).value
+        XCTAssertNotNil(restored.storageError)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
     @MainActor func testFailedSaveDoesNotPublishAndCanBeRetried() async {
         let store = ThemeFixture()
         let manager = SettingsFeature(persistence: store)
@@ -74,9 +98,11 @@ final class SettingsFeatureTests: XCTestCase {
     @MainActor func testOverlappingChangesWaitForPersistenceAndRemainOrdered() async {
         let store = ThemeFixture()
         await store.configure(hold: true)
+        let started = expectation(description: "first save started")
+        await store.onSaveStart { started.fulfill() }
         let manager = SettingsFeature(persistence: store)
         let first = manager.select(.ocean)
-        while !(await store.hasStarted()) { await Task.yield() }
+        await fulfillment(of: [started], timeout: 2)
         let second = manager.select(.forest)
         XCTAssertEqual(manager.selected, .system)
         await store.release()
