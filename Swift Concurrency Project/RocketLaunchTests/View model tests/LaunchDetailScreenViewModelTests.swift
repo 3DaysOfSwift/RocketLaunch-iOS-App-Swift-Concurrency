@@ -73,6 +73,23 @@ final class LaunchDetailScreenViewModelTests: XCTestCase {
         XCTAssertTrue(feature.reminders.isEmpty)
     }
 
+    func testIndependentDetailsKeepTheirSnapshotsWhenCatalogueChanges() async throws {
+        let records = try LaunchFixtures.launches()
+        let first = try XCTUnwrap(records.first)
+        let second = try XCTUnwrap(records.dropFirst().first)
+        let scenario = LaunchScenario()
+        await scenario.prepare(.loaded(first))
+        let feature = scenario.feature
+        let sceneOne = LaunchDetailScreenViewModel(launch: first, feature: feature)
+        let sceneTwo = LaunchDetailScreenViewModel(launch: second, feature: feature)
+        await scenario.repository.respond(.success([]))
+        await feature.refresh()
+        XCTAssertTrue(feature.sources.first?.launches.isEmpty == true)
+        XCTAssertEqual(sceneOne.launch, first)
+        XCTAssertEqual(sceneTwo.launch, second)
+        XCTAssertNotEqual(sceneOne.launch?.id, sceneTwo.launch?.id)
+    }
+
     func testEachSourceScreenHandsSelectionToItsOwnDestination() async throws {
         let records = try LaunchFixtures.launches()
         let first = try XCTUnwrap(records.first)
