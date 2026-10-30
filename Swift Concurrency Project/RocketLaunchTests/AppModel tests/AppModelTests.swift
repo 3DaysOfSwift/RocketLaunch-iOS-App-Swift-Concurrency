@@ -808,6 +808,32 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), legacy)
     }
 
+    func testFeatureLoadsAndDeletesReminderMigratedFromLegacyStorage() async throws {
+        let suite = "rocket-feature-migration-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let file = directory.appendingPathComponent("reminders.json")
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let item = launch()
+        let reminder = LaunchReminder(launch: item, notificationID: "legacy-alert", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(600), issue: nil)
+        defaults.set(try JSONEncoder().encode([reminder]), forKey: "rocketlaunch.reminders.v1")
+        let storage = ReminderPersistence(storage: .file(file, legacySuite: suite))
+        let client = ControlledNotifications()
+        try await client.schedule(id: reminder.notificationID, title: item.name, date: reminder.fireDate, askPermission: false)
+        let feature = LaunchScheduleFeature(sources: [], now: { [now] in now }, notificationClient: client, reminderPersistence: storage)
+        await feature.loadRemindersIfNeeded()
+        XCTAssertEqual(feature.reminders, [reminder])
+        XCTAssertTrue(feature.hasActiveReminder(for: item.id))
+        await feature.removeReminder(item.id)
+        let active = await client.active
+        let reopened = ReminderPersistence(storage: .file(file, legacySuite: suite))
+        let restored = try await reopened.load()
+        XCTAssertTrue(active.isEmpty)
+        XCTAssertTrue(restored.isEmpty)
+        XCTAssertTrue(feature.reminders.isEmpty)
+    }
+
     func testMissingMigratedFileDoesNotRestoreOutdatedLegacyReminders() async throws {
         let suite = "rocket-missing-current-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
