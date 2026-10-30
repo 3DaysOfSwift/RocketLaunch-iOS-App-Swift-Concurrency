@@ -3,7 +3,13 @@ import Observation
 
 @MainActor @Observable
 final class UpcomingViewModel {
-    let filters = BrowseViewModel()
+    var showingLaunch = false
+    func showLaunch(_ launch: RocketLaunch) {
+        feature.selectLaunch(launch, in: .upcoming)
+        showingLaunch = true
+    }
+
+    var filters = BrowseFilters()
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private let refreshTasks: LaunchRefreshTasks
     init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {

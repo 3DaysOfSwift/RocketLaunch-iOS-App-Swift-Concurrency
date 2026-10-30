@@ -23,7 +23,7 @@ struct RemindersView: View {
                 }
             }
             ForEach(viewModel.reminders) { reminder in
-                NavigationLink { LaunchDetailView(launch: reminder.launch) } label: {
+                Button { viewModel.showLaunch(reminder.launch) } label: {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(reminder.launch.name).font(.headline)
                         if reminder.status == .pending {
@@ -38,6 +38,7 @@ struct RemindersView: View {
                         Text(reminder.launch.source.name).font(.caption).foregroundStyle(.secondary)
                     }
                 }
+                .buttonStyle(.plain)
                 .swipeActions { Button("Remove", role: .destructive) { viewModel.remove(reminder.id) }.disabled(viewModel.isBusy) }
             }
             Section {
@@ -47,5 +48,6 @@ struct RemindersView: View {
         }
         .modifier(ThemedListBackground())
         .navigationTitle("Reminders")
+        .navigationDestination(isPresented: $viewModel.showingLaunch) { ReminderLaunchDetailView() }
     }
 }

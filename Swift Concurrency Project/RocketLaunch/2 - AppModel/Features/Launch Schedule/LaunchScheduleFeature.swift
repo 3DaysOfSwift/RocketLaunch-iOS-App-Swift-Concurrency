@@ -4,6 +4,23 @@ import Observation
 /// Owns observable application state. Network decoding and persistence use service actors.
 @MainActor @Observable
 final class LaunchScheduleFeature {
+    // Each tab keeps its selected record independently. Refreshes do not replace
+    // the downloaded snapshot the reader chose to inspect.
+    private var selectedLaunches: [LaunchSelectionContext: RocketLaunch] = [:]
+    private(set) var selectedOperator: LaunchOperator?
+
+    func selectLaunch(_ launch: RocketLaunch, in context: LaunchSelectionContext) {
+        selectedLaunches[context] = launch
+    }
+
+    func selectedLaunch(in context: LaunchSelectionContext) -> RocketLaunch? {
+        selectedLaunches[context]
+    }
+
+    func selectOperator(_ selected: LaunchOperator) {
+        selectedOperator = selected
+    }
+
     private(set) var state: LaunchScheduleState = .idle
     private(set) var sources: [LaunchSourceSnapshot]
     private(set) var operators: [LaunchOperator] = []
@@ -681,4 +698,9 @@ struct LaunchScheduleSnapshot: Equatable, Sendable {
             return lhs == rhs ? $0.id < $1.id : lhs < rhs
         }
     }
+}
+
+/// Independent places from which a reader can inspect a downloaded launch.
+enum LaunchSelectionContext: CaseIterable {
+    case next, upcoming, operators, updates, reminders
 }

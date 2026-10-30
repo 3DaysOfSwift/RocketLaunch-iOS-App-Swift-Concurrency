@@ -3,7 +3,13 @@ import Observation
 
 @MainActor @Observable
 final class OperatorsViewModel {
-    let filters = BrowseViewModel()
+    var showingOperator = false
+    func showOperator(_ selected: LaunchOperator) {
+        feature.selectOperator(selected)
+        showingOperator = true
+    }
+
+    var filters = BrowseFilters()
     @ObservationIgnored private let feature: LaunchScheduleFeature
     init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) { self.feature = feature }
     var operators: [LaunchOperator] { feature.operators(matching: filters.query) }

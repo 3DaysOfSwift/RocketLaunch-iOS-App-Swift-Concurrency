@@ -4,6 +4,12 @@ import Observation
 @MainActor
 @Observable
 final class LaunchScheduleViewModel {
+    var showingLaunch = false
+    func showLaunch(_ launch: RocketLaunch) {
+        feature.selectLaunch(launch, in: .next)
+        showingLaunch = true
+    }
+
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshID: UUID?

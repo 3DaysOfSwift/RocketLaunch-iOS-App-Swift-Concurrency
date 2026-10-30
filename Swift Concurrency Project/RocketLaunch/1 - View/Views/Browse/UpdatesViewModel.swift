@@ -3,6 +3,12 @@ import Observation
 
 @MainActor @Observable
 final class UpdatesViewModel {
+    var showingLaunch = false
+    func showLaunch(_ launch: RocketLaunch) {
+        feature.selectLaunch(launch, in: .updates)
+        showingLaunch = true
+    }
+
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private let refreshTasks: LaunchRefreshTasks
     init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {

@@ -59,6 +59,7 @@ struct LaunchScheduleView: View {
         .foregroundStyle(themeManager.selected.foreground)
         .onDisappear { viewModel.cancelRefresh() }
         .navigationTitle("Next launch")
+        .navigationDestination(isPresented: $viewModel.showingLaunch) { LaunchDetailView() }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -162,7 +163,7 @@ struct LaunchScheduleView: View {
     }
 
     @ViewBuilder private func launchActions(_ launch: RocketLaunch) -> some View {
-        NavigationLink { LaunchDetailView(launch: launch) } label: {
+        Button { viewModel.showLaunch(launch) } label: {
             Label("Launch details", systemImage: "arrow.right")
         }
         .buttonStyle(.borderedProminent)

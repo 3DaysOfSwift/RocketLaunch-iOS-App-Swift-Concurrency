@@ -3,6 +3,12 @@ import Observation
 
 @MainActor @Observable
 final class ReminderViewModel {
+    var showingLaunch = false
+    func showLaunch(_ launch: RocketLaunch) {
+        feature.selectLaunch(launch, in: .reminders)
+        showingLaunch = true
+    }
+
     private(set) var isBusy = false
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private var action: Task<Void, Never>?

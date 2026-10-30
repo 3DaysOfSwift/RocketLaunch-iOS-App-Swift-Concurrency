@@ -1,9 +1,7 @@
 import Foundation
-import Observation
 
 /// Owns only this screen's filter selections and display wording.
-@MainActor @Observable
-final class BrowseViewModel {
+struct BrowseFilters {
     var search = ""
     var operatorID = ""
     var country = ""

@@ -3,6 +3,12 @@ import Observation
 
 @MainActor @Observable
 final class OperatorLaunchesViewModel {
+    var showingLaunch = false
+    func showLaunch(_ launch: RocketLaunch) {
+        feature.selectLaunch(launch, in: .operators)
+        showingLaunch = true
+    }
+
     @ObservationIgnored private let feature: LaunchScheduleFeature
     @ObservationIgnored private let refreshTasks: LaunchRefreshTasks
 
@@ -10,6 +16,10 @@ final class OperatorLaunchesViewModel {
         self.feature = feature
         refreshTasks = LaunchRefreshTasks(feature: feature)
     }
+
+    var title: String { feature.selectedOperator?.name ?? "Operator" }
+    var launches: [RocketLaunch] { feature.selectedOperator.map { launches(for: $0.id) } ?? [] }
+    var sources: [LaunchSourceSnapshot] { feature.selectedOperator.map { relevantSources(for: $0.id) } ?? [] }
 
     func launches(for operatorID: String) -> [RocketLaunch] {
         feature.launches(for: operatorID)

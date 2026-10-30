@@ -3,6 +3,16 @@ import Observation
 
 @MainActor @Observable
 final class LaunchDetailScreenViewModel {
+    var minutesBefore = 15
+    var launch: RocketLaunch? { feature.selectedLaunch(in: .next) }
+    var reminderSaved: Bool { launch.map { feature.hasActiveReminder(for: $0.id) } ?? false }
+
+    @discardableResult
+    func save() -> Task<Void, Never>? {
+        guard let launch else { return nil }
+        return save(launch.id, minutesBefore: minutesBefore)
+    }
+
     var errorMessage: String?
     private(set) var isBusy = false
     @ObservationIgnored private let feature: LaunchScheduleFeature
