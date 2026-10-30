@@ -7,7 +7,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
         let scenario = LaunchScenario()
         let feature = scenario.feature
         await scenario.prepare(.loaded(try LaunchFixtures.launches()[0]))
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         defer { viewModel.cancelRefresh() }
         XCTAssertTrue(viewModel.hasLaunch)
         await viewModel.loadIfNeeded().value
@@ -19,7 +19,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
     @MainActor func testCountryIsTheLaunchLocationAndMissingMissionIsExplicit() async throws {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         await scenario.prepare(.loaded(try LaunchFixtures.launches()[3]))
         XCTAssertEqual(viewModel.country, "China")
         XCTAssertEqual(viewModel.provider, "China")
@@ -30,7 +30,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
     @MainActor func testEstimatedTimeDoesNotPresentAnExactLocalTime() async throws {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         await scenario.prepare(.loaded(try LaunchFixtures.launches()[2]))
         XCTAssertEqual(viewModel.launchTime, "Dec 08")
         XCTAssertTrue(viewModel.timingNote.contains("Exact time not announced"))
@@ -47,7 +47,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
     @MainActor func testInitialStateDoesNotStartNetworking() async {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         XCTAssertFalse(viewModel.hasLaunch)
         XCTAssertFalse(viewModel.isLoading)
         XCTAssertFalse(viewModel.isEmpty)
@@ -59,7 +59,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
     @MainActor func testAsyncIntentIsDirectlyAwaitable() async {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         await viewModel.refresh()
         let requests = await scenario.repository.requestCount
         XCTAssertEqual(requests, 1)
@@ -67,7 +67,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
     @MainActor func testLoadedValuesReadAuthoritativeFeatureState() async throws {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         await scenario.prepare(.loaded(launch))
         XCTAssertTrue(viewModel.hasLaunch)
@@ -77,7 +77,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
     @MainActor func testMissingMissionHasPresentationFallback() async {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         await scenario.prepare(.loaded(RocketLaunch(id: 1, name: "Launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil))))
         XCTAssertEqual(viewModel.mission, "None")
     }
@@ -85,7 +85,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
         let began = expectation(description: "request pending")
         let repository = ControlledLaunchRepository { _ in began.fulfill() }
         let feature = LaunchScheduleFeature(repository: repository)
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let refresh = viewModel.requestRefresh()
         await waitFor([began])
         XCTAssertTrue(viewModel.isLoading); XCTAssertFalse(viewModel.isEmpty)
@@ -96,7 +96,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
     @MainActor func testRecoverableFailureRetainsLaunchAndExposesMessage() async throws {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         await scenario.prepare(.failed(.offline, previous: launch))
         XCTAssertTrue(viewModel.hasLaunch)
@@ -106,8 +106,8 @@ final class LaunchScheduleViewModelTests: XCTestCase {
     @MainActor func testTwoViewModelsObserveTheSameConcreteFeature() async throws {
         let scenario = LaunchScenario()
         let shared = scenario.feature
-        let first = LaunchScheduleViewModel(feature: shared)
-        let second = LaunchScheduleViewModel(feature: shared)
+        let first = LaunchScheduleViewModel(launchScheduleFeature: shared)
+        let second = LaunchScheduleViewModel(launchScheduleFeature: shared)
         let firstChanged = expectation(description: "first observes")
         let secondChanged = expectation(description: "second observes")
         withObservationTracking { _ = first.launchName } onChange: { firstChanged.fulfill() }
@@ -123,7 +123,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
         let finished = expectation(description: "transport finished")
         let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: { finished.fulfill() })
         let feature = LaunchScheduleFeature(repository: repository)
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let first = viewModel.requestRefresh()
         await waitFor([began])
         let second = viewModel.requestRefresh()
@@ -141,7 +141,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
         let finished = expectation(description: "transport finished")
         let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: { finished.fulfill() })
         let feature = LaunchScheduleFeature(repository: repository)
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let request = viewModel.requestRefresh()
         await waitFor([began])
         viewModel.cancelRefresh()
@@ -157,7 +157,7 @@ final class LaunchScheduleViewModelTests: XCTestCase {
         let finished = expectation(description: "transport finished")
         let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: { finished.fulfill() })
         let feature = LaunchScheduleFeature(repository: repository)
-        var viewModel: LaunchScheduleViewModel? = LaunchScheduleViewModel(feature: feature)
+        var viewModel: LaunchScheduleViewModel? = LaunchScheduleViewModel(launchScheduleFeature: feature)
         weak var weakViewModel = viewModel
         let request = viewModel?.requestRefresh()
         await waitFor([began])
@@ -182,7 +182,7 @@ extension LaunchScheduleViewModelTests {
             .init(id: .rocketLaunchLive, repository: a),
             .init(id: .launchLibrary, repository: b)
         ], now: { Date(timeIntervalSince1970: 1_700_000_000) }) // Before the fixture launch.
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         defer { viewModel.cancelRefresh() }
         viewModel.requestRefresh()
         await waitFor([aStarted, bStarted])
@@ -229,7 +229,7 @@ extension LaunchScheduleViewModelTests {
     @MainActor func testCountdownAdvancesAndWaitsForScheduleAtDeadline() async {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let deadline = Date(timeIntervalSince1970: 2_000_000_000)
         await scenario.prepare(.loaded(countdownLaunch(at: deadline)))
         XCTAssertEqual(viewModel.countdown(at: deadline.addingTimeInterval(-90_061)).clock, "01:01:01")
@@ -246,7 +246,7 @@ extension LaunchScheduleViewModelTests {
     @MainActor func testEstimateDoesNotBecomeCountdownAndReplacementUpdatesDeadline() async {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         await scenario.prepare(.loaded(countdownLaunch(at: nil, sortTime: now.addingTimeInterval(600))))
         XCTAssertNil(viewModel.countdown(at: now).clock)
@@ -260,7 +260,7 @@ extension LaunchScheduleViewModelTests {
     @MainActor func testMissingMissionDoesNotFillCompactCardWithPlaceholderParagraph() async {
         let scenario = LaunchScenario()
         let feature = scenario.feature
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         await scenario.prepare(.loaded(countdownLaunch(at: nil)))
         XCTAssertNil(viewModel.missionPreview)
         XCTAssertFalse(viewModel.missionSummary.isEmpty, "The detail screen retains its explanation")
@@ -281,7 +281,7 @@ extension LaunchScheduleViewModelTests {
         let a = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: {})
         let b = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: {})
         let feature = LaunchScheduleFeature(sources: [.init(id: .spaceX, repository: a), .init(id: .launchLibrary, repository: b)])
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let first = viewModel.requestRefresh(source: .spaceX)
         let duplicate = viewModel.requestRefresh(source: .spaceX)
         let other = viewModel.requestRefresh(source: .launchLibrary)
@@ -299,7 +299,7 @@ extension LaunchScheduleViewModelTests {
         let finished = expectation(description: "provider finished")
         let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: { finished.fulfill() })
         let feature = LaunchScheduleFeature(sources: [.init(id: .spaceX, repository: repository)])
-        let viewModel = LaunchScheduleViewModel(feature: feature)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let request = viewModel.requestRefresh(source: .spaceX)
         await waitFor([began])
         viewModel.cancelRefresh()

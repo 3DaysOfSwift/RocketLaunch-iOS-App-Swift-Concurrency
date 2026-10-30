@@ -11,7 +11,7 @@ final class LaunchScheduleViewModel {
         showingLaunch = true
     }
 
-    @ObservationIgnored private let feature: LaunchScheduleFeature
+    @ObservationIgnored private let launchScheduleFeature: LaunchScheduleFeature
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var refreshID: UUID?
     @ObservationIgnored private var sourceTasks: [LaunchSourceID: Task<Void, Never>] = [:]
@@ -19,15 +19,15 @@ final class LaunchScheduleViewModel {
 
     @ObservationIgnored private let settingsFeature: SettingsFeature
 
-    init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature,
+    init(launchScheduleFeature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature,
          settingsFeature: SettingsFeature = AppModel.shared.settingsFeature) {
-        self.feature = feature
+        self.launchScheduleFeature = launchScheduleFeature
         self.settingsFeature = settingsFeature
     }
 
     func selectNextTheme() { settingsFeature.selectNextTheme() }
 
-    var snapshot: LaunchScheduleSnapshot { feature.snapshot }
+    var snapshot: LaunchScheduleSnapshot { launchScheduleFeature.snapshot }
     var upcomingLaunches: [RocketLaunch] { snapshot.upcomingLaunches }
 
     var launchName: String { snapshot.state.launch?.name ?? String(localized: "None") }
@@ -41,7 +41,7 @@ final class LaunchScheduleViewModel {
     var site: String { detail.site }
     var launchTime: String { detail.launchTime }
     var timingNote: String { detail.timingNote }
-    /// Only presentation ticks every second; the feature retains ownership of launch selection.
+    /// Only presentation ticks every second; the Feature retains ownership of launch selection.
     func countdown(at date: Date) -> CountdownPresentation {
         switch currentLaunch?.details.countdown(at: date) ?? .timeUnconfirmed {
         case .remaining(let interval):
@@ -82,12 +82,12 @@ final class LaunchScheduleViewModel {
     var currentLaunch: RocketLaunch? { snapshot.state.launch }
     var updates: [LaunchUpdate] { snapshot.updates }
     var sources: [LaunchSourceSnapshot] { snapshot.sources }
-    func updateNextLaunch() { feature.updateNextLaunch() }
+    func updateNextLaunch() { launchScheduleFeature.updateNextLaunch() }
     func launches(for operatorID: String) -> [RocketLaunch] {
-        feature.launches(for: operatorID)
+        launchScheduleFeature.launches(for: operatorID)
     }
     func relevantSources(for operatorID: String?) -> [LaunchSourceSnapshot] {
-        feature.sources(for: operatorID)
+        launchScheduleFeature.sources(for: operatorID)
     }
     func canRetry(_ source: LaunchSourceSnapshot) -> Bool { SourceStatusPresentation.canRetry(source) }
     func sourceMessage(_ source: LaunchSourceSnapshot) -> String { SourceStatusPresentation.message(source) }
@@ -110,7 +110,7 @@ final class LaunchScheduleViewModel {
 
     /// Directly awaitable for callers that already own their task lifetime.
     func refresh() async {
-        await feature.refresh()
+        await launchScheduleFeature.refresh()
     }
 
     /// The screen owns replaceable work through its ViewModel, never through View state.
@@ -119,9 +119,9 @@ final class LaunchScheduleViewModel {
         if let source {
             if let active = refreshTask ?? sourceTasks[source] { return active }
             let id = UUID(); sourceRequestIDs[source] = id
-            let feature = feature
+            let launchScheduleFeature = launchScheduleFeature
             let task = Task { [weak self] in
-                await feature.refresh(source: source)
+                await launchScheduleFeature.refresh(source: source)
                 guard self?.sourceRequestIDs[source] == id else { return }
                 self?.sourceTasks[source] = nil; self?.sourceRequestIDs[source] = nil
             }
@@ -135,10 +135,10 @@ final class LaunchScheduleViewModel {
         if let active = refreshTask { return active }
         let id = UUID()
         refreshID = id
-        let feature = feature
+        let launchScheduleFeature = launchScheduleFeature
         let task = Task { [weak self] in
-            if onlyIfNeeded { await feature.loadIfNeeded() }
-            else { await feature.refresh() }
+            if onlyIfNeeded { await launchScheduleFeature.loadIfNeeded() }
+            else { await launchScheduleFeature.refresh() }
             guard self?.refreshID == id else { return }
             self?.refreshTask = nil
             self?.refreshID = nil

@@ -11,9 +11,9 @@ final class OperatorsViewModel {
     }
 
     var filters = BrowseFilters()
-    @ObservationIgnored private let feature: LaunchScheduleFeature
-    init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) { self.feature = feature }
-    var operators: [LaunchOperator] { feature.operators(matching: filters.query) }
-    var countries: [String] { feature.launchCountries }
-    var isLoading: Bool { if case .loading = feature.state { return true }; return false }
+    @ObservationIgnored private let launchScheduleFeature: LaunchScheduleFeature
+    init(launchScheduleFeature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) { self.launchScheduleFeature = launchScheduleFeature }
+    var operators: [LaunchOperator] { launchScheduleFeature.operators(matching: filters.query) }
+    var countries: [String] { launchScheduleFeature.launchCountries }
+    var isLoading: Bool { if case .loading = launchScheduleFeature.state { return true }; return false }
 }

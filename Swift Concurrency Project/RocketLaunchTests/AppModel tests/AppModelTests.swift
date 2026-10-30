@@ -78,7 +78,7 @@ final class AppModelTests: XCTestCase {
         let model = AppModel(launchScheduleFeature: feature)
         let launch = Task { await model.applicationDidFinishLaunching() }
         await waitFor([began])
-        let screen = LaunchScheduleViewModel(feature: feature)
+        let screen = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let refresh = screen.requestRefresh()
         screen.cancelRefresh()
         await refresh.value
@@ -1592,7 +1592,7 @@ final class UnifiedReminderTests: XCTestCase {
             XCTFail("Unreadable saved reminders must block a replacement write")
         } catch ReminderError.storageUnavailable {}
         XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), original)
-        let viewModel = ReminderViewModel(feature: feature)
+        let viewModel = ReminderViewModel(launchScheduleFeature: feature)
         XCTAssertNotNil(viewModel.storageError)
         await feature.removeReminder(launch().id)
         XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), original)
@@ -1666,7 +1666,7 @@ final class UnifiedReminderTests: XCTestCase {
         let finished = expectation(description: "UI command finishes")
         let client = ControlledNotifications(hold: 1) { _ in started.fulfill() }
         let (feature, _) = await model([launch()], client: client)
-        let vm = LaunchDetailScreenViewModel(launch: launch(), feature: feature)
+        let vm = LaunchDetailScreenViewModel(launch: launch(), launchScheduleFeature: feature)
         vm.save(launch().id, minutesBefore: 5); vm.save(launch().id, minutesBefore: 5)
         await fulfillment(of: [started], timeout: 2)
         let calls = await client.calls
@@ -1829,7 +1829,7 @@ private actor ControlledNotifications: LaunchNotificationClient {
         let began = expectation(description: "request")
         let repository = ControlledLaunchRepository { _ in began.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .launchLibrary, repository: repository, minimumRefreshInterval: 300)])
-        let vm = LaunchScheduleViewModel(feature: feature)
+        let vm = LaunchScheduleViewModel(launchScheduleFeature: feature)
         vm.requestRefresh(); await fulfillment(of: [began], timeout: 2)
         vm.requestRefresh(); vm.requestRefresh(source: .launchLibrary)
         await repository.complete(0, with: .success([]))

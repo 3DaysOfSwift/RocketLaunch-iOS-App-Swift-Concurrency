@@ -5,7 +5,7 @@ import Observation
 final class UpcomingLaunchDetailViewModel {
     var minutesBefore = 15
     let launch: RocketLaunch?
-    var reminderSaved: Bool { launch.map { feature.hasActiveReminder(for: $0.id) } ?? false }
+    var reminderSaved: Bool { launch.map { launchScheduleFeature.hasActiveReminder(for: $0.id) } ?? false }
 
     @discardableResult
     func save() -> Task<Void, Never>? {
@@ -15,16 +15,16 @@ final class UpcomingLaunchDetailViewModel {
 
     var errorMessage: String?
     private(set) var isBusy = false
-    @ObservationIgnored private let feature: LaunchScheduleFeature
+    @ObservationIgnored private let launchScheduleFeature: LaunchScheduleFeature
     @ObservationIgnored private var action: Task<Void, Never>?
 
-    init(launch: RocketLaunch, feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {
+    init(launch: RocketLaunch, launchScheduleFeature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {
         self.launch = launch
-        self.feature = feature
+        self.launchScheduleFeature = launchScheduleFeature
     }
 
     func contains(_ id: String) -> Bool {
-        feature.hasActiveReminder(for: id)
+        launchScheduleFeature.hasActiveReminder(for: id)
     }
 
     @discardableResult
@@ -32,10 +32,10 @@ final class UpcomingLaunchDetailViewModel {
         if let action { return action }
         errorMessage = nil
         isBusy = true
-        let feature = feature
+        let launchScheduleFeature = launchScheduleFeature
         let task = Task { [weak self] in
             do {
-                let outcome = try await feature.setReminder(for: launchID, minutesBefore: minutesBefore)
+                let outcome = try await launchScheduleFeature.setReminder(for: launchID, minutesBefore: minutesBefore)
                 if outcome == .superseded {
                     self?.errorMessage = "The reminder changed while saving. Check Reminders for its latest status."
                 }

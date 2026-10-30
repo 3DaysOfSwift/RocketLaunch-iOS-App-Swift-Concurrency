@@ -10,9 +10,9 @@ final class UpcomingLaunchDetailViewModelTests: XCTestCase {
         let other = try XCTUnwrap(records.dropFirst().first)
         XCTAssertNotEqual(selected.id, other.id)
         let feature = LaunchScheduleFeature(sources: [])
-        let model = UpcomingLaunchDetailViewModel(launch: selected, feature: feature)
+        let model = UpcomingLaunchDetailViewModel(launch: selected, launchScheduleFeature: feature)
         model.minutesBefore = 60
-        let otherScreen = UpcomingLaunchDetailViewModel(launch: other, feature: feature)
+        let otherScreen = UpcomingLaunchDetailViewModel(launch: other, launchScheduleFeature: feature)
         XCTAssertEqual(otherScreen.launch, other)
         XCTAssertEqual(model.launch, selected)
         XCTAssertEqual(model.minutesBefore, 60)
@@ -23,7 +23,7 @@ final class UpcomingLaunchDetailViewModelTests: XCTestCase {
         XCTAssertEqual(model.errorMessage, "Refresh the schedule and open the launch again before setting a reminder.")
         XCTAssertFalse(model.isBusy)
         XCTAssertTrue(feature.reminders.isEmpty)
-        let anotherScreen = UpcomingLaunchDetailViewModel(launch: other, feature: feature)
+        let anotherScreen = UpcomingLaunchDetailViewModel(launch: other, launchScheduleFeature: feature)
         XCTAssertNil(anotherScreen.errorMessage)
         XCTAssertEqual(anotherScreen.minutesBefore, 15)
     }
@@ -31,7 +31,7 @@ final class UpcomingLaunchDetailViewModelTests: XCTestCase {
     func testSelectedSaveCancelledBeforeDispatchDoesNotPresentFailure() async throws {
         let feature = LaunchScheduleFeature(sources: [])
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
-        let model = UpcomingLaunchDetailViewModel(launch: launch, feature: feature)
+        let model = UpcomingLaunchDetailViewModel(launch: launch, launchScheduleFeature: feature)
         let task = try XCTUnwrap(model.save())
         task.cancel()
         await task.value

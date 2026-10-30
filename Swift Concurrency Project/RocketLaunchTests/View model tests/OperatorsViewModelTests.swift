@@ -6,8 +6,8 @@ final class OperatorsViewModelTests: XCTestCase {
     func testFilteringOneScreenDoesNotHideOtherScreensOperators() async throws {
         let scenario = LaunchScenario()
         await scenario.prepare(.loaded(try XCTUnwrap(LaunchFixtures.launches().first)))
-        let first = OperatorsViewModel(feature: scenario.feature)
-        let second = OperatorsViewModel(feature: scenario.feature)
+        let first = OperatorsViewModel(launchScheduleFeature: scenario.feature)
+        let second = OperatorsViewModel(launchScheduleFeature: scenario.feature)
         XCTAssertFalse(first.operators.isEmpty)
         let original = first.operators.map(\.id)
         first.filters.search = "nonexistent operator"

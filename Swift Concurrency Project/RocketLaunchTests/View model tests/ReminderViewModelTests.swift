@@ -9,8 +9,8 @@ final class ReminderViewModelTests: XCTestCase {
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         let deadline = Date(timeIntervalSince1970: 2_000_000_000)
         let reminder = LaunchReminder(launch: launch, notificationID: "deadline", minutesBefore: 5, fireDate: deadline, issue: nil)
-        let before = ReminderViewModel(feature: LaunchScheduleFeature(sources: [], now: { deadline.addingTimeInterval(-1) }))
-        let atDeadline = ReminderViewModel(feature: LaunchScheduleFeature(sources: [], now: { deadline }))
+        let before = ReminderViewModel(launchScheduleFeature: LaunchScheduleFeature(sources: [], now: { deadline.addingTimeInterval(-1) }))
+        let atDeadline = ReminderViewModel(launchScheduleFeature: LaunchScheduleFeature(sources: [], now: { deadline }))
         XCTAssertFalse(before.reminderTimeHasPassed(reminder))
         XCTAssertTrue(atDeadline.reminderTimeHasPassed(reminder))
     }
@@ -22,9 +22,9 @@ final class ReminderViewModelTests: XCTestCase {
         let persistence = ReminderScreenPersistence(reminders: [stored])
         let feature = LaunchScheduleFeature(sources: [],
             notificationClient: ReminderScreenNotifications(), reminderPersistence: persistence)
-        let first = ReminderViewModel(feature: feature)
-        let second = ReminderViewModel(feature: feature)
-        let details = LaunchDetailScreenViewModel(launch: launch, feature: feature)
+        let first = ReminderViewModel(launchScheduleFeature: feature)
+        let second = ReminderViewModel(launchScheduleFeature: feature)
+        let details = LaunchDetailScreenViewModel(launch: launch, launchScheduleFeature: feature)
         XCTAssertTrue(first.reminders.isEmpty)
         let restored = expectation(description: "second screen observes restored state")
         withObservationTracking { _ = second.reminders } onChange: { restored.fulfill() }

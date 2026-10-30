@@ -9,12 +9,12 @@ final class UpcomingViewModelTests: XCTestCase {
         let secondLaunch = try XCTUnwrap(launches.dropFirst().first)
         let scenario = LaunchScenario()
         await scenario.prepare(.loaded(firstLaunch))
-        let firstScreen = UpcomingViewModel(feature: scenario.feature)
-        let secondScreen = UpcomingViewModel(feature: scenario.feature)
+        let firstScreen = UpcomingViewModel(launchScheduleFeature: scenario.feature)
+        let secondScreen = UpcomingViewModel(launchScheduleFeature: scenario.feature)
         firstScreen.showLaunch(firstLaunch)
         secondScreen.showLaunch(secondLaunch)
-        let firstDetail = UpcomingLaunchDetailViewModel(launch: try XCTUnwrap(firstScreen.selectedLaunch), feature: scenario.feature)
-        let secondDetail = UpcomingLaunchDetailViewModel(launch: try XCTUnwrap(secondScreen.selectedLaunch), feature: scenario.feature)
+        let firstDetail = UpcomingLaunchDetailViewModel(launch: try XCTUnwrap(firstScreen.selectedLaunch), launchScheduleFeature: scenario.feature)
+        let secondDetail = UpcomingLaunchDetailViewModel(launch: try XCTUnwrap(secondScreen.selectedLaunch), launchScheduleFeature: scenario.feature)
 
         await scenario.repository.respond(.success([]))
         await firstScreen.requestRefresh().value
@@ -28,8 +28,8 @@ final class UpcomingViewModelTests: XCTestCase {
         let scenario = LaunchScenario()
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         await scenario.prepare(.loaded(launch))
-        let first = UpcomingViewModel(feature: scenario.feature)
-        let second = UpcomingViewModel(feature: scenario.feature)
+        let first = UpcomingViewModel(launchScheduleFeature: scenario.feature)
+        let second = UpcomingViewModel(launchScheduleFeature: scenario.feature)
         XCTAssertEqual(first.launches, [launch])
         first.filters.search = "no matching mission"
         XCTAssertTrue(first.launches.isEmpty)
@@ -44,7 +44,7 @@ final class UpcomingViewModelTests: XCTestCase {
         let ended = expectation(description: "transport ended")
         let repository = LifecycleRepository(onRequest: { started.fulfill() }, onFinish: { ended.fulfill() })
         let feature = LaunchScheduleFeature(repository: repository)
-        let viewModel = UpcomingViewModel(feature: feature)
+        let viewModel = UpcomingViewModel(launchScheduleFeature: feature)
         let first = viewModel.requestRefresh()
         await waitFor([started])
         let repeated = viewModel.requestRefresh()
@@ -71,7 +71,7 @@ final class UpcomingViewModelTests: XCTestCase {
         let feature = LaunchScheduleFeature(
             sources: [.init(id: .rocketLaunchLive, repository: repository)],
             now: { Date(timeIntervalSince1970: 1_600_000_000) })
-        let viewModel = UpcomingViewModel(feature: feature)
+        let viewModel = UpcomingViewModel(launchScheduleFeature: feature)
         let launches = try LaunchFixtures.launches()
         let originalLaunch = try XCTUnwrap(launches.first)
         let replacementLaunch = try XCTUnwrap(launches.dropFirst().first)

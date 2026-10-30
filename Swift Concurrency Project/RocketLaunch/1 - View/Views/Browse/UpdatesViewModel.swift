@@ -10,14 +10,14 @@ final class UpdatesViewModel {
         showingLaunch = true
     }
 
-    @ObservationIgnored private let feature: LaunchScheduleFeature
+    @ObservationIgnored private let launchScheduleFeature: LaunchScheduleFeature
     @ObservationIgnored private let refreshTasks: LaunchRefreshTasks
-    init(feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {
-        self.feature = feature
-        refreshTasks = LaunchRefreshTasks(feature: feature)
+    init(launchScheduleFeature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {
+        self.launchScheduleFeature = launchScheduleFeature
+        refreshTasks = LaunchRefreshTasks(feature: launchScheduleFeature)
     }
-    var sources: [LaunchSourceSnapshot] { feature.sources }
-    var updates: [LaunchUpdate] { feature.updates }
+    var sources: [LaunchSourceSnapshot] { launchScheduleFeature.sources }
+    var updates: [LaunchUpdate] { launchScheduleFeature.updates }
     @discardableResult
     func requestRefresh(source: LaunchSourceID? = nil) -> Task<Void, Never> { refreshTasks.request(source: source) }
     func cancelRefresh() { refreshTasks.cancel() }

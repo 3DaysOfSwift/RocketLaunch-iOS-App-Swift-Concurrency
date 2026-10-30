@@ -11,13 +11,13 @@ final class OperatorLaunchesViewModel {
     }
 
     private let selectedOperator: LaunchOperator
-    @ObservationIgnored private let feature: LaunchScheduleFeature
+    @ObservationIgnored private let launchScheduleFeature: LaunchScheduleFeature
     @ObservationIgnored private let refreshTasks: LaunchRefreshTasks
 
-    init(operator selected: LaunchOperator, feature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {
+    init(operator selected: LaunchOperator, launchScheduleFeature: LaunchScheduleFeature = AppModel.shared.launchScheduleFeature) {
         self.selectedOperator = selected
-        self.feature = feature
-        refreshTasks = LaunchRefreshTasks(feature: feature)
+        self.launchScheduleFeature = launchScheduleFeature
+        refreshTasks = LaunchRefreshTasks(feature: launchScheduleFeature)
     }
 
     var title: String { selectedOperator.name }
@@ -25,11 +25,11 @@ final class OperatorLaunchesViewModel {
     var sources: [LaunchSourceSnapshot] { relevantSources(for: selectedOperator.id) }
 
     func launches(for operatorID: String) -> [RocketLaunch] {
-        feature.launches(for: operatorID)
+        launchScheduleFeature.launches(for: operatorID)
     }
 
     func relevantSources(for operatorID: String) -> [LaunchSourceSnapshot] {
-        feature.sources(for: operatorID)
+        launchScheduleFeature.sources(for: operatorID)
     }
 
     @discardableResult
