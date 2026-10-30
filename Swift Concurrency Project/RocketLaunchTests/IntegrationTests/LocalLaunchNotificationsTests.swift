@@ -83,6 +83,56 @@ final class LocalLaunchNotificationsTests: XCTestCase {
         XCTAssertFalse(pending.contains { $0.identifier == replacement.notificationID })
     }
 
+    func testFileBackedReminderSurvivesFeatureRecreationAndRemovesSystemNotification() async throws {
+        let center = UNUserNotificationCenter.current()
+        #if CFA_NOTIFICATION_SYSTEM_TEST
+        if await center.notificationSettings().authorizationStatus == .notDetermined {
+            _ = try await center.requestAuthorization(options: [.alert, .sound, .provisional])
+        }
+        #endif
+        let status = await center.notificationSettings().authorizationStatus
+        guard status == .authorized || status == .provisional else {
+            throw XCTSkip("Notification permission is not granted for the test host.")
+        }
+
+        let identifier = UUID().uuidString
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(identifier, isDirectory: true)
+        let suite = "rocket-integration-" + identifier
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        }
+        let storage = ReminderStorage.file(directory.appendingPathComponent("reminders.json"), legacySuite: suite)
+        let now = Date()
+        let launch = RocketLaunch(id: identifier, source: .rocketLaunchLive, name: "Test launch", missions: [],
+            estimatedDate: .init(month: nil, day: nil, year: nil),
+            details: .init(plannedTime: now.addingTimeInterval(7200)))
+        let repository = NotificationLaunchRepository(launch: launch)
+        let sources: [LaunchSourceConfiguration] = [.init(id: .rocketLaunchLive, repository: repository)]
+        let feature = LaunchScheduleFeature(sources: sources, now: { now }, reminderStorage: storage)
+        await feature.refresh()
+        try await feature.setReminder(for: launch.id, minutesBefore: 15)
+        let saved = try XCTUnwrap(feature.reminders.first)
+        defer { center.removePendingNotificationRequests(withIdentifiers: [saved.notificationID]) }
+        XCTAssertEqual(saved.status, .scheduled)
+        let installed = await center.pendingNotificationRequests()
+        XCTAssertTrue(installed.contains { $0.identifier == saved.notificationID })
+
+        let restored = LaunchScheduleFeature(sources: sources, now: { now }, reminderStorage: storage)
+        await restored.loadRemindersIfNeeded()
+        XCTAssertEqual(restored.reminders, [saved])
+        await restored.removeReminder(launch.id)
+        XCTAssertTrue(restored.reminders.isEmpty)
+        let loadedAfterRemoval = try await ReminderPersistence(storage: storage).load()
+        XCTAssertTrue(loadedAfterRemoval.isEmpty)
+        var pending = await center.pendingNotificationRequests()
+        for _ in 0..<20 where pending.contains(where: { $0.identifier == saved.notificationID }) {
+            try await Task.sleep(for: .milliseconds(100))
+            pending = await center.pendingNotificationRequests()
+        }
+        XCTAssertFalse(pending.contains { $0.identifier == saved.notificationID })
+    }
+
     func testProviderTimeChangeReplacesSystemNotification() async throws {
         let center = UNUserNotificationCenter.current()
         #if CFA_NOTIFICATION_SYSTEM_TEST
