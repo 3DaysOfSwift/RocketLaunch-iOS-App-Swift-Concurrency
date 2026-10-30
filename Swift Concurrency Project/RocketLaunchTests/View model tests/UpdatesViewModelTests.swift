@@ -37,7 +37,8 @@ final class UpdatesViewModelTests: XCTestCase {
         await scenario.repository.respond(.failure(URLError(.notConnectedToInternet)))
         await viewModel.requestRefresh().value
         let failed = try XCTUnwrap(viewModel.sources.first)
-        XCTAssertEqual(failed.phase, .failed(.offline))
+        XCTAssertEqual(failed.phase, .failed)
+        XCTAssertEqual(failed.failure, .offline)
         XCTAssertEqual(viewModel.updates, history)
 
         await scenario.repository.respond(.success([updated]))

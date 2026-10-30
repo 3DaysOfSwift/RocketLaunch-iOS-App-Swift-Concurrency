@@ -203,7 +203,7 @@ final class LaunchScheduleFeature {
             } else {
                 let current = sources[index]
                 sources[index] = LaunchSourceSnapshot(id: current.id, launches: current.launches, fetchedAt: current.fetchedAt,
-                    nextRefreshAt: current.nextRefreshAt, phase: .failed(Self.failure(for: error)))
+                    nextRefreshAt: current.nextRefreshAt, phase: .failed, failure: Self.failure(for: error))
             }
         }
         updateNextLaunch()
@@ -300,7 +300,7 @@ final class LaunchScheduleFeature {
             if let deadline = sources[index].nextRefreshAt, deadline <= currentTime {
                 let current = sources[index]
                 sources[index] = LaunchSourceSnapshot(id: current.id, launches: current.launches, fetchedAt: current.fetchedAt,
-                    nextRefreshAt: nil, phase: current.phase)
+                    nextRefreshAt: nil, phase: current.phase, failure: current.failure)
             }
         }
         upcomingLaunches = LaunchScheduleSnapshot.upcoming(from: sources.flatMap(\.launches), now: currentTime)
@@ -320,7 +320,7 @@ final class LaunchScheduleFeature {
         } else if sources.contains(where: { $0.phase == .loading }) {
             state = .loading
         } else if let failure = sources.compactMap({ snapshot -> LaunchLoadFailure? in
-            if case .failed(let failure) = snapshot.phase { return failure }; return nil
+            snapshot.phase == .failed ? snapshot.failure : nil
         }).first {
             loadFailure = failure
             state = .failed
@@ -835,13 +835,14 @@ struct LaunchSourceSnapshot: Equatable, Sendable, Identifiable {
     let fetchedAt: Date?
     let nextRefreshAt: Date?
     let phase: Phase
+    let failure: LaunchLoadFailure?
 
     init(id: LaunchSourceID, launches: [RocketLaunch] = [], fetchedAt: Date? = nil,
-         nextRefreshAt: Date? = nil, phase: Phase = .idle) {
+         nextRefreshAt: Date? = nil, phase: Phase = .idle, failure: LaunchLoadFailure? = nil) {
         self.id = id; self.launches = launches; self.fetchedAt = fetchedAt
-        self.nextRefreshAt = nextRefreshAt; self.phase = phase
+        self.nextRefreshAt = nextRefreshAt; self.phase = phase; self.failure = failure
     }
-    enum Phase: Equatable, Sendable { case idle, loading, loaded, failed(LaunchLoadFailure) }
+    enum Phase: Equatable, Sendable { case idle, loading, loaded, failed }
 
     func canRefresh(at date: Date) -> Bool {
         phase != .loading && (nextRefreshAt.map { $0 <= date } ?? true)

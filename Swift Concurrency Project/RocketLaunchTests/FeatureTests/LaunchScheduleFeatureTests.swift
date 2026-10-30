@@ -307,7 +307,8 @@ final class ProgressiveLaunchTests: XCTestCase {
         await a.complete(0, with: .failure(URLError(.timedOut)))
         await b.complete(0, with: .success([expected])); await task.value
         let projection21 = feature.snapshot
-        XCTAssertEqual(projection21.sources[0].phase, .failed(.timedOut))
+        XCTAssertEqual(projection21.sources[0].phase, .failed)
+        XCTAssertEqual(projection21.sources[0].failure, .timedOut)
         let projection22 = feature.snapshot
         XCTAssertEqual(projection22.state, .loaded)
         XCTAssertEqual(projection22.displayedLaunch, expected)
@@ -348,7 +349,8 @@ final class ProgressiveLaunchTests: XCTestCase {
         let projection28 = feature.snapshot
         XCTAssertEqual(projection28.operators[0].launches, [record])
         let projection29 = feature.snapshot
-        XCTAssertEqual(projection29.sources[0].phase, .failed(.offline))
+        XCTAssertEqual(projection29.sources[0].phase, .failed)
+        XCTAssertEqual(projection29.sources[0].failure, .offline)
         let projection30 = feature.snapshot
         XCTAssertNil(projection30.nextLaunch)
         let projection31 = feature.snapshot
