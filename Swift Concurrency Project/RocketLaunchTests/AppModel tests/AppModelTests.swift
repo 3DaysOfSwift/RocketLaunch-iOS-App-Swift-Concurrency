@@ -1196,6 +1196,19 @@ final class UnifiedReminderTests: XCTestCase {
         let calls = await client.calls
         XCTAssertEqual(calls, 0)
     }
+    func testStaleDisplayedLaunchTimeDoesNotScheduleAChangedReminder() async throws {
+        let client = ControlledNotifications()
+        let (feature, _) = await model([launch()], client: client)
+        let displayedTime = try XCTUnwrap(launch().details.plannedTime).addingTimeInterval(-3600)
+        do {
+            try await feature.setReminder(for: launch().id, minutesBefore: 5, expectedLaunchTime: displayedTime)
+            XCTFail("A stale screen must not silently schedule a different time")
+        } catch ReminderError.launchTimeChanged {}
+        let calls = await client.calls
+        XCTAssertEqual(calls, 0)
+        let snapshot = await feature.reminderSnapshot
+        XCTAssertTrue(snapshot.reminders.isEmpty)
+    }
     func testInvalidLeadTimeAndElapsedTimeDoNotSchedule() async throws {
         let client = ControlledNotifications()
         let (feature, _) = await model([launch(60)], client: client)

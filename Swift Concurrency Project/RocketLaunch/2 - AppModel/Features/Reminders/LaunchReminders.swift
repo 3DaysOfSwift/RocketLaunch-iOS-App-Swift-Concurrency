@@ -40,7 +40,7 @@ struct LaunchReminder: Identifiable, Codable, Equatable, Sendable {
 /// Saved confirms accepted scheduling, not alert delivery; superseded means newer desired state replaced it.
 enum ReminderSaveOutcome: Equatable, Sendable { case saved, superseded }
 
-enum ReminderError: Error { case unknownTime, tooLate, denied, limit, launchUnavailable, invalidLeadTime, storageUnavailable, storageWriteFailed }
+enum ReminderError: Error { case unknownTime, tooLate, denied, limit, launchUnavailable, invalidLeadTime, storageUnavailable, storageWriteFailed, launchTimeChanged }
 
 protocol LaunchNotificationClient: Sendable {
     func schedule(id: String, title: String, date: Date, askPermission: Bool) async throws

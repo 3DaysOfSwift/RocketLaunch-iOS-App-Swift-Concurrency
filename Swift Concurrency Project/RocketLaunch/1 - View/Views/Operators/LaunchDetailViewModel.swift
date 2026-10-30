@@ -10,7 +10,7 @@ final class LaunchDetailViewModel {
     @discardableResult
     func save() -> Task<Void, Never>? {
         guard let launch else { return nil }
-        return save(launch.id, minutesBefore: minutesBefore)
+        return save(launch.id, minutesBefore: minutesBefore, expectedLaunchTime: launch.details.plannedTime)
     }
 
     var errorMessage: String?
@@ -28,14 +28,14 @@ final class LaunchDetailViewModel {
     }
 
     @discardableResult
-    func save(_ launchID: String, minutesBefore: Int) -> Task<Void, Never> {
+    func save(_ launchID: String, minutesBefore: Int, expectedLaunchTime: Date? = nil) -> Task<Void, Never> {
         if let action { return action }
         errorMessage = nil
         isBusy = true
         let launchScheduleFeature = launchScheduleFeature
         let task = Task { [weak self] in
             do {
-                let outcome = try await launchScheduleFeature.setReminder(for: launchID, minutesBefore: minutesBefore)
+                let outcome = try await launchScheduleFeature.setReminder(for: launchID, minutesBefore: minutesBefore, expectedLaunchTime: expectedLaunchTime)
                 if outcome == .superseded {
                     self?.errorMessage = "The reminder changed while saving. Check Reminders for its latest status."
                 }
@@ -43,6 +43,7 @@ final class LaunchDetailViewModel {
             catch is CancellationError {}
             catch {
                 switch error {
+                case ReminderError.launchTimeChanged: self?.errorMessage = "The launch time has changed. Go back and open the latest launch before setting a reminder."
                 case ReminderError.launchUnavailable: self?.errorMessage = "Refresh the schedule and open the launch again before setting a reminder."
                 case ReminderError.invalidLeadTime: self?.errorMessage = "Choose 5, 15 or 60 minutes before launch."
                 case ReminderError.storageWriteFailed: self?.errorMessage = "The reminder could not be saved. Open Reminders to retry and check its status."

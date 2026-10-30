@@ -618,7 +618,7 @@ final class LaunchScheduleFeature {
     }
 
     @discardableResult
-    func setReminder(for launchID: String, minutesBefore: Int = 15) async throws -> ReminderSaveOutcome {
+    func setReminder(for launchID: String, minutesBefore: Int = 15, expectedLaunchTime: Date? = nil) async throws -> ReminderSaveOutcome {
         // Reject abandoned intent before changing desired state or external notifications.
         // Once admitted, delivery must settle honestly even if the caller cancels later.
         try Task.checkCancellation()
@@ -626,6 +626,7 @@ final class LaunchScheduleFeature {
         try Task.checkCancellation()
         guard remindersLoaded else { throw ReminderError.storageUnavailable }
         guard let launch = sources.lazy.flatMap(\.launches).first(where: { $0.id == launchID }) else { throw ReminderError.launchUnavailable }
+        if let expectedLaunchTime, launch.details.plannedTime != expectedLaunchTime { throw ReminderError.launchTimeChanged }
         guard [5, 15, 60].contains(minutesBefore) else { throw ReminderError.invalidLeadTime }
         guard let time = launch.details.plannedTime else { throw ReminderError.unknownTime }
         let fireDate = time.addingTimeInterval(-Double(minutesBefore) * 60)
