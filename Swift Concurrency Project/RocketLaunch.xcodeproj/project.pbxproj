@@ -338,19 +338,13 @@
 		5E04A7F3004B799FE6627D22 /* Operators */ = {
 			isa = PBXGroup;
 			children = (
-				ECF3AA58DF64286E918A8453 /* OperatorLaunchesView.swift */,
+				CA2200000000000000000006 /* ReminderLaunchDetail */,
+				CA2200000000000000000005 /* UpdatedLaunchDetail */,
+				CA2200000000000000000004 /* OperatorLaunchDetail */,
+				CA2200000000000000000003 /* UpcomingLaunchDetail */,
+				CA2200000000000000000002 /* LaunchDetail */,
+				CA2200000000000000000001 /* OperatorLaunches */,
 				BBC71C48ACC84F3FB8F2ECC8 /* LaunchDetailContent.swift */,
-				10BBC1C97E9F4D5FBFD8DDCA /* ReminderLaunchDetailView.swift */,
-				595AB90DE6694F7890C60B22 /* ReminderLaunchDetailViewModel.swift */,
-				96AB55FA1C744E9EBD867FC1 /* UpdatedLaunchDetailView.swift */,
-				321D39F1EA2C4478AF040407 /* UpdatedLaunchDetailViewModel.swift */,
-				DA4E11B68ED648FB9798F887 /* OperatorLaunchDetailView.swift */,
-				1DC2C8882D2A415F80D1255D /* OperatorLaunchDetailViewModel.swift */,
-				884443EAC3E64AF89D057DC3 /* UpcomingLaunchDetailView.swift */,
-				FF293BD3A30F46C497FA694B /* UpcomingLaunchDetailViewModel.swift */,
-				FCB608C6536947FEA92A95EB /* LaunchDetailView.swift */,
-				7401725948B4428EBA03353D /* LaunchDetailViewModel.swift */,
-				3DE0D3DBFBB342BFA360ABCA /* OperatorLaunchesViewModel.swift */,
 			);
 			path = Operators;
 			sourceTree = "<group>";
@@ -546,6 +540,60 @@
 				561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */,
 			);
 			path = PrivacyPolicy;
+			sourceTree = "<group>";
+		};
+		CA2200000000000000000001 /* OperatorLaunches */ = {
+			isa = PBXGroup;
+			children = (
+				ECF3AA58DF64286E918A8453 /* OperatorLaunchesView.swift */,
+				3DE0D3DBFBB342BFA360ABCA /* OperatorLaunchesViewModel.swift */,
+			);
+			path = OperatorLaunches;
+			sourceTree = "<group>";
+		};
+		CA2200000000000000000002 /* LaunchDetail */ = {
+			isa = PBXGroup;
+			children = (
+				FCB608C6536947FEA92A95EB /* LaunchDetailView.swift */,
+				7401725948B4428EBA03353D /* LaunchDetailViewModel.swift */,
+			);
+			path = LaunchDetail;
+			sourceTree = "<group>";
+		};
+		CA2200000000000000000003 /* UpcomingLaunchDetail */ = {
+			isa = PBXGroup;
+			children = (
+				884443EAC3E64AF89D057DC3 /* UpcomingLaunchDetailView.swift */,
+				FF293BD3A30F46C497FA694B /* UpcomingLaunchDetailViewModel.swift */,
+			);
+			path = UpcomingLaunchDetail;
+			sourceTree = "<group>";
+		};
+		CA2200000000000000000004 /* OperatorLaunchDetail */ = {
+			isa = PBXGroup;
+			children = (
+				DA4E11B68ED648FB9798F887 /* OperatorLaunchDetailView.swift */,
+				1DC2C8882D2A415F80D1255D /* OperatorLaunchDetailViewModel.swift */,
+			);
+			path = OperatorLaunchDetail;
+			sourceTree = "<group>";
+		};
+		CA2200000000000000000005 /* UpdatedLaunchDetail */ = {
+			isa = PBXGroup;
+			children = (
+				96AB55FA1C744E9EBD867FC1 /* UpdatedLaunchDetailView.swift */,
+				321D39F1EA2C4478AF040407 /* UpdatedLaunchDetailViewModel.swift */,
+			);
+			path = UpdatedLaunchDetail;
+			sourceTree = "<group>";
+		};
+		CA2200000000000000000006 /* ReminderLaunchDetail */ = {
+			isa = PBXGroup;
+			children = (
+				10BBC1C97E9F4D5FBFD8DDCA /* ReminderLaunchDetailView.swift */,
+				595AB90DE6694F7890C60B22 /* ReminderLaunchDetailViewModel.swift */,
+			);
+			path = ReminderLaunchDetail;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
