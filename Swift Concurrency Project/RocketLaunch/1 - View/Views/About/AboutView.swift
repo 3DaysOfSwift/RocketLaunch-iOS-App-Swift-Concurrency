@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AboutView: View {
+    @State private var viewModel = AboutViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appColourTheme) private var theme
 
@@ -21,13 +22,13 @@ struct AboutView: View {
                         Text("Behind the schedule").font(.headline)
                         Text("Launch information comes from RocketLaunch.Live, The Space Devs’ Launch Library, and the community SpaceX API. The SpaceX API is not an official SpaceX service. Schedules are provisional and can change; some mission details may not yet be available.")
                             .foregroundStyle(.secondary)
-                        Link(destination: URL(string: "https://github.com/r-spacex/SpaceX-API")!) {
+                        Link(destination: viewModel.spaceXURL) {
                             Label("Community SpaceX API", systemImage: "arrow.up.right.square")
                         }
-                        Link(destination: URL(string: "https://thespacedevs.com/llapi")!) {
+                        Link(destination: viewModel.launchLibraryURL) {
                             Label("Visit The Space Devs", systemImage: "arrow.up.right.square")
                         }
-                        Link(destination: URL(string: "https://www.rocketlaunch.live")!) {
+                        Link(destination: viewModel.rocketLaunchURL) {
                             Label("Visit RocketLaunch.Live", systemImage: "arrow.up.right.square")
                         }
                     }

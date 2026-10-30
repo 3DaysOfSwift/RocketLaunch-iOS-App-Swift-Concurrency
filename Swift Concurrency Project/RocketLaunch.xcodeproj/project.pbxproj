@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A6C8D1B7E9F240F5A6C5B101 /* AboutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C8D1B7E9F240F5A6C5B102 /* AboutViewModel.swift */; };
 		6076452ABDB84C33A4CF2D59 /* LocalLaunchNotificationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */; };
 		65FA53030A69472CBDBED8E5 /* PrivacyPolicyViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */; };
 		8BEA8F7D62864813BB5EF773 /* BundledPrivacyPolicyLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */; };
@@ -89,6 +90,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A6C8D1B7E9F240F5A6C5B102 /* AboutViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModel.swift; sourceTree = "<group>"; };
 		91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLaunchNotificationsTests.swift; sourceTree = "<group>"; };
 		BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunchTests/View model tests/PrivacyPolicyViewModelTests.swift"; sourceTree = SOURCE_ROOT; };
 		3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Services/BundledPrivacyPolicyLoader.swift"; sourceTree = SOURCE_ROOT; };
@@ -426,6 +428,7 @@
 			isa = PBXGroup;
 			children = (
 				D2EA7DB1A9044D47551CE4CA /* AboutView.swift */,
+				A6C8D1B7E9F240F5A6C5B102 /* AboutViewModel.swift */,
 				561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */,
 			);
 			path = About;
@@ -630,6 +633,7 @@
 				2FB377856FE14FB9853509FD /* LaunchDetailScreenViewModel.swift in Sources */,
 				06B6328DB0FB412298C66AF5 /* OperatorLaunchesViewModel.swift in Sources */,
 				5900175C78A56AE96FD7AA37 /* AboutView.swift in Sources */,
+				A6C8D1B7E9F240F5A6C5B101 /* AboutViewModel.swift in Sources */,
 				8BEA8F7D62864813BB5EF773 /* BundledPrivacyPolicyLoader.swift in Sources */,
 				B9291F07BAC8477F9CFDCFD5 /* PrivacyPolicyViewModel.swift in Sources */,
 				C71295EF9F333CF055E11A17 /* AppPresentation.swift in Sources */,

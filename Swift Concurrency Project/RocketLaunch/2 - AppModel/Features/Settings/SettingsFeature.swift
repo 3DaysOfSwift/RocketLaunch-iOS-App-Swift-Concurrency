@@ -14,6 +14,10 @@ final class SettingsFeature {
         self.privacyPolicyLoader = privacyPolicyLoader
         selected = defaults?.string(forKey: Self.storageKey).flatMap(AppColourTheme.init(rawValue:)) ?? .system
     }
+    let spaceXURL = URL(string: "https://github.com/r-spacex/SpaceX-API")!
+    let launchLibraryURL = URL(string: "https://thespacedevs.com/llapi")!
+    let rocketLaunchURL = URL(string: "https://www.rocketlaunch.live")!
+
     func loadPrivacyPolicy() async throws -> String {
         try await privacyPolicyLoader.load()
     }
