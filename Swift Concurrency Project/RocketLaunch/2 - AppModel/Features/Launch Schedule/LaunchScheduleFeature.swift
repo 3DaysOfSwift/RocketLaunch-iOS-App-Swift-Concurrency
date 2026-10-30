@@ -292,8 +292,11 @@ final class LaunchScheduleFeature {
         let eligible = LaunchScheduleSnapshot.upcoming(
             from: sources.filter { if case .failed = $0.phase { return false }; return true }.flatMap(\.launches),
             now: currentTime)
-        let future = eligible.filter { ($0.details.plannedTime ?? .distantPast) >= currentTime }
-        nextLaunch = future.min { $0.details.plannedTime! < $1.details.plannedTime! }
+        let future = eligible.compactMap { launch -> (launch: RocketLaunch, time: Date)? in
+            guard let time = launch.details.plannedTime, time >= currentTime else { return nil }
+            return (launch, time)
+        }
+        nextLaunch = future.min { $0.time < $1.time }?.launch
             ?? eligible.first(where: { $0.details.plannedTime == nil })
         if let nextLaunch { state = sources.contains(where: { $0.phase == .loading }) ? .loading(previous: nextLaunch) : .loaded(nextLaunch) }
         else if sources.contains(where: { $0.phase == .loading }) { state = .loading(previous: state.launch) }
@@ -516,8 +519,8 @@ final class LaunchScheduleFeature {
             }
             let fireDate = launch.details.plannedTime?.addingTimeInterval(-Double(old.minutesBefore) * 60)
             var effect = prepareReminder(launch: launch, minutesBefore: old.minutesBefore, fireDate: fireDate ?? old.fireDate)
-            if fireDate == nil || fireDate! <= now() {
-                let index = reminders.firstIndex(where: { $0.id == launch.id })!
+            if fireDate.map({ $0 <= now() }) ?? true,
+               let index = reminders.firstIndex(where: { $0.id == launch.id }) {
                 reminders[index] = reminders[index].replacing(status: .failed, issue: "Launch time changed. Open this launch to set a new reminder.")
                 effect = .init(desired: reminders[index], previousNotificationID: old.notificationID)
             }
