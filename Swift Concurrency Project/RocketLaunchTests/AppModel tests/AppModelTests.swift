@@ -808,6 +808,26 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), legacy)
     }
 
+    func testMissingMigratedFileDoesNotRestoreOutdatedLegacyReminders() async throws {
+        let suite = "rocket-missing-current-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let file = directory.appendingPathComponent("reminders.json")
+        defer { defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let old = LaunchReminder(launch: launch(), notificationID: "old", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(600), issue: nil)
+        let legacy = try JSONEncoder().encode([old])
+        defaults.set(legacy, forKey: "rocketlaunch.reminders.v1")
+        let storage = ReminderPersistence(storage: .file(file, legacySuite: suite))
+        _ = try await storage.load()
+        try await storage.save([])
+        try FileManager.default.removeItem(at: file)
+        let reopened = ReminderPersistence(storage: .file(file, legacySuite: suite))
+        do { _ = try await reopened.load(); XCTFail("A missing current file must not restore stale reminders") } catch {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(defaults.data(forKey: "rocketlaunch.reminders.v1"), legacy)
+    }
+
     func testFileStorageReportsWriteFailureWithoutReplacingLegacyData() async throws {
         let suite = "rocket-file-failure-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

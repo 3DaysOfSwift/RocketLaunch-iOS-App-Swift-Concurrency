@@ -130,6 +130,7 @@ actor ReminderPersistence: ReminderPersisting {
     private var memoryData: Data?
     private var fileURL: URL?
     private var opened = false
+    private static let fileCreatedKey = "rocketlaunch.reminders.fileCreated.v1"
 
     init(storage: ReminderStorage) { self.storage = storage }
 
@@ -162,6 +163,9 @@ actor ReminderPersistence: ReminderPersisting {
             guard let fileURL else { throw StorageError.unavailable }
             if FileManager.default.fileExists(atPath: fileURL.path) {
                 data = try Data(contentsOf: fileURL)
+            } else if defaults?.bool(forKey: Self.fileCreatedKey) == true {
+                // The legacy backup is no longer current once file storage has been used.
+                throw StorageError.unavailable
             } else if let legacyValue = defaults?.object(forKey: "rocketlaunch.reminders.v1") {
                 guard let legacy = legacyValue as? Data else { throw StorageError.unavailable }
                 // Validate before copying and retain the old value as a recovery backup.
@@ -171,7 +175,12 @@ actor ReminderPersistence: ReminderPersisting {
             } else { data = nil }
         }
         guard let data else { return [] }
-        return try JSONDecoder().decode([LaunchReminder].self, from: data)
+        let reminders = try JSONDecoder().decode([LaunchReminder].self, from: data)
+        switch storage {
+        case .standard, .file: defaults?.set(true, forKey: Self.fileCreatedKey)
+        case .memory, .suite: break
+        }
+        return reminders
     }
 
     private func writeFile(_ data: Data, to url: URL) throws {
@@ -188,6 +197,7 @@ actor ReminderPersistence: ReminderPersisting {
         case .standard, .file:
             guard let fileURL else { throw StorageError.unavailable }
             try writeFile(data, to: fileURL)
+            defaults?.set(true, forKey: Self.fileCreatedKey)
         }
     }
 }
