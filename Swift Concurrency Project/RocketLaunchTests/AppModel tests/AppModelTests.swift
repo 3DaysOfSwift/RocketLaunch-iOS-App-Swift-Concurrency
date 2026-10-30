@@ -381,6 +381,32 @@ final class UnifiedReminderTests: XCTestCase {
         observer.cancel()
     }
 
+    func testStandaloneRefreshStartsReminderRecoveryWithoutWaitingForIt() async throws {
+        let loadStarted = expectation(description: "Reminder load started")
+        let original = launch(3600)
+        let updated = launch(7200)
+        let reminder = LaunchReminder(launch: original, notificationID: "old", minutesBefore: 5,
+            fireDate: now.addingTimeInterval(3300), issue: nil)
+        let storage = HeldLoadReminderPersistence(initial: [reminder]) { loadStarted.fulfill() }
+        let repository = MutableLaunchRepository([updated])
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            now: { [now] in now }, notificationClient: ControlledNotifications(), reminderPersistence: storage)
+        await feature.refresh()
+        await fulfillment(of: [loadStarted], timeout: 2)
+        XCTAssertEqual(feature.sources.first?.launches, [updated])
+        let reconciled = expectation(description: "Reminder reconciled after load")
+        let observer = Task {
+            for await value in await feature.reminderSnapshots() {
+                if value.reminders.first?.status == .scheduled && value.reminders.first?.launch == updated {
+                    reconciled.fulfill(); return
+                }
+            }
+        }
+        await storage.releaseLoad()
+        await fulfillment(of: [reconciled], timeout: 2)
+        observer.cancel()
+    }
+
     func testDelayedReminderLoadReconcilesScheduleAlreadyDownloaded() async throws {
         let loadStarted = expectation(description: "Reminder load started")
         let original = launch(3600)

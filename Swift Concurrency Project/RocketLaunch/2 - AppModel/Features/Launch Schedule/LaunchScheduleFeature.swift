@@ -124,6 +124,7 @@ final class LaunchScheduleFeature {
     }
 
     private func refresh(source: LaunchSourceID, onlyIfNeeded: Bool) async {
+        startReminderLoadingIfNeeded()
         let waiterID = UUID()
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
@@ -356,6 +357,7 @@ final class LaunchScheduleFeature {
 
     private let notificationClient: any LaunchNotificationClient
     private let reminderPersistence: any ReminderPersisting
+    @ObservationIgnored private var reminderBootstrapTask: Task<Void, Never>?
     @ObservationIgnored private var reminderLoadTask: Task<[LaunchReminder], any Error>?
     @ObservationIgnored private var reminderPersistenceTask: Task<Bool, Never>?
     @ObservationIgnored private var reminderLoadID: UUID?
@@ -402,6 +404,14 @@ final class LaunchScheduleFeature {
         return stream
     }
     private func removeReminderObserver(_ id: UUID) { reminderObservers[id] = nil }
+    private func startReminderLoadingIfNeeded() {
+        guard !remindersLoaded, reminderBootstrapTask == nil else { return }
+        reminderBootstrapTask = Task { [weak self] in
+            await self?.loadRemindersIfNeeded()
+            self?.reminderBootstrapTask = nil
+        }
+    }
+
     func loadRemindersIfNeeded() async {
         guard !remindersLoaded else { return }
         let task: Task<[LaunchReminder], any Error>
