@@ -151,8 +151,9 @@ final class LaunchScheduleFeature {
         if let retryAt = sources[index].nextRefreshAt, now() < retryAt { continuation.resume(); return }
         let previous = sources[index]
         let id = UUID()
-        sources[index].phase = .loading
-        sources[index].nextRefreshAt = now().addingTimeInterval(configuration.minimumRefreshInterval)
+        let current = sources[index]
+        sources[index] = LaunchSourceSnapshot(id: current.id, launches: current.launches, fetchedAt: current.fetchedAt,
+            nextRefreshAt: now().addingTimeInterval(configuration.minimumRefreshInterval), phase: .loading)
         updateNextLaunch()
         let repository = configuration.repository
         let task = Task { [weak self] in
@@ -186,16 +187,20 @@ final class LaunchScheduleFeature {
         switch result {
         case .success(let launches):
             recordChanges(from: sources[index].launches, to: launches)
-            sources[index].launches = launches
-            sources[index].fetchedAt = now()
-            sources[index].phase = .loaded
+            let current = sources[index]
+            sources[index] = LaunchSourceSnapshot(id: current.id, launches: launches, fetchedAt: now(),
+                nextRefreshAt: current.nextRefreshAt, phase: .loaded)
             rebuildOperators()
             // Cache and desired reminders change in one uninterrupted actor operation.
             effects = reconcileReminders(with: launches)
         case .failure(let error):
             if error is CancellationError || (error as? URLError)?.code == .cancelled {
                 sources[index] = request.previous
-            } else { sources[index].phase = .failed(Self.failure(for: error)) }
+            } else {
+                let current = sources[index]
+                sources[index] = LaunchSourceSnapshot(id: current.id, launches: current.launches, fetchedAt: current.fetchedAt,
+                    nextRefreshAt: current.nextRefreshAt, phase: .failed(Self.failure(for: error)))
+            }
         }
         updateNextLaunch()
         // Download ownership ends with the atomic model commit. Notification delivery
@@ -278,7 +283,9 @@ final class LaunchScheduleFeature {
         // Expiring a cooldown is a meaningful UI change, even when launches did not change.
         for index in sources.indices {
             if let deadline = sources[index].nextRefreshAt, deadline <= currentTime {
-                sources[index].nextRefreshAt = nil
+                let current = sources[index]
+                sources[index] = LaunchSourceSnapshot(id: current.id, launches: current.launches, fetchedAt: current.fetchedAt,
+                    nextRefreshAt: nil, phase: current.phase)
             }
         }
         upcomingLaunches = LaunchScheduleSnapshot.upcoming(from: sources.flatMap(\.launches), now: currentTime)
@@ -307,13 +314,14 @@ final class LaunchScheduleFeature {
             let name = LaunchOperator.canonicalName(grouped[key]?.first?.details.provider)
             operators.append(LaunchOperator(id: key, name: name, launches: []))
         }
-        for index in operators.indices {
-            operators[index].sourceIDs.formUnion((grouped[operators[index].id] ?? []).map(\.source))
-            operators[index].launches = (grouped[operators[index].id] ?? []).sorted {
+        operators = operators.map { current in
+            let launches = (grouped[current.id] ?? []).sorted {
                 let lhs = $0.details.sortTime ?? $0.details.plannedTime ?? .distantFuture
                 let rhs = $1.details.sortTime ?? $1.details.plannedTime ?? .distantFuture
                 return lhs == rhs ? $0.id < $1.id : lhs < rhs
             }
+            return LaunchOperator(id: current.id, name: current.name, launches: launches,
+                sourceIDs: current.sourceIDs.union(launches.map(\.source)))
         }
     }
 
@@ -621,18 +629,28 @@ struct LaunchSourceConfiguration: Sendable {
 
 struct LaunchSourceSnapshot: Equatable, Sendable, Identifiable {
     let id: LaunchSourceID
-    var launches: [RocketLaunch] = []
-    var fetchedAt: Date?
-    var nextRefreshAt: Date?
-    var phase: Phase = .idle
+    let launches: [RocketLaunch]
+    let fetchedAt: Date?
+    let nextRefreshAt: Date?
+    let phase: Phase
+
+    init(id: LaunchSourceID, launches: [RocketLaunch] = [], fetchedAt: Date? = nil,
+         nextRefreshAt: Date? = nil, phase: Phase = .idle) {
+        self.id = id; self.launches = launches; self.fetchedAt = fetchedAt
+        self.nextRefreshAt = nextRefreshAt; self.phase = phase
+    }
     enum Phase: Equatable, Sendable { case idle, loading, loaded, failed(LaunchLoadFailure) }
 }
 
 struct LaunchOperator: Equatable, Sendable, Identifiable {
     let id: String
     let name: String
-    var launches: [RocketLaunch]
-    var sourceIDs: Set<LaunchSourceID> = []
+    let launches: [RocketLaunch]
+    let sourceIDs: Set<LaunchSourceID>
+
+    init(id: String, name: String, launches: [RocketLaunch], sourceIDs: Set<LaunchSourceID> = []) {
+        self.id = id; self.name = name; self.launches = launches; self.sourceIDs = sourceIDs
+    }
     static func canonicalName(_ name: String?) -> String {
         let trimmed = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         switch trimmed.lowercased() {

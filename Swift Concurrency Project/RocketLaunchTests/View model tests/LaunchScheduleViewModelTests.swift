@@ -200,11 +200,11 @@ extension LaunchScheduleViewModelTests {
         XCTAssertFalse(SourceStatusPresentation.canRetry(source, at: deadline.addingTimeInterval(-0.001)))
         XCTAssertTrue(SourceStatusPresentation.canRetry(source, at: deadline))
         XCTAssertTrue(SourceStatusPresentation.canRetry(source, at: deadline.addingTimeInterval(1)))
-        source.phase = .loading
+        source = LaunchSourceSnapshot(id: .rocketLaunchLive, nextRefreshAt: deadline, phase: .loading)
         XCTAssertFalse(SourceStatusPresentation.canRetry(source, at: deadline.addingTimeInterval(1)))
-        source.nextRefreshAt = nil
+        source = LaunchSourceSnapshot(id: .rocketLaunchLive, phase: .loading)
         XCTAssertFalse(SourceStatusPresentation.canRetry(source, at: deadline))
-        source.phase = .idle
+        source = LaunchSourceSnapshot(id: .rocketLaunchLive, phase: .idle)
         XCTAssertTrue(SourceStatusPresentation.canRetry(source, at: deadline))
     }
 
