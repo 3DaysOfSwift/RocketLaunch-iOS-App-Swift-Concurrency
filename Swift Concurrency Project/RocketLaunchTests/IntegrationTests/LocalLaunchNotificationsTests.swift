@@ -127,6 +127,24 @@ final class LocalLaunchNotificationsTests: XCTestCase {
         XCTAssertTrue(pending.contains { $0.identifier == replacement.notificationID })
     }
 
+    func testDetailScreensShowSavedReminderAndKeepTheirOwnEdits() async throws {
+        let system = NotificationSystemStub(status: .authorized)
+        let (feature, launch) = await reminderFeature(system: system)
+        try await feature.setReminder(for: launch.id, minutesBefore: 5)
+        let next = LaunchDetailViewModel(launch: launch, launchScheduleFeature: feature)
+        let schedule = UpcomingLaunchDetailViewModel(launch: launch, launchScheduleFeature: feature)
+        let operators = OperatorLaunchDetailViewModel(launch: launch, launchScheduleFeature: feature)
+        let changes = UpdatedLaunchDetailViewModel(launch: launch, launchScheduleFeature: feature)
+        let reminders = ReminderLaunchDetailViewModel(launch: launch, launchScheduleFeature: feature)
+        XCTAssertEqual([next.minutesBefore, schedule.minutesBefore, operators.minutesBefore,
+                        changes.minutesBefore, reminders.minutesBefore], [5, 5, 5, 5, 5])
+        next.minutesBefore = 15
+        try await feature.setReminder(for: launch.id, minutesBefore: 60)
+        XCTAssertEqual(next.minutesBefore, 15)
+        XCTAssertEqual(schedule.minutesBefore, 60)
+        XCTAssertEqual(reminders.minutesBefore, 60)
+    }
+
     func testPermissionFailureCanRetryAndInstallThenCancel() async throws {
         let system = NotificationSystemStub()
         let client = LocalLaunchNotifications(system: system)

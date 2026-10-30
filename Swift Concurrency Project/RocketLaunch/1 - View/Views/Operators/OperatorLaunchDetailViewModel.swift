@@ -3,7 +3,15 @@ import Observation
 
 @MainActor @Observable
 final class OperatorLaunchDetailViewModel {
-    var minutesBefore = 15
+    private var reminderDraftMinutes: Int?
+    var minutesBefore: Int {
+        get {
+            reminderDraftMinutes ?? launch.flatMap { selected in
+                launchScheduleFeature.reminders.first { $0.id == selected.id }?.minutesBefore
+            } ?? 15
+        }
+        set { reminderDraftMinutes = newValue }
+    }
     let launch: RocketLaunch?
     var reminderSaved: Bool { launch.map { launchScheduleFeature.hasActiveReminder(for: $0.id) } ?? false }
 
