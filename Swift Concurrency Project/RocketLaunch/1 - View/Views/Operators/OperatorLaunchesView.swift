@@ -1,7 +1,11 @@
 import SwiftUI
 
 struct OperatorLaunchesView: View {
-    @State private var viewModel = OperatorLaunchesViewModel()
+    @State private var viewModel: OperatorLaunchesViewModel
+
+    init(operator selected: LaunchOperator) {
+        _viewModel = State(initialValue: OperatorLaunchesViewModel(operator: selected))
+    }
 
     var body: some View {
         ThemedList {

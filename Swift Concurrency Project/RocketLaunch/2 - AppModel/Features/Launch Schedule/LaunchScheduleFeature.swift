@@ -4,12 +4,6 @@ import Observation
 /// Owns observable application state. Network decoding and persistence use service actors.
 @MainActor @Observable
 final class LaunchScheduleFeature {
-    private(set) var selectedOperator: LaunchOperator?
-
-    func selectOperator(_ selected: LaunchOperator) {
-        selectedOperator = selected
-    }
-
     private(set) var state: LaunchScheduleState = .idle
     private(set) var sources: [LaunchSourceSnapshot]
     private(set) var operators: [LaunchOperator] = []

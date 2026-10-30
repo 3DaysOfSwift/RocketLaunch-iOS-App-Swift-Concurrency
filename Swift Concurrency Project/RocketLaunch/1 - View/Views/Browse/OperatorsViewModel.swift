@@ -4,8 +4,9 @@ import Observation
 @MainActor @Observable
 final class OperatorsViewModel {
     var showingOperator = false
+    private(set) var selectedOperator: LaunchOperator?
     func showOperator(_ selected: LaunchOperator) {
-        feature.selectOperator(selected)
+        selectedOperator = selected
         showingOperator = true
     }
 

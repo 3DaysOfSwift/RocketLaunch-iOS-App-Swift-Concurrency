@@ -66,7 +66,9 @@ struct OperatorsView: View {
         .buttonStyle(.plain)
         .modifier(ThemedListBackground())
         .navigationTitle("Who’s launching?")
-        .navigationDestination(isPresented: $viewModel.showingOperator) { OperatorLaunchesView() }
+        .navigationDestination(isPresented: $viewModel.showingOperator) {
+            if let selected = viewModel.selectedOperator { OperatorLaunchesView(operator: selected) }
+        }
         .searchable(text: $viewModel.filters.search, prompt: "Search companies and agencies")
     }
 }

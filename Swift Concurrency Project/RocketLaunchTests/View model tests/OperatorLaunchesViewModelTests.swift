@@ -7,7 +7,7 @@ final class OperatorLaunchesViewModelTests: XCTestCase {
         let scenario = LaunchScenario()
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)
         await scenario.prepare(.loaded(launch))
-        let viewModel = OperatorLaunchesViewModel(feature: scenario.feature)
+        let viewModel = OperatorLaunchesViewModel(operator: LaunchOperator(id: "spacex", name: "SpaceX", launches: []), feature: scenario.feature)
         let group = try XCTUnwrap(scenario.feature.operators.first)
         XCTAssertEqual(viewModel.launches(for: group.id), group.launches)
         XCTAssertTrue(viewModel.launches(for: "unknown").isEmpty)
@@ -21,7 +21,7 @@ final class OperatorLaunchesViewModelTests: XCTestCase {
             .init(id: .spaceX, repository: PresentationLaunchRepository()),
             .init(id: .launchLibrary, repository: PresentationLaunchRepository())
         ])
-        let viewModel = OperatorLaunchesViewModel(feature: feature)
+        let viewModel = OperatorLaunchesViewModel(operator: LaunchOperator(id: "spacex", name: "SpaceX", launches: []), feature: feature)
         XCTAssertEqual(viewModel.relevantSources(for: "spacex").map(\.id), [.spaceX, .launchLibrary])
         XCTAssertEqual(viewModel.relevantSources(for: "other").map(\.id), [.launchLibrary])
     }
@@ -31,7 +31,7 @@ final class OperatorLaunchesViewModelTests: XCTestCase {
         let finished = expectation(description: "Provider finished")
         let repository = LifecycleRepository(onRequest: { started.fulfill() }, onFinish: { finished.fulfill() })
         let feature = LaunchScheduleFeature(repository: repository)
-        let viewModel = OperatorLaunchesViewModel(feature: feature)
+        let viewModel = OperatorLaunchesViewModel(operator: LaunchOperator(id: "spacex", name: "SpaceX", launches: []), feature: feature)
         let first = viewModel.requestRefresh(source: .rocketLaunchLive)
         await waitFor([started])
         let repeated = viewModel.requestRefresh(source: .rocketLaunchLive)
