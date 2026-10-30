@@ -55,6 +55,11 @@ struct LaunchScheduleView: View {
             .padding(.bottom, 24)
         }
         .simultaneousGesture(TapGesture(count: 2).onEnded { viewModel.selectNextTheme() })
+        .safeAreaInset(edge: .bottom) {
+            if let error = viewModel.themeError {
+                Text(error).font(.caption).padding(8).background(.regularMaterial)
+            }
+        }
         .background(theme.background)
         .foregroundStyle(theme.foreground)
         .onDisappear { viewModel.cancelRefresh() }

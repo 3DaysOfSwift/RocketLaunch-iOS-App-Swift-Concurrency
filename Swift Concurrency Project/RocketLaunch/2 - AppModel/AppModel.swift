@@ -17,9 +17,10 @@ final class AppModel {
     func applicationDidFinishLaunching() async {
         guard !hasLaunched else { return }
         hasLaunched = true
+        async let settings: Void = settingsFeature.loadIfNeeded()
         async let reminders: Void = launchScheduleFeature.loadRemindersIfNeeded()
         async let launches: Void = launchScheduleFeature.loadIfNeeded()
-        _ = await (reminders, launches)
+        _ = await (settings, reminders, launches)
     }
 
     func applicationDidBecomeActive() async {
@@ -36,6 +37,6 @@ final class AppModel {
             .init(id: .rocketLaunchLive, repository: repository),
             .init(id: .launchLibrary, repository: library, minimumRefreshInterval: 300),
             .init(id: .spaceX, repository: spaceX, minimumRefreshInterval: 60)
-        ], reminderStorage: .standard), settingsFeature: SettingsFeature(defaults: .standard))
+        ], reminderStorage: .standard), settingsFeature: SettingsFeature(persistence: ThemePersistence(storage: .standard)))
     }
 }

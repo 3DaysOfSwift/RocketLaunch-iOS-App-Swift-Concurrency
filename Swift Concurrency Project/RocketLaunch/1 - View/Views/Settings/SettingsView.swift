@@ -6,6 +6,14 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            if let error = viewModel.storageError {
+                Section {
+                    Text(error).foregroundStyle(.red)
+                    if viewModel.canRetryLoading {
+                        Button("Retry loading settings") { viewModel.retry() }
+                    }
+                }
+            }
             Section {
                 Picker("Colour theme", selection: $viewModel.selectedTheme) {
                     ForEach(AppColourTheme.allCases) { theme in
