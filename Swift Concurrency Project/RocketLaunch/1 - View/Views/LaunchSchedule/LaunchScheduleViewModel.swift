@@ -185,12 +185,16 @@ struct LaunchPresentation {
         }
         return known(details.estimatedDateLabel)
     }
-    var timingNote: String {
-        guard let date = launch?.details.plannedTime else {
+    var timingNote: String { timingNote(at: Date()) }
+    func timingNote(at date: Date) -> String {
+        switch launch?.details.countdown(at: date) ?? .timeUnconfirmed {
+        case .timeUnconfirmed:
             return String(localized: "Estimated date · Exact time not announced")
+        case .awaitingUpdate:
+            return String(localized: "Scheduled time has passed · Awaiting an updated schedule")
+        case .remaining:
+            return String(localized: "Your local time · Schedule may change")
         }
-        if date < Date() { return String(localized: "Scheduled time has passed · Awaiting an updated schedule") }
-        return String(localized: "Your local time · Schedule may change")
     }
     private func known(_ value: String?) -> String {
         guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

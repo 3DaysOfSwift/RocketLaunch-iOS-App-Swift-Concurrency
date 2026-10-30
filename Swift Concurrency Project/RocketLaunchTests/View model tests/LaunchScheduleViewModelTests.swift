@@ -36,6 +36,14 @@ final class LaunchScheduleViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.timingNote.contains("Exact time not announced"))
     }
 
+    @MainActor func testTimingNoteUsesModelCountdownBoundary() throws {
+        let launch = try XCTUnwrap(LaunchFixtures.launches().first { $0.details.plannedTime != nil })
+        let time = try XCTUnwrap(launch.details.plannedTime)
+        let presentation = LaunchPresentation(launch: launch)
+        XCTAssertTrue(presentation.timingNote(at: time.addingTimeInterval(-1)).contains("Schedule may change"))
+        XCTAssertTrue(presentation.timingNote(at: time).contains("Awaiting an updated schedule"))
+    }
+
     @MainActor func testInitialStateDoesNotStartNetworking() async {
         let scenario = LaunchScenario()
         let feature = scenario.feature
