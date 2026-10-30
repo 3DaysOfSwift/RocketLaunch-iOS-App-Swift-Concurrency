@@ -15,6 +15,24 @@ final class RemindersViewModelTests: XCTestCase {
         XCTAssertTrue(atDeadline.reminderTimeHasPassed(reminder))
     }
 
+    func testRepeatedRemovalSharesTheInFlightTask() async throws {
+        let launch = try XCTUnwrap(LaunchFixtures.launches().first)
+        let reminder = LaunchReminder(launch: launch, notificationID: launch.id, minutesBefore: 15,
+            fireDate: Date().addingTimeInterval(3600), issue: nil)
+        let started = expectation(description: "removal save started")
+        let storage = HeldReminderScreenPersistence(reminders: [reminder], onSave: { started.fulfill() })
+        let feature = LaunchScheduleFeature(sources: [], notificationClient: ReminderScreenNotifications(), reminderPersistence: storage)
+        let screen = RemindersViewModel(launchScheduleFeature: feature)
+        await screen.loadIfNeeded().value
+        let first = screen.remove(launch.id)
+        await fulfillment(of: [started], timeout: 2)
+        let second = screen.remove(launch.id)
+        XCTAssertEqual(first, second)
+        await storage.release()
+        await first.value
+        XCTAssertTrue(screen.reminders.isEmpty)
+    }
+
     func testDistinctRemovalsQueueWhileTheFirstSaveIsSuspended() async throws {
         let launches = try LaunchFixtures.launches()
         let first = try XCTUnwrap(launches.first)
