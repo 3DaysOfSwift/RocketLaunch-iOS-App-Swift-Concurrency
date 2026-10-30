@@ -3,13 +3,13 @@ import Observation
 
 @MainActor @Observable
 final class AboutViewModel {
-    @ObservationIgnored private let feature: SettingsFeature
+    @ObservationIgnored private let settingsFeature: SettingsFeature
 
-    init(feature: SettingsFeature = AppModel.shared.settingsFeature) {
-        self.feature = feature
+    init(settingsFeature: SettingsFeature = AppModel.shared.settingsFeature) {
+        self.settingsFeature = settingsFeature
     }
 
-    var spaceXURL: URL { feature.spaceXURL }
-    var launchLibraryURL: URL { feature.launchLibraryURL }
-    var rocketLaunchURL: URL { feature.rocketLaunchURL }
+    var spaceXURL: URL { settingsFeature.spaceXURL }
+    var launchLibraryURL: URL { settingsFeature.launchLibraryURL }
+    var rocketLaunchURL: URL { settingsFeature.rocketLaunchURL }
 }
