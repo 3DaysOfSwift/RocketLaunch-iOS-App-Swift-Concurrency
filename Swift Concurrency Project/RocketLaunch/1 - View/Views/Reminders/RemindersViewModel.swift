@@ -52,14 +52,17 @@ final class RemindersViewModel {
         isBusy = true
         let launchScheduleFeature = launchScheduleFeature
         let task = Task { [weak self] in
+            defer {
+                if self?.actionID == id {
+                    self?.isBusy = false
+                    self?.action = nil
+                    self?.actionID = nil
+                    self?.currentIntent = nil
+                }
+            }
             await previous?.value
             guard !Task.isCancelled else { return }
             await operation(launchScheduleFeature)
-            guard self?.actionID == id else { return }
-            self?.isBusy = false
-            self?.action = nil
-            self?.actionID = nil
-            self?.currentIntent = nil
         }
         action = task
         return task

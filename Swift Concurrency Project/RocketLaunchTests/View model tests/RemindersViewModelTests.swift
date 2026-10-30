@@ -58,6 +58,30 @@ final class RemindersViewModelTests: XCTestCase {
         XCTAssertTrue(stored.isEmpty)
     }
 
+    func testCancelledQueuedRemovalClearsBusyAndKeepsReminder() async throws {
+        let launches = try LaunchFixtures.launches()
+        let first = try XCTUnwrap(launches.first)
+        let second = try XCTUnwrap(launches.dropFirst().first)
+        let saved = [first, second].map { launch in
+            LaunchReminder(launch: launch, notificationID: launch.id, minutesBefore: 15,
+                fireDate: Date().addingTimeInterval(3600), issue: nil)
+        }
+        let started = expectation(description: "first save started")
+        let storage = HeldReminderScreenPersistence(reminders: saved, onSave: { started.fulfill() })
+        let feature = LaunchScheduleFeature(sources: [], notificationClient: ReminderScreenNotifications(), reminderPersistence: storage)
+        let screen = RemindersViewModel(launchScheduleFeature: feature)
+        await screen.loadIfNeeded().value
+        let firstRemoval = screen.remove(first.id)
+        await fulfillment(of: [started], timeout: 2)
+        let secondRemoval = screen.remove(second.id)
+        secondRemoval.cancel()
+        await storage.release()
+        await firstRemoval.value
+        await secondRemoval.value
+        XCTAssertFalse(screen.isBusy)
+        XCTAssertEqual(screen.reminders.map(\.id), [second.id])
+    }
+
     func testQueuedRemovalsFinishAfterScreenIsReleased() async throws {
         let launches = try LaunchFixtures.launches()
         let first = try XCTUnwrap(launches.first)
