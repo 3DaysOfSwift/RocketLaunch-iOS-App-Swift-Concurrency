@@ -6,6 +6,30 @@ import UserNotifications
 final class LocalLaunchNotificationsTests: XCTestCase {
     private let date = Date(timeIntervalSince1970: 2_000_000_000)
 
+    func testSystemNotificationIsInstalledAndRemoved() async throws {
+        let center = UNUserNotificationCenter.current()
+        let status = await center.notificationSettings().authorizationStatus
+        guard status == .authorized || status == .provisional else {
+            throw XCTSkip("Notification permission is not granted for the test host.")
+        }
+        let id = "cfa-notification-test-" + UUID().uuidString
+        defer { center.removePendingNotificationRequests(withIdentifiers: [id]) }
+        let system = SystemLaunchNotifications()
+        let date = Date().addingTimeInterval(3600)
+        try await system.add(id: id, title: "Test launch", date: date)
+        let pending = await center.pendingNotificationRequests()
+        let request = try XCTUnwrap(pending.first { $0.identifier == id })
+        XCTAssertEqual(request.content.body, "Test launch")
+        XCTAssertNotNil(request.trigger as? UNCalendarNotificationTrigger)
+        await system.remove(id)
+        var remaining = await center.pendingNotificationRequests()
+        for _ in 0..<20 where remaining.contains(where: { $0.identifier == id }) {
+            try await Task.sleep(for: .milliseconds(100))
+            remaining = await center.pendingNotificationRequests()
+        }
+        XCTAssertFalse(remaining.contains { $0.identifier == id })
+    }
+
     func testPermissionFailureCanRetryAndInstallThenCancel() async throws {
         let system = NotificationSystemStub()
         let client = LocalLaunchNotifications(system: system)
