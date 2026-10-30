@@ -27,6 +27,19 @@ final class PrivacyPolicyViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.loadError)
     }
 
+    func testRepeatedRetryReturnsTheSameInFlightTask() async {
+        let started = expectation(description: "retry started")
+        let loader = HeldPolicyFixture(started: { started.fulfill() })
+        let viewModel = PrivacyPolicyViewModel(settingsFeature: SettingsFeature(privacyPolicyLoader: loader))
+        let first = viewModel.retry()
+        await fulfillment(of: [started], timeout: 2)
+        let second = viewModel.retry()
+        XCTAssertEqual(first, second)
+        await loader.finish()
+        await first.value
+        XCTAssertEqual(viewModel.text, "Abandoned policy")
+    }
+
     func testCancelledCallerDoesNotPublishLatePolicyAndCanRetry() async {
         let started = expectation(description: "read started")
         let loader = HeldPolicyFixture(started: { started.fulfill() })

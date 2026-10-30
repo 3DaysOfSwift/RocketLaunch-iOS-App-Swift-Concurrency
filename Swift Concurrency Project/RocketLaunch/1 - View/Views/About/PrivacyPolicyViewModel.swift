@@ -14,12 +14,15 @@ final class PrivacyPolicyViewModel {
         self.settingsFeature = settingsFeature
     }
 
-    func retry() {
-        guard retryTask == nil else { return }
-        retryTask = Task { [weak self] in
+    @discardableResult
+    func retry() -> Task<Void, Never> {
+        if let retryTask { return retryTask }
+        let task = Task { [weak self] in
             await self?.load()
             self?.retryTask = nil
         }
+        retryTask = task
+        return task
     }
 
     deinit { retryTask?.cancel() }
