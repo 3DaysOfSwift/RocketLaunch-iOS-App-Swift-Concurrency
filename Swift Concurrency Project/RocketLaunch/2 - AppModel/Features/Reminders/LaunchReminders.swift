@@ -3,17 +3,22 @@ import UserNotifications
 
 struct LaunchReminder: Identifiable, Codable, Equatable, Sendable {
     var id: String { launch.id }
-    var launch: RocketLaunch
+    let launch: RocketLaunch
     let notificationID: String
     let minutesBefore: Int
     let fireDate: Date
-    var issue: String?
-    var status: Status = .scheduled
+    let issue: String?
+    let status: Status
     enum Status: String, Codable, Sendable { case pending, scheduled, failed }
 
     init(launch: RocketLaunch, notificationID: String, minutesBefore: Int, fireDate: Date, issue: String?, status: Status = .scheduled) {
         self.launch = launch; self.notificationID = notificationID; self.minutesBefore = minutesBefore
         self.fireDate = fireDate; self.issue = issue; self.status = status
+    }
+    func replacing(launch: RocketLaunch? = nil, status: Status? = nil, issue: String?? = nil) -> LaunchReminder {
+        LaunchReminder(launch: launch ?? self.launch, notificationID: notificationID,
+            minutesBefore: minutesBefore, fireDate: fireDate, issue: issue ?? self.issue,
+            status: status ?? self.status)
     }
     private enum CodingKeys: String, CodingKey { case launch, notificationID, minutesBefore, fireDate, issue, status }
     init(from decoder: any Decoder) throws {

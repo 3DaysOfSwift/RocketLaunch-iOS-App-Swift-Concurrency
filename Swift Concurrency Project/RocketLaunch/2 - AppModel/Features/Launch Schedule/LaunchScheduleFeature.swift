@@ -403,8 +403,7 @@ final class LaunchScheduleFeature {
             remindersLoaded = true
             reminderStorageError = nil
             for index in reminders.indices where reminders[index].status == .pending {
-                reminders[index].status = .failed
-                reminders[index].issue = "Scheduling was interrupted. Set this reminder again."
+                reminders[index] = reminders[index].replacing(status: .failed, issue: "Scheduling was interrupted. Set this reminder again.")
             }
             reminderRevision += 1
             let snapshot = currentReminderSnapshot
@@ -480,8 +479,7 @@ final class LaunchScheduleFeature {
                     reminders[index] = previousReminder
                     reminders.sort { $0.fireDate < $1.fireDate }
                 } else {
-                    reminders[index].status = .failed
-                    reminders[index].issue = "The reminder could not be saved. Set this reminder again after retrying storage."
+                    reminders[index] = reminders[index].replacing(status: .failed, issue: "The reminder could not be saved. Set this reminder again after retrying storage.")
                 }
                 reminderRevision += 1
                 let snapshot = currentReminderSnapshot
@@ -513,15 +511,14 @@ final class LaunchScheduleFeature {
             guard let old = reminders.first(where: { $0.id == launch.id }), old.launch != launch else { continue }
             changed = true
             if old.launch.details.plannedTime == launch.details.plannedTime {
-                if let index = reminders.firstIndex(where: { $0.id == launch.id }) { reminders[index].launch = launch }
+                if let index = reminders.firstIndex(where: { $0.id == launch.id }) { reminders[index] = reminders[index].replacing(launch: launch) }
                 continue
             }
             let fireDate = launch.details.plannedTime?.addingTimeInterval(-Double(old.minutesBefore) * 60)
             var effect = prepareReminder(launch: launch, minutesBefore: old.minutesBefore, fireDate: fireDate ?? old.fireDate)
             if fireDate == nil || fireDate! <= now() {
                 let index = reminders.firstIndex(where: { $0.id == launch.id })!
-                reminders[index].status = .failed
-                reminders[index].issue = "Launch time changed. Open this launch to set a new reminder."
+                reminders[index] = reminders[index].replacing(status: .failed, issue: "Launch time changed. Open this launch to set a new reminder.")
                 effect = .init(desired: reminders[index], previousNotificationID: old.notificationID)
             }
             effects.append(effect)
@@ -543,15 +540,14 @@ final class LaunchScheduleFeature {
                 return .superseded
             }
             guard desired.fireDate > now() else { throw ReminderError.tooLate }
-            reminders[index].status = .scheduled
+            reminders[index] = reminders[index].replacing(status: .scheduled)
             let persistence = persistReminders()
             guard await persistence.value else { throw ReminderError.storageWriteFailed }
             return reminders.contains(where: { $0.notificationID == desired.notificationID }) ? .saved : .superseded
         } catch {
             let current = reminders.firstIndex(where: { $0.notificationID == desired.notificationID })
             if let index = current {
-                reminders[index].status = .failed
-                reminders[index].issue = "The notification could not be scheduled. Set this reminder again."
+                reminders[index] = reminders[index].replacing(status: .failed, issue: "The notification could not be scheduled. Set this reminder again.")
                 _ = await persistReminders().value
             }
             await notificationClient.cancel(desired.notificationID)
