@@ -8,6 +8,11 @@ final class LocalLaunchNotificationsTests: XCTestCase {
 
     func testSystemNotificationIsInstalledAndRemoved() async throws {
         let center = UNUserNotificationCenter.current()
+        #if CFA_NOTIFICATION_SYSTEM_TEST
+        if await center.notificationSettings().authorizationStatus == .notDetermined {
+            _ = try await center.requestAuthorization(options: [.alert, .sound, .provisional])
+        }
+        #endif
         let status = await center.notificationSettings().authorizationStatus
         guard status == .authorized || status == .provisional else {
             throw XCTSkip("Notification permission is not granted for the test host.")
