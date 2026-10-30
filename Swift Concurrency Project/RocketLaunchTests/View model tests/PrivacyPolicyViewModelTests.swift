@@ -5,7 +5,7 @@ import XCTest
 final class PrivacyPolicyViewModelTests: XCTestCase {
     func testSuccessfulLoadIsReusedWithoutReadingAgain() async {
         let loader = PolicyFixture()
-        let viewModel = PrivacyPolicyViewModel(loader: loader)
+        let viewModel = PrivacyPolicyViewModel(feature: SettingsFeature(privacyPolicyLoader: loader))
         await viewModel.load()
         await viewModel.load()
         XCTAssertEqual(viewModel.text, "Bundled policy")
@@ -15,7 +15,7 @@ final class PrivacyPolicyViewModelTests: XCTestCase {
 
     func testFailureKeepsExistingMessageAndCanRetry() async {
         let loader = PolicyFixture(failFirst: true)
-        let viewModel = PrivacyPolicyViewModel(loader: loader)
+        let viewModel = PrivacyPolicyViewModel(feature: SettingsFeature(privacyPolicyLoader: loader))
         await viewModel.load()
         XCTAssertEqual(viewModel.text, "The privacy policy could not be loaded. Please consult the project’s PRIVACY.md document.")
         await viewModel.load()
@@ -25,7 +25,7 @@ final class PrivacyPolicyViewModelTests: XCTestCase {
     func testCancelledCallerDoesNotPublishLatePolicyAndCanRetry() async {
         let started = expectation(description: "read started")
         let loader = HeldPolicyFixture(started: { started.fulfill() })
-        let viewModel = PrivacyPolicyViewModel(loader: loader)
+        let viewModel = PrivacyPolicyViewModel(feature: SettingsFeature(privacyPolicyLoader: loader))
         let task = Task { await viewModel.load() }
         await waitFor([started])
         task.cancel()
@@ -39,7 +39,7 @@ final class PrivacyPolicyViewModelTests: XCTestCase {
     func testOlderReadCannotReplaceNewerPolicy() async {
         let started = expectation(description: "first read started")
         let loader = HeldPolicyFixture(started: { started.fulfill() })
-        let viewModel = PrivacyPolicyViewModel(loader: loader)
+        let viewModel = PrivacyPolicyViewModel(feature: SettingsFeature(privacyPolicyLoader: loader))
         let olderRead = Task { await viewModel.load() }
         await waitFor([started])
 

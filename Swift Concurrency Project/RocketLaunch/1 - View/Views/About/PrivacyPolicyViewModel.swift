@@ -4,12 +4,12 @@ import Observation
 @MainActor @Observable
 final class PrivacyPolicyViewModel {
     private(set) var text = ""
-    @ObservationIgnored private let loader: any PrivacyPolicyLoading
+    @ObservationIgnored private let feature: SettingsFeature
     @ObservationIgnored private var requestID: UUID?
     @ObservationIgnored private var hasLoaded = false
 
-    init(loader: any PrivacyPolicyLoading = BundledPrivacyPolicyLoader()) {
-        self.loader = loader
+    init(feature: SettingsFeature = AppModel.shared.settingsFeature) {
+        self.feature = feature
     }
 
     /// The screen's SwiftUI task owns this operation's lifetime.
@@ -18,7 +18,7 @@ final class PrivacyPolicyViewModel {
         let id = UUID()
         requestID = id
         do {
-            let policy = try await loader.load()
+            let policy = try await feature.loadPrivacyPolicy()
             try Task.checkCancellation()
             guard requestID == id else { return }
             text = policy
