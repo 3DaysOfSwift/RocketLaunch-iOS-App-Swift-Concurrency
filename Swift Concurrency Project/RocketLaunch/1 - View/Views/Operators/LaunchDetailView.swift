@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct LaunchDetailView: View {
-    @State private var viewModel: LaunchDetailScreenViewModel
+    @State private var viewModel: LaunchDetailViewModel
 
     init(launch: RocketLaunch) {
-        _viewModel = State(initialValue: LaunchDetailScreenViewModel(launch: launch))
+        _viewModel = State(initialValue: LaunchDetailViewModel(launch: launch))
     }
 
     var body: some View {

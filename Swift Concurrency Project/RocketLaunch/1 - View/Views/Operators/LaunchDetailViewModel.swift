@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 @MainActor @Observable
-final class LaunchDetailScreenViewModel {
+final class LaunchDetailViewModel {
     var minutesBefore = 15
     let launch: RocketLaunch?
     var reminderSaved: Bool { launch.map { launchScheduleFeature.hasActiveReminder(for: $0.id) } ?? false }

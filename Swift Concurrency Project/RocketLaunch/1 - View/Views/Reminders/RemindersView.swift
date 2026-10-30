@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RemindersView: View {
     @Environment(\.appColourTheme) private var theme
-    @State private var viewModel = ReminderViewModel()
+    @State private var viewModel = RemindersViewModel()
     var body: some View {
         ThemedList {
             if let error = viewModel.storageError {

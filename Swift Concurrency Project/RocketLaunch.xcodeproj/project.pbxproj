@@ -12,8 +12,8 @@
 		65FA53030A69472CBDBED8E5 /* PrivacyPolicyViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */; };
 		8BEA8F7D62864813BB5EF773 /* BundledPrivacyPolicyLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */; };
 		B9291F07BAC8477F9CFDCFD5 /* PrivacyPolicyViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */; };
-		51E48199E82D47B3B5328207 /* LaunchDetailScreenViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1487D16D33444396BBF0C0 /* LaunchDetailScreenViewModelTests.swift */; };
-		2FB377856FE14FB9853509FD /* LaunchDetailScreenViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7401725948B4428EBA03353D /* LaunchDetailScreenViewModel.swift */; };
+		51E48199E82D47B3B5328207 /* LaunchDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1487D16D33444396BBF0C0 /* LaunchDetailViewModelTests.swift */; };
+		2FB377856FE14FB9853509FD /* LaunchDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7401725948B4428EBA03353D /* LaunchDetailViewModel.swift */; };
 		B696A20675CB4C2E89394DBA /* OperatorLaunchesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9600D1359AF745B6B3F32A71 /* OperatorLaunchesViewModelTests.swift */; };
 		06B6328DB0FB412298C66AF5 /* OperatorLaunchesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE0D3DBFBB342BFA360ABCA /* OperatorLaunchesViewModel.swift */; };
 		BDD8E4128BDF449E8F924D08 /* UpdatesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128FA67483AB4C049A7EE6EE /* UpdatesViewModelTests.swift */; };
@@ -24,7 +24,7 @@
 		0F256597C984444C9D76BE58 /* OperatorsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 176ADCC061FE4DF5B7F0BE84 /* OperatorsViewModel.swift */; };
 		FD1ABDEE42234D67ACAE66D2 /* UpcomingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20697B84C52040CCA0E56D81 /* UpcomingViewModel.swift */; };
 		8FFAAAB7ED7640FD95E3E9B4 /* LaunchRefreshTasks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27EDD5D91CDF411FBB7E2042 /* LaunchRefreshTasks.swift */; };
-		B12345678901234567890101 /* ReminderViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12345678901234567890102 /* ReminderViewModelTests.swift */; };
+		B12345678901234567890101 /* RemindersViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12345678901234567890102 /* RemindersViewModelTests.swift */; };
 		16C0A180733C0360412B7D8E /* LaunchScheduleViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E807A9D1C71066E900A6792 /* LaunchScheduleViewModelTests.swift */; };
 		210F0EFB74899257C00AF13A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F149E9826C3D5F239A29CF4 /* AppModel.swift */; };
 		226732CA8B4D451225510FE4 /* RocketLaunchAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9518104C8BA894B42782132 /* RocketLaunchAPITests.swift */; };
@@ -44,7 +44,7 @@
 		650D1F72675866403091D9B5 /* LaunchScheduleFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71DCC2F5E5B68050A7A30C8A /* LaunchScheduleFeature.swift */; };
 		660544F5092671121163B067 /* launch-response.json in Resources */ = {isa = PBXBuildFile; fileRef = 14AFA0E60B1EDF5C4ED566A7 /* launch-response.json */; };
 		71EE6C4EB964B7D50B88E3A0 /* SpaceXAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57C37ACE8DE78CB7F8AD428D /* SpaceXAPI.swift */; };
-		7323CD0427F3266796D2804F /* ReminderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AA6D9F0BE450505C16EB3FC /* ReminderViewModel.swift */; };
+		7323CD0427F3266796D2804F /* RemindersViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AA6D9F0BE450505C16EB3FC /* RemindersViewModel.swift */; };
 		88713411E296CA5A546C798F /* RemindersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29A9ADF0C789F4AC1FFDD51 /* RemindersView.swift */; };
 		8B73DA98BAC6FA42E29D6A98 /* LaunchFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96FA0C1B57CF16F4D484B9E3 /* LaunchFixtures.swift */; };
 		9E9C591FFEE3B2A3822F3A1A /* RocketLaunchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CA5E0B93EB63A3F674247A /* RocketLaunchApp.swift */; };
@@ -95,8 +95,8 @@
 		BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunchTests/View model tests/PrivacyPolicyViewModelTests.swift"; sourceTree = SOURCE_ROOT; };
 		3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Services/BundledPrivacyPolicyLoader.swift"; sourceTree = SOURCE_ROOT; };
 		561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/1 - View/Views/About/PrivacyPolicyViewModel.swift"; sourceTree = SOURCE_ROOT; };
-		EF1487D16D33444396BBF0C0 /* LaunchDetailScreenViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailScreenViewModelTests.swift; sourceTree = "<group>"; };
-		7401725948B4428EBA03353D /* LaunchDetailScreenViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailScreenViewModel.swift; sourceTree = "<group>"; };
+		EF1487D16D33444396BBF0C0 /* LaunchDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailViewModelTests.swift; sourceTree = "<group>"; };
+		7401725948B4428EBA03353D /* LaunchDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailViewModel.swift; sourceTree = "<group>"; };
 		9600D1359AF745B6B3F32A71 /* OperatorLaunchesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorLaunchesViewModelTests.swift; sourceTree = "<group>"; };
 		3DE0D3DBFBB342BFA360ABCA /* OperatorLaunchesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorLaunchesViewModel.swift; sourceTree = "<group>"; };
 		128FA67483AB4C049A7EE6EE /* UpdatesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesViewModelTests.swift; sourceTree = "<group>"; };
@@ -107,7 +107,7 @@
 		176ADCC061FE4DF5B7F0BE84 /* OperatorsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorsViewModel.swift; sourceTree = "<group>"; };
 		20697B84C52040CCA0E56D81 /* UpcomingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingViewModel.swift; sourceTree = "<group>"; };
 		27EDD5D91CDF411FBB7E2042 /* LaunchRefreshTasks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchRefreshTasks.swift; sourceTree = "<group>"; };
-		B12345678901234567890102 /* ReminderViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderViewModelTests.swift; sourceTree = "<group>"; };
+		B12345678901234567890102 /* RemindersViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersViewModelTests.swift; sourceTree = "<group>"; };
 		0708E9DA54F15EB2B22F4235 /* AppColourTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColourTheme.swift; sourceTree = "<group>"; };
 		0C015E402B212A6600253DED /* RocketLaunch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RocketLaunch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F149E9826C3D5F239A29CF4 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -118,7 +118,7 @@
 		4E807A9D1C71066E900A6792 /* LaunchScheduleViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleViewModelTests.swift; sourceTree = "<group>"; };
 		57C37ACE8DE78CB7F8AD428D /* SpaceXAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceXAPI.swift; sourceTree = "<group>"; };
 		58A5C8BFB9265FBDFB7ED40B /* LaunchScheduleViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleViewModel.swift; sourceTree = "<group>"; };
-		5AA6D9F0BE450505C16EB3FC /* ReminderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderViewModel.swift; sourceTree = "<group>"; };
+		5AA6D9F0BE450505C16EB3FC /* RemindersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersViewModel.swift; sourceTree = "<group>"; };
 		66876FA3E22A3B2FFDE6B00A /* LaunchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchRepository.swift; sourceTree = "<group>"; };
 		6B9AA865F333AFF8BBCF1CB7 /* LaunchLibraryAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchLibraryAPI.swift; sourceTree = "<group>"; };
 		6CEFBA188D76B1BB677E11F8 /* RocketLaunchDataTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RocketLaunchDataTypes.swift; sourceTree = "<group>"; };
@@ -328,7 +328,7 @@
 				884443EAC3E64AF89D057DC3 /* UpcomingLaunchDetailView.swift */,
 				FF293BD3A30F46C497FA694B /* UpcomingLaunchDetailViewModel.swift */,
 				FCB608C6536947FEA92A95EB /* LaunchDetailView.swift */,
-				7401725948B4428EBA03353D /* LaunchDetailScreenViewModel.swift */,
+				7401725948B4428EBA03353D /* LaunchDetailViewModel.swift */,
 				3DE0D3DBFBB342BFA360ABCA /* OperatorLaunchesViewModel.swift */,
 			);
 			path = Operators;
@@ -393,8 +393,8 @@
 				128FA67483AB4C049A7EE6EE /* UpdatesViewModelTests.swift */,
 				86F759E3A31D47379B129174 /* OperatorsViewModelTests.swift */,
 				1BA66B206CD54C658994C65F /* UpcomingViewModelTests.swift */,
-				B12345678901234567890102 /* ReminderViewModelTests.swift */,
-				EF1487D16D33444396BBF0C0 /* LaunchDetailScreenViewModelTests.swift */,
+				B12345678901234567890102 /* RemindersViewModelTests.swift */,
+				EF1487D16D33444396BBF0C0 /* LaunchDetailViewModelTests.swift */,
 				4B30AC05D5964CD1AB6ACDC0 /* SettingsViewModelTests.swift */,
 				40BC8B0F48F94666AC18FC7A /* ReminderLaunchDetailViewModelTests.swift */,
 				414013655F9244ABAC4E5CB7 /* UpdatedLaunchDetailViewModelTests.swift */,
@@ -409,7 +409,7 @@
 		997FF6857A644603B8F89379 /* Reminders */ = {
 			isa = PBXGroup;
 			children = (
-				5AA6D9F0BE450505C16EB3FC /* ReminderViewModel.swift */,
+				5AA6D9F0BE450505C16EB3FC /* RemindersViewModel.swift */,
 				C29A9ADF0C789F4AC1FFDD51 /* RemindersView.swift */,
 			);
 			path = Reminders;
@@ -609,7 +609,7 @@
 				1E4B90B9DF2B44AC8C0E6486 /* SettingsViewModel.swift in Sources */,
 				D373992CBC7135C2085B33DA /* LaunchReminders.swift in Sources */,
 				88713411E296CA5A546C798F /* RemindersView.swift in Sources */,
-				7323CD0427F3266796D2804F /* ReminderViewModel.swift in Sources */,
+				7323CD0427F3266796D2804F /* RemindersViewModel.swift in Sources */,
 				D952B3A092D495835A57648C /* BrowseViews.swift in Sources */,
 				50F7307AE1F9BC19D6C6D5C3 /* BrowseFilters.swift in Sources */,
 				5963A982E9ED4B1DB26769FB /* SourceStatusPresentation.swift in Sources */,
@@ -630,7 +630,7 @@
 				1F952D914D8F441BA7A2852D /* UpcomingLaunchDetailView.swift in Sources */,
 				42B0AC6785354D0BAA28EA9D /* UpcomingLaunchDetailViewModel.swift in Sources */,
 				0FBB7796C992416FBE5929BB /* LaunchDetailView.swift in Sources */,
-				2FB377856FE14FB9853509FD /* LaunchDetailScreenViewModel.swift in Sources */,
+				2FB377856FE14FB9853509FD /* LaunchDetailViewModel.swift in Sources */,
 				06B6328DB0FB412298C66AF5 /* OperatorLaunchesViewModel.swift in Sources */,
 				5900175C78A56AE96FD7AA37 /* AboutView.swift in Sources */,
 				A6C8D1B7E9F240F5A6C5B101 /* AboutViewModel.swift in Sources */,
@@ -659,8 +659,8 @@
 				BDD8E4128BDF449E8F924D08 /* UpdatesViewModelTests.swift in Sources */,
 				7448AE0A9D3B4E6D9796C515 /* OperatorsViewModelTests.swift in Sources */,
 				8F9E3FF2CE76471F9D1B3D04 /* UpcomingViewModelTests.swift in Sources */,
-				B12345678901234567890101 /* ReminderViewModelTests.swift in Sources */,
-				51E48199E82D47B3B5328207 /* LaunchDetailScreenViewModelTests.swift in Sources */,
+				B12345678901234567890101 /* RemindersViewModelTests.swift in Sources */,
+				51E48199E82D47B3B5328207 /* LaunchDetailViewModelTests.swift in Sources */,
 				BAD84E87FBE8476185E8C696 /* SettingsViewModelTests.swift in Sources */,
 				CDC9EAFE5AA54EC5BD4B405C /* ReminderLaunchDetailViewModelTests.swift in Sources */,
 				9D6AAD1C9B4744D286E4FE86 /* UpdatedLaunchDetailViewModelTests.swift in Sources */,

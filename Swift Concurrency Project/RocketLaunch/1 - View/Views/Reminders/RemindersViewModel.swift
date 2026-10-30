@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 @MainActor @Observable
-final class ReminderViewModel {
+final class RemindersViewModel {
     var showingLaunch = false
     private(set) var selectedLaunch: RocketLaunch?
     func showLaunch(_ launch: RocketLaunch) {
