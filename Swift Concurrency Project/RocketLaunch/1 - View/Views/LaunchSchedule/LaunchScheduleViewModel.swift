@@ -41,7 +41,7 @@ final class LaunchScheduleViewModel {
     var site: String { detail.site }
     var launchTime: String { detail.launchTime }
     var timingNote: String { detail.timingNote }
-    /// Only presentation ticks every second; the Feature retains ownership of launch selection.
+    /// Only presentation ticks every second; the Feature determines the next scheduled launch.
     func countdown(at date: Date) -> CountdownPresentation {
         switch currentLaunch?.details.countdown(at: date) ?? .timeUnconfirmed {
         case .remaining(let interval):
