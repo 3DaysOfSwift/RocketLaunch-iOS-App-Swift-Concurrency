@@ -5,6 +5,8 @@ import Observation
 @MainActor @Observable
 final class LaunchScheduleFeature {
     private(set) var state: LaunchScheduleState = .idle
+    private(set) var displayedLaunch: RocketLaunch?
+    private(set) var loadFailure: LaunchLoadFailure?
     private(set) var sources: [LaunchSourceSnapshot]
     private(set) var operators: [LaunchOperator] = []
     private(set) var nextLaunch: RocketLaunch?
@@ -36,7 +38,7 @@ final class LaunchScheduleFeature {
         self.waitForScheduleTick = waitForScheduleTick
         self.notificationClient = notificationClient; self.reminderPersistence = reminderPersistence ?? ReminderPersistence(storage: reminderStorage)
         self.sources = sources.map { LaunchSourceSnapshot(id: $0.id) }
-        self.lastPublished = .init(revision: 0, state: .idle, nextLaunch: nil, sources: self.sources, operators: [], upcomingLaunches: [], updates: [])
+        self.lastPublished = .init(revision: 0, state: .idle, displayedLaunch: nil, loadFailure: nil, nextLaunch: nil, sources: self.sources, operators: [], upcomingLaunches: [], updates: [])
     }
 
     @ObservationIgnored private var lastPublished: LaunchScheduleSnapshot?
@@ -44,7 +46,7 @@ final class LaunchScheduleFeature {
     private var upcomingLaunches: [RocketLaunch] = []
     @ObservationIgnored private var observers: [UUID: AsyncStream<LaunchScheduleSnapshot>.Continuation] = [:]
     var snapshot: LaunchScheduleSnapshot {
-        .init(revision: revision, state: state, nextLaunch: nextLaunch, sources: sources, operators: operators,
+        .init(revision: revision, state: state, displayedLaunch: displayedLaunch, loadFailure: loadFailure, nextLaunch: nextLaunch, sources: sources, operators: operators,
               upcomingLaunches: upcomingLaunches, updates: updates)
     }
     func launches(for operatorID: String) -> [RocketLaunch] {
@@ -311,13 +313,24 @@ final class LaunchScheduleFeature {
         }
         nextLaunch = future.min { $0.time < $1.time }?.launch
             ?? eligible.first(where: { $0.details.plannedTime == nil })
-        if let nextLaunch { state = sources.contains(where: { $0.phase == .loading }) ? .loading(previous: nextLaunch) : .loaded(nextLaunch) }
-        else if sources.contains(where: { $0.phase == .loading }) { state = .loading(previous: state.launch) }
-        else if let failure = sources.compactMap({ snapshot -> LaunchLoadFailure? in
+        loadFailure = nil
+        if let nextLaunch {
+            displayedLaunch = nextLaunch
+            state = sources.contains(where: { $0.phase == .loading }) ? .loading : .loaded
+        } else if sources.contains(where: { $0.phase == .loading }) {
+            state = .loading
+        } else if let failure = sources.compactMap({ snapshot -> LaunchLoadFailure? in
             if case .failed(let failure) = snapshot.phase { return failure }; return nil
-        }).first { state = .failed(failure, previous: state.launch) }
-        else if sources.allSatisfy({ $0.phase == .idle }) { state = .idle }
-        else { state = .empty }
+        }).first {
+            loadFailure = failure
+            state = .failed
+        } else if sources.allSatisfy({ $0.phase == .idle }) {
+            displayedLaunch = nil
+            state = .idle
+        } else {
+            displayedLaunch = nil
+            state = .empty
+        }
         publish()
     }
 
@@ -795,19 +808,7 @@ enum LaunchLoadFailure: Equatable, Sendable {
 }
 
 enum LaunchScheduleState: Equatable, Sendable {
-    case idle
-    case loading(previous: RocketLaunch?)
-    case loaded(RocketLaunch)
-    case empty
-    case failed(LaunchLoadFailure, previous: RocketLaunch?)
-
-    var launch: RocketLaunch? {
-        switch self {
-        case .loaded(let launch): launch
-        case .loading(let previous), .failed(_, let previous): previous
-        case .idle, .empty: nil
-        }
-    }
+    case idle, loading, loaded, empty, failed
 }
 
 enum LaunchSourceID: String, Sendable, Codable, CaseIterable, Identifiable {
@@ -891,12 +892,14 @@ struct LaunchUpdate: Identifiable, Equatable, Sendable {
 struct LaunchScheduleSnapshot: Equatable, Sendable {
     let revision: UInt64
     let state: LaunchScheduleState
+    let displayedLaunch: RocketLaunch?
+    let loadFailure: LaunchLoadFailure?
     let nextLaunch: RocketLaunch?
     let sources: [LaunchSourceSnapshot]
     let operators: [LaunchOperator]
     let upcomingLaunches: [RocketLaunch]
     let updates: [LaunchUpdate]
-    static let initial = Self(revision: 0, state: .idle, nextLaunch: nil, sources: [], operators: [], upcomingLaunches: [], updates: [])
+    static let initial = Self(revision: 0, state: .idle, displayedLaunch: nil, loadFailure: nil, nextLaunch: nil, sources: [], operators: [], upcomingLaunches: [], updates: [])
 
     // Shared policy, executed by the feature when its data or clock changes.
     static func upcoming(from launches: [RocketLaunch], now: Date) -> [RocketLaunch] {

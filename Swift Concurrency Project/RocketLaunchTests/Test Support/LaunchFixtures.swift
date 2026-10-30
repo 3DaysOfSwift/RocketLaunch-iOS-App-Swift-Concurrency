@@ -49,6 +49,10 @@ actor ControlledLaunchRepository: LaunchRepository {
 }
 
 /// Drives the real Feature through an isolated repository for presentation scenarios.
+enum LaunchScenarioState {
+    case idle, loading, loaded(RocketLaunch), empty, failed(LaunchLoadFailure, previous: RocketLaunch?)
+}
+
 @MainActor
 final class LaunchScenario {
     let repository = PresentationLaunchRepository()
@@ -57,7 +61,7 @@ final class LaunchScenario {
         feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
             now: { Date(timeIntervalSince1970: 1_600_000_000) })
     }
-    func prepare(_ state: LaunchScheduleState) async {
+    func prepare(_ state: LaunchScenarioState) async {
         switch state {
         case .loaded(let launch):
             await repository.respond(.success([launch]))

@@ -31,9 +31,9 @@ final class LaunchScheduleViewModel {
     var snapshot: LaunchScheduleSnapshot { launchScheduleFeature.snapshot }
     var upcomingLaunches: [RocketLaunch] { snapshot.upcomingLaunches }
 
-    var launchName: String { snapshot.state.launch?.name ?? String(localized: "None") }
-    var mission: String { snapshot.state.launch?.primaryMissionDescription ?? String(localized: "None") }
-    private var detail: LaunchPresentation { .init(launch: snapshot.state.launch) }
+    var launchName: String { snapshot.displayedLaunch?.name ?? String(localized: "None") }
+    var mission: String { snapshot.displayedLaunch?.primaryMissionDescription ?? String(localized: "None") }
+    private var detail: LaunchPresentation { .init(launch: snapshot.displayedLaunch) }
     var launchTitle: String { detail.launchTitle }
     var missionSummary: String { detail.missionSummary }
     var provider: String { detail.provider }
@@ -80,7 +80,7 @@ final class LaunchScheduleViewModel {
     @discardableResult
     func loadIfNeeded() -> Task<Void, Never> { startRefresh(onlyIfNeeded: true) }
     var operators: [LaunchOperator] { snapshot.operators }
-    var currentLaunch: RocketLaunch? { snapshot.state.launch }
+    var currentLaunch: RocketLaunch? { snapshot.displayedLaunch }
     var updates: [LaunchUpdate] { snapshot.updates }
     var sources: [LaunchSourceSnapshot] { snapshot.sources }
     func updateNextLaunch() { launchScheduleFeature.updateNextLaunch() }
@@ -92,14 +92,14 @@ final class LaunchScheduleViewModel {
     }
     func canRetry(_ source: LaunchSourceSnapshot) -> Bool { SourceStatusPresentation.canRetry(source) }
     func sourceMessage(_ source: LaunchSourceSnapshot) -> String { SourceStatusPresentation.message(source) }
-    var hasLaunch: Bool { snapshot.state.launch != nil }
+    var hasLaunch: Bool { snapshot.displayedLaunch != nil }
     var isLoading: Bool {
         if case .loading = snapshot.state { return true }
         return false
     }
     var isEmpty: Bool { snapshot.state == .empty }
     var errorMessage: String? {
-        guard case .failed(let failure, _) = snapshot.state else { return nil }
+        guard snapshot.state == .failed, let failure = snapshot.loadFailure else { return nil }
         switch failure {
         case .offline: return String(localized: "You’re offline. Connect to the internet and try again.")
         case .timedOut: return String(localized: "The request timed out. Please try again.")

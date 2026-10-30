@@ -119,11 +119,13 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let task = Task { await launchSchedule.refresh() }
         await waitFor([began])
         let projection2 = launchSchedule.snapshot
-        XCTAssertEqual(projection2.state, .loading(previous: nil))
+        XCTAssertEqual(projection2.state, .loading)
+        XCTAssertEqual(projection2.displayedLaunch, nil)
         await repository.complete(0, with: .success(launches))
         await task.value
         let projection3 = launchSchedule.snapshot
-        XCTAssertEqual(projection3.state, .loaded(launches[2]))
+        XCTAssertEqual(projection3.state, .loaded)
+        XCTAssertEqual(projection3.displayedLaunch, launches[2])
         let projection4 = launchSchedule.snapshot
         XCTAssertEqual(projection4.sources[0].launches, launches)
     }
@@ -157,7 +159,9 @@ final class LaunchScheduleFeatureTests: XCTestCase {
             await repository.complete(0, with: .failure(error))
             await task.value
             let projection6 = launchSchedule.snapshot
-            XCTAssertEqual(projection6.state, .failed(failure, previous: nil))
+            XCTAssertEqual(projection6.state, .failed)
+        XCTAssertEqual(projection6.loadFailure, failure)
+        XCTAssertEqual(projection6.displayedLaunch, nil)
         }
     }
 
@@ -176,14 +180,18 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let failed = Task { await launchSchedule.refresh() }
         await waitFor([second])
         let projection7 = launchSchedule.snapshot
-        XCTAssertEqual(projection7.state, .loading(previous: launches[0]))
+        XCTAssertEqual(projection7.state, .loading)
+        XCTAssertEqual(projection7.displayedLaunch, launches[0])
         await repository.complete(1, with: .failure(URLError(.notConnectedToInternet))); await failed.value
         let projection8 = launchSchedule.snapshot
-        XCTAssertEqual(projection8.state, .failed(.offline, previous: launches[0]))
+        XCTAssertEqual(projection8.state, .failed)
+        XCTAssertEqual(projection8.loadFailure, .offline)
+        XCTAssertEqual(projection8.displayedLaunch, launches[0])
         let retry = Task { await launchSchedule.refresh() }
         await waitFor([third]); await repository.complete(2, with: .success([launches[1]])); await retry.value
         let projection9 = launchSchedule.snapshot
-        XCTAssertEqual(projection9.state, .loaded(launches[1]))
+        XCTAssertEqual(projection9.state, .loaded)
+        XCTAssertEqual(projection9.displayedLaunch, launches[1])
     }
 
     @MainActor func testOlderSuccessCannotOverwriteNewerSuccess() async throws {
@@ -199,7 +207,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         await repository.complete(1, with: .success([launches[1]])); await new.value
         await repository.complete(0, with: .success([launches[0]])); await old.value
         let projection10 = launchSchedule.snapshot
-        XCTAssertEqual(projection10.state, .loaded(launches[1]))
+        XCTAssertEqual(projection10.state, .loaded)
+        XCTAssertEqual(projection10.displayedLaunch, launches[1])
     }
 
     @MainActor func testOlderFailureCannotOverwriteNewerSuccess() async throws {
@@ -215,7 +224,8 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         await repository.complete(1, with: .success([launch])); await new.value
         await repository.complete(0, with: .failure(URLError(.timedOut))); await old.value
         let projection11 = launchSchedule.snapshot
-        XCTAssertEqual(projection11.state, .loaded(launch))
+        XCTAssertEqual(projection11.state, .loaded)
+        XCTAssertEqual(projection11.displayedLaunch, launch)
     }
 
     @MainActor func testCancelledSuccessDoesNotPublishOrLeaveLoadingState() async throws {
@@ -299,7 +309,8 @@ final class ProgressiveLaunchTests: XCTestCase {
         let projection21 = feature.snapshot
         XCTAssertEqual(projection21.sources[0].phase, .failed(.timedOut))
         let projection22 = feature.snapshot
-        XCTAssertEqual(projection22.state, .loaded(expected))
+        XCTAssertEqual(projection22.state, .loaded)
+        XCTAssertEqual(projection22.displayedLaunch, expected)
     }
 
     @MainActor func testIndividualRefreshUpdatesStoredNextAndRetainsEmptyOperatorTab() async {
@@ -341,7 +352,9 @@ final class ProgressiveLaunchTests: XCTestCase {
         let projection30 = feature.snapshot
         XCTAssertNil(projection30.nextLaunch)
         let projection31 = feature.snapshot
-        XCTAssertEqual(projection31.state, .failed(.offline, previous: record))
+        XCTAssertEqual(projection31.state, .failed)
+        XCTAssertEqual(projection31.loadFailure, .offline)
+        XCTAssertEqual(projection31.displayedLaunch, record)
     }
 
     @MainActor func testStoredNextChangesWhenTimePassesWithoutARequest() async {
