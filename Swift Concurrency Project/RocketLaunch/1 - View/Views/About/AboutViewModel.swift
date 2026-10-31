@@ -9,7 +9,7 @@ final class AboutViewModel {
         self.settingsFeature = settingsFeature
     }
 
-    var spaceXURL: URL { settingsFeature.spaceXURL }
-    var launchLibraryURL: URL { settingsFeature.launchLibraryURL }
-    var rocketLaunchURL: URL { settingsFeature.rocketLaunchURL }
+    var spaceXURL: URL? { settingsFeature.spaceXURL }
+    var launchLibraryURL: URL? { settingsFeature.launchLibraryURL }
+    var rocketLaunchURL: URL? { settingsFeature.rocketLaunchURL }
 }

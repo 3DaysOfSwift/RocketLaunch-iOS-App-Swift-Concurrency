@@ -3,8 +3,8 @@ import Foundation
 /// Adapter for the community r-spacex API, not an official SpaceX service.
 actor SpaceXAPI: LaunchRepository {
     private let networking: NetworkingManager
-    private let endpoint: URL
-    init(networking: NetworkingManager, endpoint: URL) { self.networking = networking; self.endpoint = endpoint }
+    private let endpoint: URL?
+    init(networking: NetworkingManager, endpoint: URL?) { self.networking = networking; self.endpoint = endpoint }
 
     static func request(endpoint: URL) -> URLRequest {
         var request = URLRequest(url: endpoint, timeoutInterval: 20)
@@ -17,6 +17,7 @@ actor SpaceXAPI: LaunchRepository {
 
     func fetchUpcomingLaunches() async throws -> [RocketLaunch] {
         try Task.checkCancellation()
+        guard let endpoint else { throw URLError(.badURL) }
         let (data, response) = try await networking.data(for: Self.request(endpoint: endpoint))
         try Task.checkCancellation()
         guard let response = response as? HTTPURLResponse else { throw LaunchRepositoryError.invalidResponse }

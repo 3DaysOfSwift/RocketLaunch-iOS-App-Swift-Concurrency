@@ -99,9 +99,9 @@ final class SettingsFeature {
         self.privacyPolicyLoader = privacyPolicyLoader
     }
 
-    let spaceXURL = URL(string: "https://github.com/r-spacex/SpaceX-API")!
-    let launchLibraryURL = URL(string: "https://thespacedevs.com/llapi")!
-    let rocketLaunchURL = URL(string: "https://www.rocketlaunch.live")!
+    let spaceXURL = URL(string: "https://github.com/r-spacex/SpaceX-API")
+    let launchLibraryURL = URL(string: "https://thespacedevs.com/llapi")
+    let rocketLaunchURL = URL(string: "https://www.rocketlaunch.live")
 
     func loadPrivacyPolicy() async throws -> String {
         let task: Task<String, any Error>

@@ -2,6 +2,22 @@ import XCTest
 @testable import RocketLaunch
 
 final class RocketLaunchAPITests: XCTestCase {
+    func testMissingProviderEndpointsFailWithoutCrashing() async {
+        let networking = NetworkingManager()
+        let providers: [any LaunchRepository] = [
+            RocketLaunchAPI(networking: networking, endpoint: nil),
+            LaunchLibraryAPI(networking: networking, endpoint: nil),
+            SpaceXAPI(networking: networking, endpoint: nil)
+        ]
+        for provider in providers {
+            do {
+                _ = try await provider.fetchUpcomingLaunches()
+                XCTFail("Expected an invalid URL error")
+            } catch {
+                XCTAssertEqual((error as? URLError)?.code, .badURL)
+            }
+        }
+    }
     func testDecodesResponseThroughRealAsyncNetworkingBoundary() async throws {
         let expected = try LaunchFixtures.launches()
         let actual = try await fetch(.init(data: LaunchFixtures.data()))

@@ -2,11 +2,12 @@ import Foundation
 
 actor LaunchLibraryAPI: LaunchRepository {
     private let networking: NetworkingManager
-    private let endpoint: URL
-    init(networking: NetworkingManager, endpoint: URL) { self.networking = networking; self.endpoint = endpoint }
+    private let endpoint: URL?
+    init(networking: NetworkingManager, endpoint: URL?) { self.networking = networking; self.endpoint = endpoint }
 
     func fetchUpcomingLaunches() async throws -> [RocketLaunch] {
         try Task.checkCancellation()
+        guard let endpoint else { throw URLError(.badURL) }
         var request = URLRequest(url: endpoint)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await networking.data(for: request)
@@ -22,7 +23,7 @@ actor LaunchLibraryAPI: LaunchRepository {
     static func decodeResponse(_ data: Data) throws -> [RocketLaunch] {
         let response = try JSONDecoder().decode(Response.self, from: data)
         let dateParser = ISO8601DateFormatter()
-        let utc = TimeZone(secondsFromGMT: 0)!
+        guard let utc = TimeZone(secondsFromGMT: 0) else { throw LaunchRepositoryError.invalidData }
         return try response.results.compactMap { item in
             if ["Success", "Failure", "Partial Failure", "In Flight"].contains(item.status?.name ?? "") { return nil }
             var date: Date?
