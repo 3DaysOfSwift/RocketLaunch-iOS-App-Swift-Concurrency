@@ -481,31 +481,10 @@ final class LaunchScheduleCacheTests: XCTestCase {
         XCTAssertThrowsError(try BinaryLaunchSchedules.decode(data + Data([0])))
     }
 
-    func testExistingJSONCacheMigratesAfterSuccessfulBinarySave() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let json = directory.appendingPathComponent("LaunchSchedule.json")
-        let binary = directory.appendingPathComponent("LaunchSchedule.dat")
-        let old = SavedLaunchSchedule(source: .rocketLaunchLive, launches: try LaunchFixtures.launches(), fetchedAt: .now)
-        let original = try JSONEncoder().encode([old])
-        try original.write(to: json)
-        let cache = LaunchScheduleCache(fileURL: binary, legacyURL: json)
-        let loaded = try await cache.load()
-        XCTAssertEqual(loaded, [old])
-        let other = SavedLaunchSchedule(source: .spaceX, launches: [], fetchedAt: .now)
-        try await cache.save(other)
-        let restored = try await LaunchScheduleCache(fileURL: binary, legacyURL: json).load()
-        XCTAssertEqual(Set(restored.map(\.source)), [.rocketLaunchLive, .spaceX])
-        XCTAssertEqual(restored.first(where: { $0.source == .rocketLaunchLive }), old)
-        XCTAssertEqual(try Data(contentsOf: json), original, "Migration must retain the existing cache")
-        XCTAssertTrue(try Data(contentsOf: binary).starts(with: Data("RKTSCHE1".utf8)))
-    }
-
     @MainActor func testSavedScheduleAppearsWhenOfflineRefreshFails() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let cache = LaunchScheduleCache(fileURL: directory.appendingPathComponent("schedule.json"))
+        let cache = LaunchScheduleCache(fileURL: directory.appendingPathComponent("schedule.dat"))
         let date = Date(timeIntervalSince1970: 2_000_000_000)
         let launch = RocketLaunch(id: 123, name: "Saved launch", missions: [],
             estimatedDate: .init(month: nil, day: nil, year: nil),
@@ -531,7 +510,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
     @MainActor func testSuccessfulRefreshIsPersistedForNextLaunch() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("schedule.json")
+        let url = directory.appendingPathComponent("schedule.dat")
         let cache = LaunchScheduleCache(fileURL: url)
         let began = expectation(description: "Network request starts")
         let repository = ControlledLaunchRepository { _ in began.fulfill() }
@@ -550,7 +529,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
     @MainActor func testFirstRefreshAfterRestoringCacheDoesNotCreateSessionUpdates() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let cache = LaunchScheduleCache(fileURL: directory.appendingPathComponent("schedule.json"))
+        let cache = LaunchScheduleCache(fileURL: directory.appendingPathComponent("schedule.dat"))
         let date = Date(timeIntervalSince1970: 2_000_000_000)
         func launch(_ offset: TimeInterval) -> RocketLaunch {
             RocketLaunch(id: 123, name: "Launch", missions: [],
@@ -574,7 +553,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
     @MainActor func testCancelledOlderDownloadCannotReplaceNewerCachedSchedule() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("schedule.json")
+        let url = directory.appendingPathComponent("schedule.dat")
         let first = expectation(description: "First download starts")
         let second = expectation(description: "Replacement download starts")
         let repository = ControlledLaunchRepository { index in (index == 0 ? first : second).fulfill() }
@@ -598,7 +577,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
     func testConcurrentProviderWritesPreserveBothSchedules() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("schedule.json")
+        let url = directory.appendingPathComponent("schedule.dat")
         let cache = LaunchScheduleCache(fileURL: url)
         let first = SavedLaunchSchedule(source: .rocketLaunchLive, launches: [], fetchedAt: .now)
         let second = SavedLaunchSchedule(source: .spaceX, launches: [], fetchedAt: .now)
@@ -613,7 +592,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("schedule.json")
+        let url = directory.appendingPathComponent("schedule.dat")
         try Data("invalid cache".utf8).write(to: url)
         let started = expectation(description: "Network request starts")
         let repository = ControlledLaunchRepository { _ in started.fulfill() }
@@ -647,7 +626,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("schedule.json")
+        let url = directory.appendingPathComponent("schedule.dat")
         let original = Data("not JSON".utf8)
         try original.write(to: url)
         let started = expectation(description: "Network request starts")
@@ -665,7 +644,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let restored = try await LaunchScheduleCache(fileURL: url).load()
         XCTAssertEqual(restored.first?.launches, [launch])
         let backups = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .filter { $0.lastPathComponent.hasPrefix("schedule.json.unreadable-") }
+            .filter { $0.lastPathComponent.hasPrefix("schedule.dat.unreadable-") }
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(backups.first)), original)
     }
 
@@ -687,7 +666,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
     func testSchedulesSurviveReopeningAndUpdateIndependently() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("schedule.json")
+        let url = directory.appendingPathComponent("schedule.dat")
         let first = SavedLaunchSchedule(source: .rocketLaunchLive, launches: [], fetchedAt: Date(timeIntervalSince1970: 1))
         let second = SavedLaunchSchedule(source: .spaceX, launches: [], fetchedAt: Date(timeIntervalSince1970: 2))
         let replacement = SavedLaunchSchedule(source: .rocketLaunchLive, launches: [], fetchedAt: Date(timeIntervalSince1970: 3))
@@ -705,14 +684,14 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("schedule.json")
+        let url = directory.appendingPathComponent("schedule.dat")
         let original = Data("not JSON".utf8)
         try original.write(to: url)
         let cache = LaunchScheduleCache(fileURL: url)
         let replacement = SavedLaunchSchedule(source: .spaceX, launches: [], fetchedAt: .now)
         try await cache.save(replacement)
         let backups = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .filter { $0.lastPathComponent.hasPrefix("schedule.json.unreadable-") }
+            .filter { $0.lastPathComponent.hasPrefix("schedule.dat.unreadable-") }
         XCTAssertEqual(backups.count, 1)
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(backups.first)), original)
         let restored = try await LaunchScheduleCache(fileURL: url).load()
