@@ -629,6 +629,20 @@ final class LaunchScheduleCacheTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: url), Data("invalid cache".utf8))
     }
 
+    @MainActor func testReadAndWriteFailureShowOneStorageMessage() async throws {
+        let started = expectation(description: "Network request starts")
+        let repository = ControlledLaunchRepository { _ in started.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            cache: UnavailableLaunchCache())
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
+        let task = Task { await feature.loadIfNeeded() }
+        await waitFor([started])
+        await repository.complete(0, with: .success([]))
+        await task.value
+        XCTAssertNil(viewModel.savedScheduleError)
+        XCTAssertEqual(viewModel.errorMessage, "Saved schedules could not be loaded or updated. Please try again.")
+    }
+
     @MainActor func testUnreadableCacheRecoversWhenDownloadSucceeds() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -708,5 +722,10 @@ final class LaunchScheduleCacheTests: XCTestCase {
 
 private actor FailingLaunchCache: LaunchScheduleCaching {
     func load() -> [SavedLaunchSchedule] { [] }
+    func save(_ schedule: SavedLaunchSchedule) throws { throw CocoaError(.fileWriteNoPermission) }
+}
+
+private actor UnavailableLaunchCache: LaunchScheduleCaching {
+    func load() throws -> [SavedLaunchSchedule] { throw CocoaError(.fileReadNoPermission) }
     func save(_ schedule: SavedLaunchSchedule) throws { throw CocoaError(.fileWriteNoPermission) }
 }

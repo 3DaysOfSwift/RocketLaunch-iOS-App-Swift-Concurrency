@@ -137,7 +137,7 @@ final class LaunchScheduleFeature {
             savedScheduleReadError = nil
             saved = schedules
         case .failure:
-            savedScheduleReadError = "Saved schedules could not be loaded. Connect to the internet and try refreshing."
+            savedScheduleReadError = "Saved schedules could not be loaded. Try refreshing."
             return
         }
         for schedule in saved {
