@@ -101,7 +101,7 @@ final class SettingsFeatureTests: XCTestCase {
         XCTAssertEqual(feature.selected, .system)
     }
 
-    @MainActor func testUnknownLegacyThemeReportsErrorWithoutOverwritingAndCanRetry() async throws {
+    @MainActor func testUnknownLegacyThemeFallsBackToSystemAndMigrates() async throws {
         let name = "rocketlaunch-theme-tests-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -111,15 +111,28 @@ final class SettingsFeatureTests: XCTestCase {
         let feature = SettingsFeature(persistence: ThemePersistence(storage: .file(url, legacySuite: name)))
 
         await feature.loadIfNeeded()
-        XCTAssertNotNil(feature.storageError)
-        await feature.select(.forest).value
-        XCTAssertEqual(defaults.string(forKey: "rocketlaunch.colourTheme"), "unknown-theme")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
-
-        defaults.set("ocean", forKey: "rocketlaunch.colourTheme")
-        await feature.loadIfNeeded()
         XCTAssertNil(feature.storageError)
-        XCTAssertEqual(feature.selected, .ocean)
+        XCTAssertEqual(feature.selected, .system)
+        XCTAssertEqual(defaults.string(forKey: "rocketlaunch.colourTheme"), "unknown-theme")
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "system")
+        let restored = SettingsFeature(persistence: ThemePersistence(storage: .file(url, legacySuite: name)))
+        await restored.loadIfNeeded()
+        XCTAssertEqual(restored.selected, .system)
+        XCTAssertNil(restored.storageError)
+    }
+
+    @MainActor func testUnknownStoredThemeFallsBackWithoutOverwritingFile() async throws {
+        let name = "rocketlaunch-theme-tests-" + UUID().uuidString
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name); try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("theme.txt")
+        try Data("unknown-theme".utf8).write(to: url)
+        let feature = SettingsFeature(persistence: ThemePersistence(storage: .file(url, legacySuite: name)))
+        await feature.loadIfNeeded()
+        XCTAssertEqual(feature.selected, .system)
+        XCTAssertNil(feature.storageError)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "unknown-theme")
     }
 
     @MainActor func testMissingMigratedFileDoesNotRestoreStaleLegacyPreference() async throws {

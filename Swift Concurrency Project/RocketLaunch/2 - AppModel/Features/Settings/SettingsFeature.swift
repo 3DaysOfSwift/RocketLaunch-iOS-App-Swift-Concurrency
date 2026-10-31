@@ -50,14 +50,14 @@ actor ThemePersistence: ThemePersisting {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         if FileManager.default.fileExists(atPath: url.path) {
             let raw = try String(contentsOf: url, encoding: .utf8)
-            guard let theme = AppColourTheme(rawValue: raw) else { throw CocoaError(.fileReadCorruptFile) }
+            let theme = AppColourTheme(rawValue: raw) ?? .system
             defaults.set(true, forKey: Self.fileCreatedKey)
             return theme
         }
         if defaults.bool(forKey: Self.fileCreatedKey) { throw CocoaError(.fileNoSuchFile) }
         if let value = defaults.object(forKey: Self.legacyKey) {
             guard let raw = value as? String else { throw CocoaError(.fileReadCorruptFile) }
-            guard let theme = AppColourTheme(rawValue: raw) else { throw CocoaError(.fileReadCorruptFile) }
+            let theme = AppColourTheme(rawValue: raw) ?? .system
             try write(theme, to: url)
             defaults.set(true, forKey: Self.fileCreatedKey)
             return theme
@@ -86,6 +86,8 @@ final class SettingsFeature {
     var canRetryLoading: Bool { !loaded }
     @ObservationIgnored private let persistence: any ThemePersisting
     @ObservationIgnored private let privacyPolicyLoader: any PrivacyPolicyLoading
+    @ObservationIgnored private var policyTask: Task<String, any Error>?
+    @ObservationIgnored private var policyTaskID: UUID?
     @ObservationIgnored private var loadTask: Task<AppColourTheme, any Error>?
     @ObservationIgnored private var loadID: UUID?
     @ObservationIgnored private var loaded = false
@@ -101,7 +103,27 @@ final class SettingsFeature {
     let launchLibraryURL = URL(string: "https://thespacedevs.com/llapi")!
     let rocketLaunchURL = URL(string: "https://www.rocketlaunch.live")!
 
-    func loadPrivacyPolicy() async throws -> String { try await privacyPolicyLoader.load() }
+    func loadPrivacyPolicy() async throws -> String {
+        let task: Task<String, any Error>
+        let id: UUID
+        if let current = policyTask, let currentID = policyTaskID {
+            task = current
+            id = currentID
+        } else {
+            let loader = privacyPolicyLoader
+            id = UUID()
+            task = Task { try await loader.load() }
+            policyTask = task
+            policyTaskID = id
+        }
+        defer {
+            if policyTaskID == id {
+                policyTask = nil
+                policyTaskID = nil
+            }
+        }
+        return try await task.value
+    }
 
     func loadIfNeeded() async {
         guard !loaded else { return }

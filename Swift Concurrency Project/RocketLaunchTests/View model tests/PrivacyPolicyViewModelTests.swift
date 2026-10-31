@@ -54,18 +54,23 @@ final class PrivacyPolicyViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.text, "Current policy")
     }
 
-    func testOlderReadCannotReplaceNewerPolicy() async {
+    func testTwoScreensShareTheSameInFlightPolicyRead() async {
         let started = expectation(description: "first read started")
         let loader = HeldPolicyFixture(started: { started.fulfill() })
-        let viewModel = PrivacyPolicyViewModel(settingsFeature: SettingsFeature(privacyPolicyLoader: loader))
-        let olderRead = Task { await viewModel.load() }
+        let feature = SettingsFeature(privacyPolicyLoader: loader)
+        let firstScreen = PrivacyPolicyViewModel(settingsFeature: feature)
+        let secondScreen = PrivacyPolicyViewModel(settingsFeature: feature)
+        let firstRead = Task { await firstScreen.load() }
         await waitFor([started])
-
-        await viewModel.load()
-        XCTAssertEqual(viewModel.text, "Current policy")
+        let secondRead = Task { await secondScreen.load() }
+        await Task.yield()
         await loader.finish()
-        await olderRead.value
-        XCTAssertEqual(viewModel.text, "Current policy")
+        await firstRead.value
+        await secondRead.value
+        XCTAssertEqual(firstScreen.text, "Abandoned policy")
+        XCTAssertEqual(secondScreen.text, "Abandoned policy")
+        let reads = await loader.readCount()
+        XCTAssertEqual(reads, 1)
     }
 
     func testBundledLoaderReadsPolicyFromApplicationBundle() async throws {
@@ -99,6 +104,7 @@ private actor HeldPolicyFixture: PrivacyPolicyLoading {
     private var continuation: CheckedContinuation<String, Never>?
     private var reads = 0
     init(started: @escaping @Sendable () -> Void) { self.started = started }
+    func readCount() -> Int { reads }
     func load() async -> String {
         reads += 1
         if reads > 1 { return "Current policy" }
