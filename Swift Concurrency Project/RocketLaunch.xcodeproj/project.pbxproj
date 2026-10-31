@@ -95,12 +95,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A1B2C3D4E5F6000000000002 /* NetworkingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Services/NetworkingManager.swift"; sourceTree = SOURCE_ROOT; };
+		A1B2C3D4E5F6000000000002 /* NetworkingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Networking/NetworkingManager.swift"; sourceTree = SOURCE_ROOT; };
 		A6C8D1B7E9F240F5A6C5B105 /* AboutViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModelTests.swift; sourceTree = "<group>"; };
 		A6C8D1B7E9F240F5A6C5B102 /* AboutViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutViewModel.swift; sourceTree = "<group>"; };
 		91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLaunchNotificationsTests.swift; sourceTree = "<group>"; };
 		BCD1B3597AD548EC8187A301 /* PrivacyPolicyViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunchTests/View model tests/PrivacyPolicyViewModelTests.swift"; sourceTree = SOURCE_ROOT; };
-		3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Services/BundledPrivacyPolicyLoader.swift"; sourceTree = SOURCE_ROOT; };
+		3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RocketLaunch/2 - AppModel/Privacy Policy/BundledPrivacyPolicyLoader.swift"; sourceTree = SOURCE_ROOT; };
 		561E18F8E86640218EF3B8D2 /* PrivacyPolicyViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyPolicyViewModel.swift; sourceTree = "<group>"; };
 		EF1487D16D33444396BBF0C0 /* LaunchDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailViewModelTests.swift; sourceTree = "<group>"; };
 		7401725948B4428EBA03353D /* LaunchDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchDetailViewModel.swift; sourceTree = "<group>"; };
@@ -193,13 +193,16 @@
 
 /* Begin PBXGroup section */
 		9E22A1F8E05A462396CB7DC3 /* IntegrationTests */ = {isa = PBXGroup; children = (91C6A47977534765BA03F085 /* LocalLaunchNotificationsTests.swift */,); path = IntegrationTests; sourceTree = "<group>"; };
-		AB67220480014DBBAD230001 /* Services */ = {
+		AB67220480014DBBAD230001 /* Networking */ = {
 			isa = PBXGroup;
-			children = (
-				3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */,
-				A1B2C3D4E5F6000000000002 /* NetworkingManager.swift */,
-			);
-			path = Services;
+			children = (A1B2C3D4E5F6000000000002 /* NetworkingManager.swift */,);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		AB67220480014DBBAD230002 /* Privacy Policy */ = {
+			isa = PBXGroup;
+			children = (3263F34C455A4627B012CD31 /* BundledPrivacyPolicyLoader.swift */,);
+			path = "Privacy Policy";
 			sourceTree = "<group>";
 		};
 		08CAA8DB30623CBE82AE04CD /* Theme */ = {
@@ -252,7 +255,8 @@
 			children = (
 				0F149E9826C3D5F239A29CF4 /* AppModel.swift */,
 				2EA1047E28D9F93EC2BB5EED /* Features */,
-				AB67220480014DBBAD230001 /* Services */,
+				AB67220480014DBBAD230001 /* Networking */,
+				AB67220480014DBBAD230002 /* Privacy Policy */,
 			);
 			path = "2 - AppModel";
 			sourceTree = "<group>";
@@ -376,6 +380,7 @@
 			children = (
 				7B08A9B9304E8A5A00096A29 /* Rocket Launch API */,
 				71DCC2F5E5B68050A7A30C8A /* LaunchScheduleFeature.swift */,
+				6CEFBA188D76B1BB677E11F8 /* RocketLaunchDataTypes.swift */,
 				D43A9F7790FB4DB1FFCD4912 /* SpaceX API */,
 				6C85A65CD7956631ADE2DD3F /* Launch Library API */,
 				7B08A9BA304E8A6800096A29 /* Cached Launches */,
@@ -387,7 +392,6 @@
 			isa = PBXGroup;
 			children = (
 				DB71FDC981BB48D015DEE9EC /* RocketLaunchAPI.swift */,
-				6CEFBA188D76B1BB677E11F8 /* RocketLaunchDataTypes.swift */,
 			);
 			path = "Rocket Launch API";
 			sourceTree = "<group>";
