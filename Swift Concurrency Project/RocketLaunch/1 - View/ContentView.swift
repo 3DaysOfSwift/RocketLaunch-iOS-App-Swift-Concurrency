@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var selection = "next"
     @Environment(\.appColourTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         TabView(selection: $selection) {
@@ -19,7 +20,7 @@ struct ContentView: View {
         }
         .tint(theme.accent)
         .preferredColorScheme(theme.colourScheme)
-        .animation(.easeInOut(duration: 0.25), value: theme)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: theme)
     }
 }
 
