@@ -459,3 +459,37 @@ private actor ActiveReminderPersistence: ReminderPersisting {
     func load() async -> [LaunchReminder] { [reminder] }
     func save(_ reminders: [LaunchReminder]) async {}
 }
+
+final class LaunchScheduleCacheTests: XCTestCase {
+    func testSchedulesSurviveReopeningAndUpdateIndependently() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("schedule.json")
+        let first = SavedLaunchSchedule(source: .rocketLaunchLive, launches: [], fetchedAt: Date(timeIntervalSince1970: 1))
+        let second = SavedLaunchSchedule(source: .spaceX, launches: [], fetchedAt: Date(timeIntervalSince1970: 2))
+        let replacement = SavedLaunchSchedule(source: .rocketLaunchLive, launches: [], fetchedAt: Date(timeIntervalSince1970: 3))
+        let cache = LaunchScheduleCache(fileURL: url)
+        try await cache.save(first)
+        try await cache.save(second)
+        try await cache.save(replacement)
+        let restored = try await LaunchScheduleCache(fileURL: url).load()
+        XCTAssertEqual(Set(restored.map(\.source)), [.rocketLaunchLive, .spaceX])
+        XCTAssertEqual(restored.first(where: { $0.source == .rocketLaunchLive }), replacement)
+        XCTAssertEqual(restored.first(where: { $0.source == .spaceX }), second)
+    }
+
+    func testCorruptFileIsPreservedWhenSaving() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("schedule.json")
+        let original = Data("not JSON".utf8)
+        try original.write(to: url)
+        let cache = LaunchScheduleCache(fileURL: url)
+        do {
+            try await cache.save(.init(source: .spaceX, launches: [], fetchedAt: .now))
+            XCTFail("A damaged cache must not be silently overwritten")
+        } catch { }
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+}
