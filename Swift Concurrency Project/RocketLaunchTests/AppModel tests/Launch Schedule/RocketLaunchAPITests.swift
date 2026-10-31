@@ -52,7 +52,7 @@ final class RocketLaunchAPITests: XCTestCase {
         let stopped = expectation(description: "request stops")
         let (session, id) = StubURLProtocol.session(response: .init(waitsForCancellation: true, onStart: { started.fulfill() }, onStop: { stopped.fulfill() }))
         defer { session.invalidateAndCancel(); StubURLProtocol.remove(id) }
-        let api = RocketLaunchAPI(networking: NetworkingManager(session: session), endpoint: URL(string: "https://example.invalid/launches")!)
+        let api = RocketLaunchAPI(networking: NetworkingManager(session: session), endpoint: try XCTUnwrap(URL(string: "https://example.invalid/launches")))
         let task = Task { try await api.fetchUpcomingLaunches() }
         await waitFor([started]); task.cancel()
         do { _ = try await task.value; XCTFail("Expected cancellation") }
@@ -62,6 +62,6 @@ final class RocketLaunchAPITests: XCTestCase {
     private func fetch(_ response: StubURLProtocol.Response) async throws -> [RocketLaunch] {
         let (session, id) = StubURLProtocol.session(response: response)
         defer { session.invalidateAndCancel(); StubURLProtocol.remove(id) }
-        return try await RocketLaunchAPI(networking: NetworkingManager(session: session), endpoint: URL(string: "https://example.invalid/launches")!).fetchUpcomingLaunches()
+        return try await RocketLaunchAPI(networking: NetworkingManager(session: session), endpoint: try XCTUnwrap(URL(string: "https://example.invalid/launches"))).fetchUpcomingLaunches()
     }
 }

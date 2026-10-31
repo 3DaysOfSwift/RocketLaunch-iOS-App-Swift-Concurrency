@@ -43,7 +43,11 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         response.onStart?()
         if response.waitsForCancellation { return }
         if let error = response.error { client?.urlProtocol(self, didFailWithError: error); return }
-        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: response.statusCode, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+        guard let url = request.url,
+              let httpResponse = HTTPURLResponse(url: url, statusCode: response.statusCode, httpVersion: nil, headerFields: nil) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse)); return
+        }
+        client?.urlProtocol(self, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
         if let data = response.data { client?.urlProtocol(self, didLoad: data) }
         client?.urlProtocolDidFinishLoading(self)
     }

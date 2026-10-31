@@ -50,8 +50,10 @@ final class LaunchDecodingTests: XCTestCase {
 
     func testTimestampSupportsSecondsAndFractionalSeconds() throws {
         for timestamp in ["2023-12-07T04:00:00Z", "2023-12-07T04:00:00.000Z"] {
-            var page = try JSONSerialization.jsonObject(with: LaunchFixtures.data()) as! [String: Any]
-            var launches = page["result"] as! [[String: Any]]
+            var page = try XCTUnwrap(JSONSerialization.jsonObject(with: LaunchFixtures.data()) as? [String: Any])
+            var launches = try XCTUnwrap(page["result"] as? [[String: Any]])
+            XCTAssertFalse(launches.isEmpty)
+            guard !launches.isEmpty else { return }
             launches[0]["t0"] = timestamp
             page["result"] = launches
             let result = try RocketLaunchAPI.decodeResponse(JSONSerialization.data(withJSONObject: page))
@@ -151,16 +153,16 @@ final class SpaceXAPITests: XCTestCase {
         XCTAssertTrue(try SpaceXAPI.decodeResponse(fixture(upcoming: false)).isEmpty)
     }
     func testRequestQueriesUpcomingLaunchesAndPopulatesDetails() throws {
-        let request = SpaceXAPI.request(endpoint: URL(string: "https://example.invalid/query")!)
+        let request = SpaceXAPI.request(endpoint: try XCTUnwrap(URL(string: "https://example.invalid/query")))
         XCTAssertEqual(request.httpMethod, "POST")
-        let body = try JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as! [String: Any]
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: Any])
         XCTAssertEqual((body["query"] as? [String: Bool])?["upcoming"], true)
         XCTAssertEqual((body["options"] as? [String: Any])?["limit"] as? Int, 50)
     }
     func testHTTPFailureRemainsAnError() async throws {
         let (session, id) = StubURLProtocol.session(response: .init(data: fixture(), statusCode: 503))
         defer { session.invalidateAndCancel(); StubURLProtocol.remove(id) }
-        let api = SpaceXAPI(networking: NetworkingManager(session: session), endpoint: URL(string: "https://example.invalid/query")!)
+        let api = SpaceXAPI(networking: NetworkingManager(session: session), endpoint: try XCTUnwrap(URL(string: "https://example.invalid/query")))
         do { _ = try await api.fetchUpcomingLaunches(); XCTFail("Expected HTTP failure") }
         catch { XCTAssertEqual(error as? LaunchRepositoryError, .httpStatus(503)) }
     }

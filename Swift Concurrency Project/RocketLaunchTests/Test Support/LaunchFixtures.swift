@@ -18,8 +18,9 @@ enum LaunchFixtures {
         return try Data(contentsOf: url)
     }
     static func data(estimatedDate: [String: Any]) throws -> Data {
-        var page = try JSONSerialization.jsonObject(with: data()) as! [String: Any]
-        var launches = page["result"] as! [[String: Any]]
+        var page = try XCTUnwrap(JSONSerialization.jsonObject(with: data()) as? [String: Any])
+        var launches = try XCTUnwrap(page["result"] as? [[String: Any]])
+        guard !launches.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
         launches[0]["est_date"] = estimatedDate
         page["result"] = launches
         return try JSONSerialization.data(withJSONObject: page)

@@ -273,7 +273,7 @@ final class ActorSnapshotTests: XCTestCase {
         XCTAssertNil(expired.sources.first?.nextRefreshAt)
         XCTAssertGreaterThan(expired.revision, loaded.revision)
     }
-    func testEachSubscriberReceivesInitialAndFinalSnapshots() async {
+    func testEachSubscriberReceivesInitialAndFinalSnapshots() async throws {
         let feature = LaunchScheduleFeature(repository: SequenceLaunchRepository([[]]))
         let firstStream = feature.snapshots()
         let secondStream = feature.snapshots()
@@ -288,7 +288,7 @@ final class ActorSnapshotTests: XCTestCase {
         let finalB = await second.next()
         XCTAssertEqual(finalA, finalB)
         XCTAssertEqual(finalA?.state, .empty)
-        XCTAssertGreaterThan(finalA!.revision, initialA!.revision)
+        XCTAssertGreaterThan(try XCTUnwrap(finalA).revision, try XCTUnwrap(initialA).revision)
     }
     func testSlowSubscriberReceivesLatestCompleteSnapshot() async {
         let feature = LaunchScheduleFeature(repository: SequenceLaunchRepository([[]]))
@@ -1261,7 +1261,7 @@ final class UnifiedReminderTests: XCTestCase {
         XCTAssertEqual(initial?.reminders, expected.reminders)
         await restored.removeReminder(launch().id)
         let removed = await iterator.next()
-        XCTAssertTrue(removed!.reminders.isEmpty)
+        XCTAssertTrue(try XCTUnwrap(removed).reminders.isEmpty)
     }
     func testEncodingFailurePreservesPreviouslyStoredReminderBytes() async throws {
         let suite = "rocket-encoding-" + UUID().uuidString
@@ -1689,7 +1689,7 @@ final class UnifiedReminderTests: XCTestCase {
 
     func testLegacyStoredReminderDecodesWithoutStatus() throws {
         let value = LaunchReminder(launch: launch(), notificationID: "legacy", minutesBefore: 15, fireDate: now, issue: nil)
-        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as! [String: Any]
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as? [String: Any])
         json.removeValue(forKey: "status")
         let decoded = try JSONDecoder().decode(LaunchReminder.self, from: JSONSerialization.data(withJSONObject: json))
         XCTAssertEqual(decoded.status, .scheduled)
