@@ -7,13 +7,14 @@ final class LaunchScheduleFeature {
     private(set) var state: LaunchScheduleState = .idle
     private(set) var displayedLaunch: RocketLaunch?
     private(set) var loadFailure: LaunchLoadFailure?
+    private(set) var savedScheduleReadError: String?
     private(set) var sources: [LaunchSourceSnapshot]
     private(set) var operators: [LaunchOperator] = []
     private(set) var nextLaunch: RocketLaunch?
     private(set) var updates: [LaunchUpdate] = []
     private let configurations: [LaunchSourceConfiguration]
     private let cache: (any LaunchScheduleCaching)?
-    @ObservationIgnored private var cacheLoadTask: Task<[SavedLaunchSchedule], Never>?
+    @ObservationIgnored private var cacheLoadTask: Task<Result<[SavedLaunchSchedule], any Error>, Never>?
     @ObservationIgnored private var cacheRestored = false
     @ObservationIgnored private var restoredCacheSources: Set<LaunchSourceID> = []
     private let now: @Sendable () -> Date
@@ -120,13 +121,25 @@ final class LaunchScheduleFeature {
     private func restoreCachedSchedulesIfNeeded() async {
         guard !cacheRestored, let cache else { return }
         if cacheLoadTask == nil {
-            cacheLoadTask = Task { (try? await cache.load()) ?? [] }
+            cacheLoadTask = Task {
+                do { return .success(try await cache.load()) }
+                catch { return .failure(error) }
+            }
         }
         guard let task = cacheLoadTask else { return }
-        let saved = await task.value
+        let result = await task.value
         guard !cacheRestored else { return }
         cacheRestored = true
         cacheLoadTask = nil
+        let saved: [SavedLaunchSchedule]
+        switch result {
+        case .success(let schedules):
+            savedScheduleReadError = nil
+            saved = schedules
+        case .failure:
+            savedScheduleReadError = "Saved schedules could not be loaded. Connect to the internet and try refreshing."
+            return
+        }
         for schedule in saved {
             guard let index = sources.firstIndex(where: { $0.id == schedule.source }),
                   sources[index].phase == .idle, sources[index].fetchedAt == nil else { continue }
@@ -219,6 +232,7 @@ final class LaunchScheduleFeature {
             do {
                 try Task.checkCancellation()
                 try await cache.save(.init(source: source, launches: launches, fetchedAt: fetchedAt))
+                savedScheduleReadError = nil
             } catch is CancellationError {
                 result = .failure(CancellationError())
             } catch {

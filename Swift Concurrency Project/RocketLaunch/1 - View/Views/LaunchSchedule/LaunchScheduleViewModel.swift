@@ -26,6 +26,7 @@ final class LaunchScheduleViewModel {
     }
 
     var themeError: String? { settingsFeature.storageError }
+    var savedScheduleError: String? { launchScheduleFeature.savedScheduleReadError }
     func selectNextTheme() { settingsFeature.selectNextTheme() }
 
     var snapshot: LaunchScheduleSnapshot { launchScheduleFeature.snapshot }

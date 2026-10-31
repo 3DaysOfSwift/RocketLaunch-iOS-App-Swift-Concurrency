@@ -32,6 +32,10 @@ struct LaunchScheduleView: View {
                     ContentUnavailableView("No launches listed", systemImage: "moon.stars",
                         description: Text("Check again soon for an updated schedule."))
                 }
+                if let error = viewModel.savedScheduleError {
+                    Label(error, systemImage: "exclamationmark.circle")
+                        .foregroundStyle(theme.error)
+                }
                 if let error = viewModel.errorMessage {
                     Label(error, systemImage: "exclamationmark.circle")
                         .foregroundStyle(theme.error)

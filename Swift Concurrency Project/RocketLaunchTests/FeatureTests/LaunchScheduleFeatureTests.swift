@@ -568,6 +568,26 @@ final class LaunchScheduleCacheTests: XCTestCase {
         XCTAssertEqual(Set(restored.map(\.source)), [.rocketLaunchLive, .spaceX])
     }
 
+    @MainActor func testUnreadableCacheIsReportedWhenNetworkIsOffline() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("schedule.json")
+        try Data("invalid cache".utf8).write(to: url)
+        let started = expectation(description: "Network request starts")
+        let repository = ControlledLaunchRepository { _ in started.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            cache: LaunchScheduleCache(fileURL: url))
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
+        let task = Task { await feature.loadIfNeeded() }
+        await waitFor([started])
+        await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
+        await task.value
+        XCTAssertEqual(feature.loadFailure, .offline)
+        XCTAssertNotNil(viewModel.savedScheduleError)
+        XCTAssertEqual(try Data(contentsOf: url), Data("invalid cache".utf8))
+    }
+
     @MainActor func testUnreadableCacheRecoversWhenDownloadSucceeds() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -586,6 +606,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await repository.complete(0, with: .success([launch]))
         await task.value
         XCTAssertEqual(feature.sources[0].launches, [launch])
+        XCTAssertNil(feature.savedScheduleReadError)
         let restored = try await LaunchScheduleCache(fileURL: url).load()
         XCTAssertEqual(restored.first?.launches, [launch])
         let backups = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
