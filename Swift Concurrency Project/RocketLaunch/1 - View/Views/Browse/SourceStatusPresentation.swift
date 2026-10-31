@@ -17,7 +17,9 @@ enum SourceStatusPresentation {
             }
             return source.fetchedAt.map { "Updated \($0.formatted(date: .omitted, time: .shortened)) · \(source.launches.count) launches" } ?? "Updated"
         case .failed:
-            return source.launches.isEmpty ? String(localized: "Refresh failed · No data available") : String(localized: "Refresh failed · Showing previous data")
+            guard !source.launches.isEmpty else { return String(localized: "Refresh failed · No data available") }
+            guard let fetchedAt = source.fetchedAt else { return String(localized: "Refresh failed · Showing previous data") }
+            return "Refresh failed · Showing schedule saved \(fetchedAt.formatted(date: .abbreviated, time: .shortened))"
         }
     }
 }

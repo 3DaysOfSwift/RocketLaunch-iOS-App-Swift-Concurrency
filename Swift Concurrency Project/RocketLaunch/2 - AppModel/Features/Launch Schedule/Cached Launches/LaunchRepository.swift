@@ -28,9 +28,8 @@ actor LaunchScheduleCache: LaunchScheduleCaching {
 
     init(fileURL: URL) { self.fileURL = fileURL }
 
-    static func standard() throws -> LaunchScheduleCache {
-        let directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                     appropriateFor: nil, create: true)
+    static func standard() -> LaunchScheduleCache {
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return LaunchScheduleCache(fileURL: directory.appendingPathComponent("LaunchSchedule.json"))
     }
 
@@ -45,6 +44,7 @@ actor LaunchScheduleCache: LaunchScheduleCaching {
     }
 
     func save(_ schedule: SavedLaunchSchedule) throws {
+        try Task.checkCancellation()
         guard schedule.launches.allSatisfy({ $0.source == schedule.source }) else {
             throw LaunchRepositoryError.invalidData
         }

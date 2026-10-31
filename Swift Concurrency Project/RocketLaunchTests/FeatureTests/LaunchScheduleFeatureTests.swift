@@ -461,6 +461,63 @@ private actor ActiveReminderPersistence: ReminderPersisting {
 }
 
 final class LaunchScheduleCacheTests: XCTestCase {
+    @MainActor func testSavedScheduleAppearsWhenOfflineRefreshFails() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = LaunchScheduleCache(fileURL: directory.appendingPathComponent("schedule.json"))
+        let date = Date(timeIntervalSince1970: 2_000_000_000)
+        let launch = RocketLaunch(id: 123, name: "Saved launch", missions: [],
+            estimatedDate: .init(month: nil, day: nil, year: nil),
+            details: .init(plannedTime: date.addingTimeInterval(3600)))
+        try await cache.save(.init(source: .rocketLaunchLive, launches: [launch], fetchedAt: date))
+        let started = expectation(description: "Network request starts")
+        let repository = ControlledLaunchRepository { _ in started.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            cache: cache, now: { date })
+        let task = Task { await feature.loadIfNeeded() }
+        await waitFor([started])
+        XCTAssertEqual(feature.displayedLaunch, launch)
+        await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
+        await task.value
+        XCTAssertEqual(feature.displayedLaunch, launch)
+        XCTAssertEqual(feature.sources.first?.fetchedAt, date)
+        XCTAssertEqual(feature.loadFailure, .offline)
+    }
+
+    @MainActor func testSuccessfulRefreshIsPersistedForNextLaunch() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("schedule.json")
+        let cache = LaunchScheduleCache(fileURL: url)
+        let began = expectation(description: "Network request starts")
+        let repository = ControlledLaunchRepository { _ in began.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
+        let task = Task { await feature.loadIfNeeded() }
+        await waitFor([began])
+        let launch = RocketLaunch(id: 123, name: "Downloaded launch", missions: [],
+            estimatedDate: .init(month: nil, day: nil, year: nil))
+        await repository.complete(0, with: .success([launch]))
+        await task.value
+        let restored = try await LaunchScheduleCache(fileURL: url).load()
+        XCTAssertEqual(restored.first?.launches, [launch])
+        XCTAssertEqual(feature.sources[0].launches, [launch])
+    }
+
+    @MainActor func testFailedCacheWriteDoesNotPublishDownloadedSchedule() async throws {
+        let started = expectation(description: "Network request starts")
+        let repository = ControlledLaunchRepository { _ in started.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            cache: FailingLaunchCache())
+        let task = Task { await feature.loadIfNeeded() }
+        await waitFor([started])
+        let launch = RocketLaunch(id: 123, name: "Not saved", missions: [],
+            estimatedDate: .init(month: nil, day: nil, year: nil))
+        await repository.complete(0, with: .success([launch]))
+        await task.value
+        XCTAssertTrue(feature.sources[0].launches.isEmpty)
+        XCTAssertEqual(feature.loadFailure, .storage)
+    }
+
     func testSchedulesSurviveReopeningAndUpdateIndependently() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -492,4 +549,9 @@ final class LaunchScheduleCacheTests: XCTestCase {
         } catch { }
         XCTAssertEqual(try Data(contentsOf: url), original)
     }
+}
+
+private actor FailingLaunchCache: LaunchScheduleCaching {
+    func load() -> [SavedLaunchSchedule] { [] }
+    func save(_ schedule: SavedLaunchSchedule) throws { throw CocoaError(.fileWriteNoPermission) }
 }

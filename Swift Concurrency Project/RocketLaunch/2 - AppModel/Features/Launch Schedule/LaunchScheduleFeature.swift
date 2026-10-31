@@ -12,6 +12,9 @@ final class LaunchScheduleFeature {
     private(set) var nextLaunch: RocketLaunch?
     private(set) var updates: [LaunchUpdate] = []
     private let configurations: [LaunchSourceConfiguration]
+    private let cache: (any LaunchScheduleCaching)?
+    @ObservationIgnored private var cacheLoadTask: Task<[SavedLaunchSchedule], Never>?
+    @ObservationIgnored private var cacheRestored = false
     private let now: @Sendable () -> Date
     private let waitForScheduleTick: @Sendable () async throws -> Void
     @ObservationIgnored private var scheduleMonitorTask: Task<Void, Never>?
@@ -32,9 +35,9 @@ final class LaunchScheduleFeature {
         self.init(sources: [.init(id: .rocketLaunchLive, repository: repository)])
     }
 
-    init(sources: [LaunchSourceConfiguration], now: @escaping @Sendable () -> Date = { Date() }, notificationClient: any LaunchNotificationClient = LocalLaunchNotifications(), reminderStorage: ReminderStorage = .memory, reminderPersistence: (any ReminderPersisting)? = nil, waitForScheduleTick: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(60)) }) {
+    init(sources: [LaunchSourceConfiguration], cache: (any LaunchScheduleCaching)? = nil, now: @escaping @Sendable () -> Date = { Date() }, notificationClient: any LaunchNotificationClient = LocalLaunchNotifications(), reminderStorage: ReminderStorage = .memory, reminderPersistence: (any ReminderPersisting)? = nil, waitForScheduleTick: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(60)) }) {
         precondition(Set(sources.map(\.id)).count == sources.count)
-        self.configurations = sources; self.now = now
+        self.configurations = sources; self.cache = cache; self.now = now
         self.waitForScheduleTick = waitForScheduleTick
         self.notificationClient = notificationClient; self.reminderPersistence = reminderPersistence ?? ReminderPersistence(storage: reminderStorage)
         self.sources = sources.map { LaunchSourceSnapshot(id: $0.id) }
@@ -106,10 +109,31 @@ final class LaunchScheduleFeature {
 
     /// Join active initial work or request only providers with no settled result.
     func loadIfNeeded() async {
+        await restoreCachedSchedulesIfNeeded()
         let unfinished = sources.filter { $0.phase == .idle || $0.phase == .loading }.map(\.id)
         await withTaskGroup(of: Void.self) { group in
             for source in unfinished { group.addTask { await self.refresh(source: source, onlyIfNeeded: true) } }
         }
+    }
+
+    private func restoreCachedSchedulesIfNeeded() async {
+        guard !cacheRestored, let cache else { return }
+        if cacheLoadTask == nil {
+            cacheLoadTask = Task { (try? await cache.load()) ?? [] }
+        }
+        guard let task = cacheLoadTask else { return }
+        let saved = await task.value
+        guard !cacheRestored else { return }
+        cacheRestored = true
+        cacheLoadTask = nil
+        for schedule in saved {
+            guard let index = sources.firstIndex(where: { $0.id == schedule.source }),
+                  sources[index].phase == .idle, sources[index].fetchedAt == nil else { continue }
+            sources[index] = LaunchSourceSnapshot(id: schedule.source, launches: schedule.launches,
+                fetchedAt: schedule.fetchedAt, phase: .idle)
+        }
+        rebuildOperators()
+        updateNextLaunch()
     }
 
     /// Child callers share each provider's active request and publish independently.
@@ -126,6 +150,7 @@ final class LaunchScheduleFeature {
     }
 
     private func refresh(source: LaunchSourceID, onlyIfNeeded: Bool) async {
+        await restoreCachedSchedulesIfNeeded()
         startReminderLoadingIfNeeded()
         let waiterID = UUID()
         await withTaskCancellationHandler {
@@ -167,7 +192,7 @@ final class LaunchScheduleFeature {
                 try Task.checkCancellation()
                 result = .success(launches)
             } catch { result = .failure(error) }
-            self?.completeRefresh(source: source, id: id, result: result)
+            await self?.completeRefresh(source: source, id: id, result: result)
         }
         requests[source] = Request(id: id, task: task, previous: previous, waiters: [waiterID: continuation])
     }
@@ -184,7 +209,20 @@ final class LaunchScheduleFeature {
         waiter.resume()
     }
 
-    private func completeRefresh(source: LaunchSourceID, id: UUID, result: Result<[RocketLaunch], any Error>) {
+    private func completeRefresh(source: LaunchSourceID, id: UUID, result: Result<[RocketLaunch], any Error>) async {
+        guard requests[source]?.id == id else { return }
+        var result = result
+        let fetchedAt = now()
+        if case .success(let launches) = result, let cache {
+            do {
+                try Task.checkCancellation()
+                try await cache.save(.init(source: source, launches: launches, fetchedAt: fetchedAt))
+            } catch is CancellationError {
+                result = .failure(CancellationError())
+            } catch {
+                result = .failure(LaunchCacheWriteError())
+            }
+        }
         guard let request = requests[source], request.id == id,
               let index = sources.firstIndex(where: { $0.id == source }) else { return }
         var effects: [ReminderEffect] = []
@@ -192,7 +230,7 @@ final class LaunchScheduleFeature {
         case .success(let launches):
             recordChanges(from: sources[index].launches, to: launches)
             let current = sources[index]
-            sources[index] = LaunchSourceSnapshot(id: current.id, launches: launches, fetchedAt: now(),
+            sources[index] = LaunchSourceSnapshot(id: current.id, launches: launches, fetchedAt: fetchedAt,
                 nextRefreshAt: current.nextRefreshAt, phase: .loaded)
             rebuildOperators()
             // Cache and desired reminders change in one uninterrupted actor operation.
@@ -791,6 +829,7 @@ final class LaunchScheduleFeature {
     }
 
     private static func failure(for error: any Error) -> LaunchLoadFailure {
+        if error is LaunchCacheWriteError { return .storage }
         if let error = error as? LaunchRepositoryError {
             switch error {
             case .invalidResponse: return .invalidResponse
@@ -806,8 +845,10 @@ final class LaunchScheduleFeature {
     }
 }
 
+private struct LaunchCacheWriteError: Error {}
+
 enum LaunchLoadFailure: Equatable, Sendable {
-    case offline, timedOut, invalidResponse, invalidData, network
+    case offline, timedOut, invalidResponse, invalidData, network, storage
     case server(statusCode: Int)
 }
 

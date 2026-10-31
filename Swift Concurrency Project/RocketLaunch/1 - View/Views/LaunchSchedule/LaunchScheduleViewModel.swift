@@ -106,6 +106,7 @@ final class LaunchScheduleViewModel {
         case .server: return String(localized: "The launch service is unavailable. Please try again later.")
         case .invalidData, .invalidResponse: return String(localized: "The launch service returned an unexpected response. Please try again later.")
         case .network: return String(localized: "Couldn’t load launches. Please try again.")
+        case .storage: return String(localized: "Couldn’t save the launch schedule. Please try again.")
         }
     }
 

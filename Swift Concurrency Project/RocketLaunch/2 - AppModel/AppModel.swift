@@ -38,6 +38,6 @@ final class AppModel {
             .init(id: .rocketLaunchLive, repository: repository),
             .init(id: .launchLibrary, repository: library, minimumRefreshInterval: 300),
             .init(id: .spaceX, repository: spaceX, minimumRefreshInterval: 60)
-        ], reminderStorage: .standard), settingsFeature: SettingsFeature(persistence: ThemePersistence(storage: .standard)))
+        ], cache: LaunchScheduleCache.standard(), reminderStorage: .standard), settingsFeature: SettingsFeature(persistence: ThemePersistence(storage: .standard)))
     }
 }
