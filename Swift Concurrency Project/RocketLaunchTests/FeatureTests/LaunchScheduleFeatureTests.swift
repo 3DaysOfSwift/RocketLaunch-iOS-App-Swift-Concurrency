@@ -4,6 +4,22 @@ import Observation
 
 final class LaunchScheduleFeatureTests: XCTestCase {
 
+    func testUnavailableCacheLocationReportsFailureForReadsAndWrites() async {
+        let cache = LaunchScheduleCache(fileURL: nil)
+        do {
+            _ = try await cache.load()
+            XCTFail("Expected the missing cache location to fail")
+        } catch {
+            XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile)
+        }
+        do {
+            try await cache.save(.init(source: .rocketLaunchLive, launches: [], fetchedAt: .now))
+            XCTFail("Expected the missing cache location to fail")
+        } catch {
+            XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile)
+        }
+    }
+
     @MainActor func testActiveReminderExpiresAtItsFireTimeUsingTheFeatureClock() async throws {
         let clock = TestClock(Date(timeIntervalSince1970: 2_000_000_000))
         let launch = try XCTUnwrap(LaunchFixtures.launches().first)

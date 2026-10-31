@@ -14,16 +14,17 @@ protocol LaunchScheduleCaching: Sendable {
 
 /// Owns the on-disk representation; the Feature owns the live application state.
 actor LaunchScheduleCache: LaunchScheduleCaching {
-    private let fileURL: URL
+    private let fileURL: URL?
 
-    init(fileURL: URL) { self.fileURL = fileURL }
+    init(fileURL: URL?) { self.fileURL = fileURL }
 
     static func standard() -> LaunchScheduleCache {
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return LaunchScheduleCache(fileURL: directory.appendingPathComponent("LaunchSchedule.dat"))
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        return LaunchScheduleCache(fileURL: directory?.appendingPathComponent("LaunchSchedule.dat"))
     }
 
     func load() throws -> [SavedLaunchSchedule] {
+        guard let fileURL else { throw CocoaError(.fileNoSuchFile) }
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
         let schedules = try BinaryLaunchSchedules.decode(Data(contentsOf: fileURL))
         guard Set(schedules.map(\.source)).count == schedules.count,
@@ -35,6 +36,7 @@ actor LaunchScheduleCache: LaunchScheduleCaching {
 
     func save(_ schedule: SavedLaunchSchedule) throws {
         try Task.checkCancellation()
+        guard let fileURL else { throw CocoaError(.fileNoSuchFile) }
         guard schedule.launches.allSatisfy({ $0.source == schedule.source }) else {
             throw LaunchRepositoryError.invalidData
         }
@@ -42,7 +44,7 @@ actor LaunchScheduleCache: LaunchScheduleCaching {
         do {
             existing = try load()
         } catch LaunchRepositoryError.invalidData {
-            try preserveUnreadableCache()
+            try preserveUnreadableCache(at: fileURL)
             existing = []
         }
         var schedules = existing
@@ -54,7 +56,7 @@ actor LaunchScheduleCache: LaunchScheduleCaching {
     }
 
     /// A downloaded schedule is replaceable, but retain a damaged file for recovery.
-    private func preserveUnreadableCache() throws {
+    private func preserveUnreadableCache(at fileURL: URL) throws {
         let backup = fileURL.deletingLastPathComponent()
             .appendingPathComponent("\(fileURL.lastPathComponent).unreadable-\(UUID().uuidString)")
         try FileManager.default.copyItem(at: fileURL, to: backup)
