@@ -530,6 +530,44 @@ final class LaunchScheduleCacheTests: XCTestCase {
         XCTAssertNil(LaunchScheduleViewModel(launchScheduleFeature: feature).savedScheduleMessage)
     }
 
+    @MainActor func testCancelledOlderDownloadCannotReplaceNewerCachedSchedule() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("schedule.json")
+        let first = expectation(description: "First download starts")
+        let second = expectation(description: "Replacement download starts")
+        let repository = ControlledLaunchRepository { index in (index == 0 ? first : second).fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            cache: LaunchScheduleCache(fileURL: url), now: { Date(timeIntervalSince1970: 1_700_000_000) })
+        let launches = try LaunchFixtures.launches()
+        let old = Task { await feature.refresh() }
+        await waitFor([first])
+        old.cancel()
+        await old.value
+        let new = Task { await feature.refresh() }
+        await waitFor([second])
+        await repository.complete(1, with: .success([launches[1]]))
+        await new.value
+        await repository.complete(0, with: .success([launches[0]]))
+        let restored = try await LaunchScheduleCache(fileURL: url).load()
+        XCTAssertEqual(feature.sources[0].launches, [launches[1]])
+        XCTAssertEqual(restored.first?.launches, [launches[1]])
+    }
+
+    func testConcurrentProviderWritesPreserveBothSchedules() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("schedule.json")
+        let cache = LaunchScheduleCache(fileURL: url)
+        let first = SavedLaunchSchedule(source: .rocketLaunchLive, launches: [], fetchedAt: .now)
+        let second = SavedLaunchSchedule(source: .spaceX, launches: [], fetchedAt: .now)
+        async let firstWrite: Void = cache.save(first)
+        async let secondWrite: Void = cache.save(second)
+        _ = try await (firstWrite, secondWrite)
+        let restored = try await LaunchScheduleCache(fileURL: url).load()
+        XCTAssertEqual(Set(restored.map(\.source)), [.rocketLaunchLive, .spaceX])
+    }
+
     @MainActor func testUnreadableCacheRecoversWhenDownloadSucceeds() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
