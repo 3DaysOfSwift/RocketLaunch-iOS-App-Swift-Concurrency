@@ -608,6 +608,34 @@ final class LaunchScheduleCacheTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: url), Data("invalid cache".utf8))
     }
 
+    @MainActor func testRefreshRetriesFailedCacheReadWhileOffline() async throws {
+        let date = Date(timeIntervalSince1970: 2_000_000_000)
+        let launch = RocketLaunch(id: 123, name: "Saved launch", missions: [],
+            estimatedDate: .init(month: nil, day: nil, year: nil),
+            details: .init(plannedTime: date.addingTimeInterval(3600)))
+        let cache = RetryLaunchCache(schedule: .init(source: .rocketLaunchLive, launches: [launch], fetchedAt: date))
+        let first = expectation(description: "First network request")
+        let second = expectation(description: "Retry network request")
+        let repository = ControlledLaunchRepository { index in (index == 0 ? first : second).fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            cache: cache, now: { date })
+        let initial = Task { await feature.loadIfNeeded() }
+        await waitFor([first])
+        await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
+        await initial.value
+        XCTAssertNotNil(feature.savedScheduleReadError)
+        let retry = Task { await feature.refresh() }
+        await waitFor([second])
+        XCTAssertNil(feature.savedScheduleReadError)
+        XCTAssertEqual(feature.displayedLaunch, launch)
+        await repository.complete(1, with: .failure(URLError(.notConnectedToInternet)))
+        await retry.value
+        XCTAssertEqual(feature.displayedLaunch, launch)
+        XCTAssertEqual(feature.loadFailure, .offline)
+        let reads = await cache.readCount
+        XCTAssertEqual(reads, 2)
+    }
+
     @MainActor func testReadAndWriteFailureShowOneStorageMessage() async throws {
         let started = expectation(description: "Network request starts")
         let repository = ControlledLaunchRepository { _ in started.fulfill() }
@@ -706,5 +734,17 @@ private actor FailingLaunchCache: LaunchScheduleCaching {
 
 private actor UnavailableLaunchCache: LaunchScheduleCaching {
     func load() throws -> [SavedLaunchSchedule] { throw CocoaError(.fileReadNoPermission) }
+    func save(_ schedule: SavedLaunchSchedule) throws { throw CocoaError(.fileWriteNoPermission) }
+}
+
+private actor RetryLaunchCache: LaunchScheduleCaching {
+    let schedule: SavedLaunchSchedule
+    private(set) var readCount = 0
+    init(schedule: SavedLaunchSchedule) { self.schedule = schedule }
+    func load() throws -> [SavedLaunchSchedule] {
+        readCount += 1
+        if readCount == 1 { throw CocoaError(.fileReadNoPermission) }
+        return [schedule]
+    }
     func save(_ schedule: SavedLaunchSchedule) throws { throw CocoaError(.fileWriteNoPermission) }
 }

@@ -142,9 +142,11 @@ final class LaunchScheduleFeature {
         }
         for schedule in saved {
             guard let index = sources.firstIndex(where: { $0.id == schedule.source }),
-                  sources[index].phase == .idle, sources[index].fetchedAt == nil else { continue }
+                  (sources[index].phase == .idle || sources[index].phase == .failed),
+                  sources[index].fetchedAt == nil else { continue }
+            let retryAt = sources[index].nextRefreshAt
             sources[index] = LaunchSourceSnapshot(id: schedule.source, launches: schedule.launches,
-                fetchedAt: schedule.fetchedAt, phase: .idle)
+                fetchedAt: schedule.fetchedAt, nextRefreshAt: retryAt, phase: .idle)
             restoredCacheSources.insert(schedule.source)
         }
         rebuildOperators()
@@ -153,6 +155,7 @@ final class LaunchScheduleFeature {
 
     /// Child callers share each provider's active request and publish independently.
     func refresh() async {
+        if savedScheduleReadError != nil { cacheRestored = false }
         await withTaskGroup(of: Void.self) { group in
             for configuration in configurations {
                 group.addTask { await self.refresh(source: configuration.id) }
@@ -161,6 +164,7 @@ final class LaunchScheduleFeature {
     }
 
     func refresh(source: LaunchSourceID) async {
+        if savedScheduleReadError != nil { cacheRestored = false }
         await refresh(source: source, onlyIfNeeded: false)
     }
 
