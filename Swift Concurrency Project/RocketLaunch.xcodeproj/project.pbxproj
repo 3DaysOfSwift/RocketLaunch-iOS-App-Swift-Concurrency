@@ -385,6 +385,7 @@
 				7B08A9B9304E8A5A00096A29 /* Rocket Launch API */,
 				71DCC2F5E5B68050A7A30C8A /* LaunchScheduleFeature.swift */,
 				6CEFBA188D76B1BB677E11F8 /* RocketLaunchDataTypes.swift */,
+				66876FA3E22A3B2FFDE6B00A /* LaunchRepository.swift */,
 				D43A9F7790FB4DB1FFCD4912 /* SpaceX API */,
 				6C85A65CD7956631ADE2DD3F /* Launch Library API */,
 				7B08A9BA304E8A6800096A29 /* Cached Launches */,
@@ -403,7 +404,6 @@
 		7B08A9BA304E8A6800096A29 /* Cached Launches */ = {
 			isa = PBXGroup;
 			children = (
-				66876FA3E22A3B2FFDE6B00A /* LaunchRepository.swift */,
 				AA9900000000000000000002 /* LaunchScheduleCache.swift */,
 				AA9900000000000000000004 /* BinaryLaunchSchedules.swift */,
 			);
