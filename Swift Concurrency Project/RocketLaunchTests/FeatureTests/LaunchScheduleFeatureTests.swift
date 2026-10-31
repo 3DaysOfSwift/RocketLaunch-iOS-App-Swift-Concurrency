@@ -521,8 +521,11 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let offline = ControlledLaunchRepository { _ in offlineStarted.fulfill() }
         let reopened = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: offline)],
             cache: LaunchScheduleCache(fileURL: url), now: { now })
+        let restored = expectation(description: "Cached launch appears")
+        let observer = Task { for await snapshot in reopened.snapshots() where snapshot.displayedLaunch == launch { restored.fulfill(); break } }
         let restore = Task { await reopened.loadIfNeeded() }
-        await waitFor([offlineStarted])
+        await waitFor([offlineStarted, restored])
+        observer.cancel()
         XCTAssertEqual(reopened.displayedLaunch, launch)
         await offline.complete(0, with: .failure(URLError(.notConnectedToInternet)))
         await restore.value
@@ -544,8 +547,11 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let repository = ControlledLaunchRepository { _ in started.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
             cache: cache, now: { date })
+        let restored = expectation(description: "Cached launch appears")
+        let observer = Task { for await snapshot in feature.snapshots() where snapshot.displayedLaunch == launch { restored.fulfill(); break } }
         let task = Task { await feature.loadIfNeeded() }
-        await waitFor([started])
+        await waitFor([started, restored])
+        observer.cancel()
         XCTAssertEqual(feature.displayedLaunch, launch)
         let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         XCTAssertNotNil(viewModel.savedScheduleMessage)
@@ -555,6 +561,71 @@ final class LaunchScheduleCacheTests: XCTestCase {
         XCTAssertEqual(feature.sources.first?.fetchedAt, date)
         XCTAssertEqual(feature.loadFailure, .offline)
         XCTAssertNotNil(viewModel.savedScheduleMessage)
+    }
+
+    @MainActor func testNetworkStartsWhileCacheIsLoadingAndOfflineKeepsCachedLaunch() async {
+        let date = Date(timeIntervalSince1970: 2_000_000_000)
+        let launch = RocketLaunch(id: 123, name: "Cached", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: date.addingTimeInterval(3600)))
+        let readStarted = expectation(description: "Cache read starts")
+        let networkStarted = expectation(description: "Network starts without waiting for cache")
+        let cachedAppeared = expectation(description: "Cached launch appears during refresh")
+        let cache = DelayedReadLaunchCache(schedules: [.init(source: .rocketLaunchLive, launches: [launch], fetchedAt: date)]) { readStarted.fulfill() }
+        let repository = ControlledLaunchRepository { _ in networkStarted.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache, now: { date })
+        let observer = Task { for await snapshot in feature.snapshots() where snapshot.displayedLaunch == launch { cachedAppeared.fulfill(); break } }
+        let refresh = Task { await feature.loadIfNeeded() }
+        await waitFor([readStarted, networkStarted])
+        await cache.finishRead()
+        await waitFor([cachedAppeared])
+        observer.cancel()
+        await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
+        await refresh.value
+        XCTAssertEqual(feature.displayedLaunch, launch)
+        XCTAssertEqual(feature.loadFailure, .offline)
+    }
+
+    @MainActor func testCacheCanArriveAfterAnOfflineFailure() async {
+        let date = Date(timeIntervalSince1970: 2_000_000_000)
+        let launch = RocketLaunch(id: 123, name: "Cached", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil), details: .init(plannedTime: date.addingTimeInterval(3600)))
+        let readStarted = expectation(description: "Cache read starts")
+        let networkStarted = expectation(description: "Network starts")
+        let cachedAppeared = expectation(description: "Cached launch appears after failure")
+        let cache = DelayedReadLaunchCache(schedules: [.init(source: .rocketLaunchLive, launches: [launch], fetchedAt: date)]) { readStarted.fulfill() }
+        let repository = ControlledLaunchRepository { _ in networkStarted.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache, now: { date })
+        let observer = Task { for await snapshot in feature.snapshots() where snapshot.displayedLaunch == launch { cachedAppeared.fulfill(); break } }
+        let refresh = Task { await feature.loadIfNeeded() }
+        await waitFor([readStarted, networkStarted])
+        await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
+        await refresh.value
+        await cache.finishRead()
+        await waitFor([cachedAppeared])
+        observer.cancel()
+        XCTAssertEqual(feature.displayedLaunch, launch)
+        XCTAssertEqual(feature.loadFailure, .offline)
+    }
+
+    @MainActor func testLateCacheCannotReplaceNewServerData() async {
+        let date = Date(timeIntervalSince1970: 2_000_000_000)
+        let old = RocketLaunch(id: 1, name: "Old", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil))
+        let fresh = RocketLaunch(id: 2, name: "Fresh", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil))
+        let readStarted = expectation(description: "Cache read starts")
+        let networkStarted = expectation(description: "Network starts")
+        let cache = DelayedReadLaunchCache(schedules: [.init(source: .rocketLaunchLive, launches: [old], fetchedAt: date)]) { readStarted.fulfill() }
+        let repository = ControlledLaunchRepository { _ in networkStarted.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache, now: { date })
+        let refresh = Task { await feature.loadIfNeeded() }
+        await waitFor([readStarted, networkStarted])
+        await repository.complete(0, with: .success([fresh]))
+        await refresh.value
+        XCTAssertEqual(feature.sources[0].launches, [fresh])
+        let stalePublished = expectation(description: "Stale cache must not be published")
+        stalePublished.isInverted = true
+        let observer = Task { for await snapshot in feature.snapshots() where snapshot.sources.first?.launches == [old] { stalePublished.fulfill(); break } }
+        await cache.finishRead()
+        await fulfillment(of: [stalePublished], timeout: 0.3)
+        observer.cancel()
+        XCTAssertEqual(feature.sources[0].launches, [fresh])
     }
 
     @MainActor func testSuccessfulRefreshIsPersistedForNextLaunch() async throws {
@@ -863,6 +934,19 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let restored = try await LaunchScheduleCache(fileURL: url).load()
         XCTAssertEqual(restored, [replacement])
     }
+}
+
+private actor DelayedReadLaunchCache: LaunchScheduleCaching {
+    private let schedules: [SavedLaunchSchedule]
+    private let onRead: @Sendable () -> Void
+    private var pending: CheckedContinuation<Void, Never>?
+    init(schedules: [SavedLaunchSchedule], onRead: @escaping @Sendable () -> Void) { self.schedules = schedules; self.onRead = onRead }
+    func load() async -> [SavedLaunchSchedule] {
+        await withCheckedContinuation { continuation in pending = continuation; onRead() }
+        return schedules
+    }
+    func save(_ schedule: SavedLaunchSchedule) {}
+    func finishRead() { pending?.resume(); pending = nil }
 }
 
 private actor FailingLaunchCache: LaunchScheduleCaching {

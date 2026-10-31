@@ -17,7 +17,7 @@ final class LaunchScheduleFeature {
     private(set) var updates: [LaunchUpdate] = []
     private let configurations: [LaunchSourceConfiguration]
     private let cache: (any LaunchScheduleCaching)?
-    @ObservationIgnored private var cacheLoadTask: Task<Result<[SavedLaunchSchedule], any Error>, Never>?
+    @ObservationIgnored private var cacheLoadTask: Task<Void, Never>?
     @ObservationIgnored private var cacheWriteTasks: [LaunchSourceID: Task<Void, Never>] = [:]
     @ObservationIgnored private var cacheWriteIDs: [LaunchSourceID: UUID] = [:]
     @ObservationIgnored private var cacheRestored = false
@@ -30,7 +30,7 @@ final class LaunchScheduleFeature {
     private struct Request {
         let id: UUID
         let task: Task<Void, Never>
-        let previous: LaunchSourceSnapshot
+        var previous: LaunchSourceSnapshot
         var waiters: [UUID: CheckedContinuation<Void, Never>]
     }
     @ObservationIgnored private var requests: [LaunchSourceID: Request] = [:]
@@ -116,40 +116,36 @@ final class LaunchScheduleFeature {
 
     /// Join active initial work or request only providers with no settled result.
     func loadIfNeeded() async {
-        await restoreCachedSchedulesIfNeeded()
+        startCacheRestoreIfNeeded()
         let unfinished = sources.filter { $0.phase == .idle || $0.phase == .loading }.map(\.id)
         await withTaskGroup(of: Void.self) { group in
             for source in unfinished { group.addTask { await self.refresh(source: source, onlyIfNeeded: true) } }
         }
     }
 
-    private func restoreCachedSchedulesIfNeeded() async {
-        guard !cacheRestored, let cache else { return }
-        if cacheLoadTask == nil {
-            cacheLoadTask = Task {
-                do { return .success(try await cache.load()) }
-                catch { return .failure(error) }
-            }
+    private func startCacheRestoreIfNeeded() {
+        guard !cacheRestored, cacheLoadTask == nil, let cache else { return }
+        cacheLoadTask = Task { [weak self] in
+            let saved = try? await cache.load()
+            self?.finishCacheRestore(saved ?? [])
         }
-        guard let task = cacheLoadTask else { return }
-        let result = await task.value
-        guard !cacheRestored else { return }
+    }
+
+    private func finishCacheRestore(_ saved: [SavedLaunchSchedule]) {
         cacheRestored = true
         cacheLoadTask = nil
-        let saved: [SavedLaunchSchedule]
-        switch result {
-        case .success(let schedules):
-            saved = schedules
-        case .failure:
-            return
-        }
         for schedule in saved {
             guard let index = sources.firstIndex(where: { $0.id == schedule.source }),
-                  (sources[index].phase == .idle || sources[index].phase == .failed),
                   sources[index].fetchedAt == nil else { continue }
-            let retryAt = sources[index].nextRefreshAt
-            sources[index] = LaunchSourceSnapshot(id: schedule.source, minimumRefreshInterval: sources[index].minimumRefreshInterval, launches: schedule.launches,
-                fetchedAt: schedule.fetchedAt, nextRefreshAt: retryAt, phase: .idle)
+            let current = sources[index]
+            sources[index] = LaunchSourceSnapshot(id: schedule.source, minimumRefreshInterval: current.minimumRefreshInterval, launches: schedule.launches,
+                fetchedAt: schedule.fetchedAt, nextRefreshAt: current.nextRefreshAt, phase: current.phase, failure: current.failure)
+            if var request = requests[schedule.source] {
+                let previous = request.previous
+                request.previous = LaunchSourceSnapshot(id: schedule.source, minimumRefreshInterval: previous.minimumRefreshInterval, launches: schedule.launches,
+                    fetchedAt: schedule.fetchedAt, nextRefreshAt: previous.nextRefreshAt, phase: previous.phase, failure: previous.failure)
+                requests[schedule.source] = request
+            }
             restoredCacheSources.insert(schedule.source)
         }
         rebuildOperators()
@@ -170,7 +166,7 @@ final class LaunchScheduleFeature {
     }
 
     private func refresh(source: LaunchSourceID, onlyIfNeeded: Bool) async {
-        await restoreCachedSchedulesIfNeeded()
+        startCacheRestoreIfNeeded()
         startReminderLoadingIfNeeded()
         let waiterID = UUID()
         await withTaskCancellationHandler {
@@ -394,6 +390,7 @@ final class LaunchScheduleFeature {
         } else if let failure = sources.compactMap({ snapshot -> LaunchLoadFailure? in
             snapshot.phase == .failed ? snapshot.failure : nil
         }).first {
+            if displayedLaunch == nil { displayedLaunch = upcomingLaunches.first }
             loadFailure = failure
             state = .failed
         } else if sources.allSatisfy({ $0.phase == .idle }) {
