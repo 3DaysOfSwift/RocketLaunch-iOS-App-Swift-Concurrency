@@ -481,6 +481,38 @@ final class LaunchScheduleCacheTests: XCTestCase {
         XCTAssertThrowsError(try BinaryLaunchSchedules.decode(data + Data([0])))
     }
 
+    @MainActor func testSavedDownloadSurvivesFeatureRecreationWhenOffline() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("schedule.dat")
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let launch = RocketLaunch(id: 123, name: "Saved launch", missions: [],
+            estimatedDate: .init(month: nil, day: nil, year: nil),
+            details: .init(plannedTime: now.addingTimeInterval(3600)))
+        let onlineStarted = expectation(description: "Online download")
+        let online = ControlledLaunchRepository { _ in onlineStarted.fulfill() }
+        let first = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: online)],
+            cache: LaunchScheduleCache(fileURL: url), now: { now })
+        let download = Task { await first.loadIfNeeded() }
+        await waitFor([onlineStarted])
+        await online.complete(0, with: .success([launch]))
+        await download.value
+        XCTAssertEqual(first.displayedLaunch, launch)
+
+        let offlineStarted = expectation(description: "Offline refresh")
+        let offline = ControlledLaunchRepository { _ in offlineStarted.fulfill() }
+        let reopened = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: offline)],
+            cache: LaunchScheduleCache(fileURL: url), now: { now })
+        let restore = Task { await reopened.loadIfNeeded() }
+        await waitFor([offlineStarted])
+        XCTAssertEqual(reopened.displayedLaunch, launch)
+        await offline.complete(0, with: .failure(URLError(.notConnectedToInternet)))
+        await restore.value
+        XCTAssertEqual(reopened.displayedLaunch, launch)
+        XCTAssertEqual(reopened.loadFailure, .offline)
+        XCTAssertNotNil(LaunchScheduleViewModel(launchScheduleFeature: reopened).savedScheduleMessage)
+    }
+
     @MainActor func testSavedScheduleAppearsWhenOfflineRefreshFails() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
