@@ -18,6 +18,7 @@ final class LaunchScheduleFeature {
     private let configurations: [LaunchSourceConfiguration]
     private let cache: (any LaunchScheduleCaching)?
     @ObservationIgnored private var cacheLoadTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshTasks: [LaunchSourceID: Task<Void, Never>] = [:]
     @ObservationIgnored private var cacheWriteTasks: [LaunchSourceID: Task<Void, Never>] = [:]
     @ObservationIgnored private var cacheWriteIDs: [LaunchSourceID: UUID] = [:]
     @ObservationIgnored private var cacheRestored = false
@@ -104,6 +105,7 @@ final class LaunchScheduleFeature {
         for observer in observers.values { observer.yield(value) }
     }
     deinit {
+        for task in refreshTasks.values { task.cancel() }
         scheduleMonitorTask?.cancel()
         for caller in scheduleMonitorCallers.values { caller.resume() }
         for observer in observers.values { observer.finish() }
@@ -114,12 +116,20 @@ final class LaunchScheduleFeature {
         }
     }
 
-    /// Join active initial work or request only providers with no settled result.
-    func loadIfNeeded() async {
+    /// Start independent cache and network work without delaying application launch.
+    func startLoading() {
+        startRefreshIfNeeded()
         startCacheRestoreIfNeeded()
-        let unfinished = sources.filter { $0.phase == .idle || $0.phase == .loading }.map(\.id)
-        await withTaskGroup(of: Void.self) { group in
-            for source in unfinished { group.addTask { await self.refresh(source: source, onlyIfNeeded: true) } }
+        startReminderLoadingIfNeeded()
+    }
+
+    private func startRefreshIfNeeded() {
+        for source in sources where refreshTasks[source.id] == nil {
+            let id = source.id
+            refreshTasks[id] = Task { [weak self] in
+                await self?.refresh(source: id, onlyIfNeeded: true)
+                self?.refreshTasks[id] = nil
+            }
         }
     }
 

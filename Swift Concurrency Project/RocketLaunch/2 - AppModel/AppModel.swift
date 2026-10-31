@@ -14,13 +14,11 @@ final class AppModel {
         self.hasLaunched = false
     }
 
-    func applicationDidFinishLaunching() async {
+    func applicationDidFinishLaunching() {
         guard !hasLaunched else { return }
         hasLaunched = true
-        async let settings: Void = settingsFeature.loadIfNeeded()
-        async let reminders: Void = launchScheduleFeature.loadRemindersIfNeeded()
-        async let launches: Void = launchScheduleFeature.loadIfNeeded()
-        _ = await (settings, reminders, launches)
+        launchScheduleFeature.startLoading()
+        settingsFeature.startLoading()
     }
 
     func applicationDidBecomeActive() async {

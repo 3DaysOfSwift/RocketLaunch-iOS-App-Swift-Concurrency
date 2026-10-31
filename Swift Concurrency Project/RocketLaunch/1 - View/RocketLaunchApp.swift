@@ -19,19 +19,13 @@ struct RocketLaunchApp: App {
 
 @MainActor
 final class RocketLaunchAppDelegate: NSObject, UIApplicationDelegate {
-    private var launchTask: Task<Void, Never>?
-
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         // Hosted tests construct isolated models without contacting production services.
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return true }
-        launchTask = Task {
-            await AppModel.shared.applicationDidFinishLaunching()
-        }
+        AppModel.shared.applicationDidFinishLaunching()
         return true
     }
-
-    deinit { launchTask?.cancel() }
 }

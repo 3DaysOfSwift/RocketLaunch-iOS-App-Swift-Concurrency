@@ -25,8 +25,9 @@ final class AppModelTests: XCTestCase {
         let repository = PresentationLaunchRepository()
         let feature = LaunchScheduleFeature(repository: repository)
         let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
-        await model.applicationDidFinishLaunching()
-        await model.applicationDidFinishLaunching()
+        model.applicationDidFinishLaunching()
+        model.applicationDidFinishLaunching()
+        await waitForScheduleToSettle(feature)
         let initialRequests = await repository.requestCount
         XCTAssertEqual(initialRequests, 1)
         await feature.refresh()
@@ -40,14 +41,13 @@ final class AppModelTests: XCTestCase {
         let repository = PresentationLaunchRepository()
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], reminderPersistence: persistence)
         let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
-        let launch = Task { await model.applicationDidFinishLaunching() }
+        model.applicationDidFinishLaunching()
         await fulfillment(of: [storageStarted], timeout: 2)
-        await feature.loadIfNeeded()
+        await waitForScheduleToSettle(feature)
         let requests = await repository.requestCount
         XCTAssertEqual(requests, 1)
         XCTAssertNotEqual(feature.sources.first?.phase, .idle)
         await persistence.resumeLoad()
-        await launch.value
     }
 
     @MainActor func testRepeatedLaunchDoesNotDuplicateActiveDownload() async {
@@ -55,19 +55,13 @@ final class AppModelTests: XCTestCase {
         let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: {})
         let feature = LaunchScheduleFeature(repository: repository)
         let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
-        var launchFinished = false
-        let launch = Task {
-            await model.applicationDidFinishLaunching()
-            launchFinished = true
-        }
+        model.applicationDidFinishLaunching()
         await waitFor([began])
-        await model.applicationDidFinishLaunching()
-        XCTAssertFalse(launchFinished)
+        model.applicationDidFinishLaunching()
         let requests = await repository.requestCount
         XCTAssertEqual(requests, 1)
         await repository.complete(0)
-        await launch.value
-        XCTAssertTrue(launchFinished)
+        await waitForScheduleToSettle(feature)
         XCTAssertEqual(feature.state, .empty)
     }
 
@@ -76,14 +70,14 @@ final class AppModelTests: XCTestCase {
         let repository = LifecycleRepository(onRequest: { began.fulfill() }, onFinish: {})
         let feature = LaunchScheduleFeature(repository: repository)
         let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
-        let launch = Task { await model.applicationDidFinishLaunching() }
+        model.applicationDidFinishLaunching()
         await waitFor([began])
         let screen = LaunchScheduleViewModel(launchScheduleFeature: feature)
         let refresh = screen.requestRefresh()
         screen.cancelRefresh()
         await refresh.value
         await repository.complete(0)
-        await launch.value
+        await waitForScheduleToSettle(feature)
         let requests = await repository.requestCount
         let cancellations = await repository.cancellations
         XCTAssertEqual(requests, 1)
@@ -98,7 +92,8 @@ final class AppModelTests: XCTestCase {
             .init(id: .launchLibrary, repository: repository, minimumRefreshInterval: 60)
         ], now: { clock.read() })
         let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
-        await model.applicationDidFinishLaunching()
+        model.applicationDidFinishLaunching()
+        await waitForScheduleToSettle(feature)
         XCTAssertNotNil(feature.sources.first?.nextRefreshAt)
         clock.advance(61)
         let updated = expectation(description: "Active lifecycle updated time-sensitive state")
@@ -121,7 +116,8 @@ final class AppModelTests: XCTestCase {
             .init(id: .launchLibrary, repository: PresentationLaunchRepository(), minimumRefreshInterval: 60)
         ], now: { clock.read() })
         let model = AppModel(launchScheduleFeature: feature, settingsFeature: SettingsFeature())
-        await model.applicationDidFinishLaunching()
+        model.applicationDidFinishLaunching()
+        await waitForScheduleToSettle(feature)
         let before = feature.snapshot
         clock.advance(61)
         let monitoring = Task { await model.applicationDidBecomeActive() }
@@ -1864,10 +1860,10 @@ private actor ControlledNotifications: LaunchNotificationClient {
         let secondBegan = expectation(description: "second")
         let repository = ControlledLaunchRepository { index in (index == 0 ? firstBegan : secondBegan).fulfill() }
         let feature = LaunchScheduleFeature(repository: repository)
-        let old = Task { await feature.loadIfNeeded() }
+        let old = Task { await feature.refresh() }
         await fulfillment(of: [firstBegan], timeout: 2)
         old.cancel(); await old.value // cancellation releases ownership before transport cooperates
-        let new = Task { await feature.loadIfNeeded() }
+        let new = Task { await feature.refresh() }
         await fulfillment(of: [secondBegan], timeout: 2)
         await repository.complete(1, with: .success([])); await new.value
         await repository.complete(0, with: .success([]))
@@ -1881,14 +1877,14 @@ private actor ControlledNotifications: LaunchNotificationClient {
         let a = ControlledLaunchRepository { _ in aStarted.fulfill() }
         let b = ControlledLaunchRepository { index in (index == 0 ? bStarted : bRetried).fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: a), .init(id: .launchLibrary, repository: b)])
-        let initial = Task { await feature.loadIfNeeded() }
+        let initial = Task { await feature.refresh() }
         await fulfillment(of: [aStarted, bStarted], timeout: 2)
         let stream = feature.snapshots()
         let accepted = expectation(description: "A committed")
         let observer = Task { for await value in stream { if value.sources.first?.phase == .loaded { accepted.fulfill(); break } } }
         await a.complete(0, with: .success([])); await fulfillment(of: [accepted], timeout: 2); await observer.value
         initial.cancel(); await initial.value
-        let retry = Task { await feature.loadIfNeeded() }
+        let retry = Task { await feature.refresh(source: .launchLibrary) }
         await fulfillment(of: [bRetried], timeout: 2)
         await b.complete(1, with: .success([])); await retry.value
         await b.complete(0, with: .failure(CancellationError()))
@@ -2032,5 +2028,11 @@ private actor FailingReminderPersistence: ReminderPersisting {
         if holdWrites.contains(call) { await withCheckedContinuation { held = $0; onHold?(call) } }
         if failingWrites.contains(call) { throw Failure.write }
         records = reminders
+    }
+}
+
+@MainActor private func waitForScheduleToSettle(_ feature: LaunchScheduleFeature) async {
+    for await snapshot in feature.snapshots() {
+        if snapshot.sources.allSatisfy({ $0.phase == .loaded || $0.phase == .failed }) { return }
     }
 }

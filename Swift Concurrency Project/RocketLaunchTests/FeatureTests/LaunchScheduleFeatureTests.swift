@@ -83,19 +83,20 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         XCTAssertEqual(after.sources[0].launches, [launch], "Expiry must not erase the provider cache")
     }
 
+    @available(iOS 26.0, *)
     @MainActor func testConcurrentInitialLoadsShareOneRequestAndLoadedStateIsRetained() async {
         let began = expectation(description: "Initial request")
         let repository = ControlledLaunchRepository { _ in began.fulfill() }
         let feature = LaunchScheduleFeature(repository: repository)
-        let first = Task { await feature.loadIfNeeded() }
+        let first = Task.immediate { await feature.refresh(source: .rocketLaunchLive) }
         await waitFor([began])
-        let joining = Task { await feature.loadIfNeeded() }
+        let joining = Task.immediate { await feature.refresh(source: .rocketLaunchLive) }
         let pendingCount = await repository.requestCount
         XCTAssertEqual(pendingCount, 1)
         await repository.complete(0, with: .success([]))
         await first.value
         await joining.value
-        await feature.loadIfNeeded()
+        feature.startLoading()
         let settledCount = await repository.requestCount
         XCTAssertEqual(settledCount, 1)
     }
@@ -105,12 +106,12 @@ final class LaunchScheduleFeatureTests: XCTestCase {
         let retryBegan = expectation(description: "Retry request")
         let repository = ControlledLaunchRepository { index in (index == 0 ? began : retryBegan).fulfill() }
         let feature = LaunchScheduleFeature(repository: repository)
-        let first = Task { await feature.loadIfNeeded() }
+        let first = Task { await feature.refresh() }
         await waitFor([began])
         first.cancel()
         await repository.complete(0, with: .failure(CancellationError()))
         await first.value
-        let retry = Task { await feature.loadIfNeeded() }
+        let retry = Task { await feature.refresh() }
         await waitFor([retryBegan])
         await repository.complete(1, with: .success([]))
         await retry.value
@@ -479,6 +480,29 @@ private actor ActiveReminderPersistence: ReminderPersisting {
 }
 
 final class LaunchScheduleCacheTests: XCTestCase {
+    @MainActor func testStartLoadingStartsEverySourceWithoutWaitingAndDoesNotDuplicateRequests() async {
+        let firstStarted = expectation(description: "First source starts")
+        let secondStarted = expectation(description: "Second source starts")
+        let first = ControlledLaunchRepository { _ in firstStarted.fulfill() }
+        let second = ControlledLaunchRepository { _ in secondStarted.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [
+            .init(id: .rocketLaunchLive, repository: first),
+            .init(id: .launchLibrary, repository: second)
+        ])
+        feature.startLoading()
+        feature.startLoading()
+        await waitFor([firstStarted, secondStarted])
+        let firstCount = await first.requestCount
+        let secondCount = await second.requestCount
+        XCTAssertEqual(firstCount, 1)
+        XCTAssertEqual(secondCount, 1)
+        await first.complete(0, with: .success([]))
+        await second.complete(0, with: .success([]))
+        let stream = feature.snapshots()
+        for await snapshot in stream where snapshot.sources.allSatisfy({ $0.phase == .loaded }) { break }
+        XCTAssertTrue(feature.sources.allSatisfy { $0.phase == .loaded })
+    }
+
     func testBinarySnapshotRoundTripsAllLaunchFieldsAndRejectsTruncation() throws {
         let launch = RocketLaunch(id: "id:123", source: .spaceX, name: "Español 🚀", missions: [
             .init(name: "Mission", description: "Description"), .init(name: "Second", description: nil)
@@ -511,7 +535,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let online = ControlledLaunchRepository { _ in onlineStarted.fulfill() }
         let first = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: online)],
             cache: LaunchScheduleCache(fileURL: url), now: { now })
-        let download = Task { await first.loadIfNeeded() }
+        let download = Task { await first.refresh() }
         await waitFor([onlineStarted])
         await online.complete(0, with: .success([launch]))
         await download.value
@@ -523,7 +547,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
             cache: LaunchScheduleCache(fileURL: url), now: { now })
         let restored = expectation(description: "Cached launch appears")
         let observer = Task { for await snapshot in reopened.snapshots() where snapshot.displayedLaunch == launch { restored.fulfill(); break } }
-        let restore = Task { await reopened.loadIfNeeded() }
+        let restore = Task { await reopened.refresh() }
         await waitFor([offlineStarted, restored])
         observer.cancel()
         XCTAssertEqual(reopened.displayedLaunch, launch)
@@ -549,7 +573,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
             cache: cache, now: { date })
         let restored = expectation(description: "Cached launch appears")
         let observer = Task { for await snapshot in feature.snapshots() where snapshot.displayedLaunch == launch { restored.fulfill(); break } }
-        let task = Task { await feature.loadIfNeeded() }
+        let task = Task { await feature.refresh() }
         await waitFor([started, restored])
         observer.cancel()
         XCTAssertEqual(feature.displayedLaunch, launch)
@@ -573,7 +597,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let repository = ControlledLaunchRepository { _ in networkStarted.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache, now: { date })
         let observer = Task { for await snapshot in feature.snapshots() where snapshot.displayedLaunch == launch { cachedAppeared.fulfill(); break } }
-        let refresh = Task { await feature.loadIfNeeded() }
+        let refresh = Task { await feature.refresh() }
         await waitFor([readStarted, networkStarted])
         await cache.finishRead()
         await waitFor([cachedAppeared])
@@ -594,7 +618,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let repository = ControlledLaunchRepository { _ in networkStarted.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache, now: { date })
         let observer = Task { for await snapshot in feature.snapshots() where snapshot.displayedLaunch == launch { cachedAppeared.fulfill(); break } }
-        let refresh = Task { await feature.loadIfNeeded() }
+        let refresh = Task { await feature.refresh() }
         await waitFor([readStarted, networkStarted])
         await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
         await refresh.value
@@ -614,7 +638,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let cache = DelayedReadLaunchCache(schedules: [.init(source: .rocketLaunchLive, launches: [old], fetchedAt: date)]) { readStarted.fulfill() }
         let repository = ControlledLaunchRepository { _ in networkStarted.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache, now: { date })
-        let refresh = Task { await feature.loadIfNeeded() }
+        let refresh = Task { await feature.refresh() }
         await waitFor([readStarted, networkStarted])
         await repository.complete(0, with: .success([fresh]))
         await refresh.value
@@ -636,7 +660,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let began = expectation(description: "Network request starts")
         let repository = ControlledLaunchRepository { _ in began.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
-        let task = Task { await feature.loadIfNeeded() }
+        let task = Task { await feature.refresh() }
         await waitFor([began])
         let launch = RocketLaunch(id: 123, name: "Downloaded launch", missions: [],
             estimatedDate: .init(month: nil, day: nil, year: nil))
@@ -662,7 +686,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let repository = ControlledLaunchRepository { _ in started.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
             cache: cache, now: { date })
-        let task = Task { await feature.loadIfNeeded() }
+        let task = Task { await feature.refresh() }
         await waitFor([started])
         await repository.complete(0, with: .success([launch(7200)]))
         await task.value
@@ -720,7 +744,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
             cache: LaunchScheduleCache(fileURL: url))
         let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
-        let task = Task { await feature.loadIfNeeded() }
+        let task = Task { await feature.refresh() }
         await waitFor([started])
         await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
         await task.value
@@ -740,7 +764,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let repository = ControlledLaunchRepository { index in (index == 0 ? first : second).fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
             cache: cache, now: { date })
-        let initial = Task { await feature.loadIfNeeded() }
+        let initial = Task { await feature.refresh() }
         await waitFor([first])
         await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
         await initial.value
@@ -763,7 +787,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
             cache: UnavailableLaunchCache())
         let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
-        let task = Task { await feature.loadIfNeeded() }
+        let task = Task { await feature.refresh() }
         await waitFor([started])
         await repository.complete(0, with: .success([]))
         await task.value
@@ -782,7 +806,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let repository = ControlledLaunchRepository { _ in started.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
             cache: LaunchScheduleCache(fileURL: url))
-        let task = Task { await feature.loadIfNeeded() }
+        let task = Task { await feature.refresh() }
         await waitFor([started])
         let launch = RocketLaunch(id: 123, name: "Recovered launch", missions: [],
             estimatedDate: .init(month: nil, day: nil, year: nil))
@@ -803,7 +827,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let repository = ControlledLaunchRepository { _ in downloadStarted.fulfill() }
         let cache = SuspendedLaunchCache { writeStarted.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
-        let task = Task { await feature.loadIfNeeded() }
+        let task = Task { await feature.refresh() }
         await waitFor([downloadStarted])
         let launch = RocketLaunch(id: 123, name: "Fresh launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil))
         await repository.complete(0, with: .success([launch]))
@@ -852,7 +876,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let repository = ControlledLaunchRepository { _ in started.fulfill() }
         let cache = FailingLaunchCache()
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
-        let task = Task { await feature.loadIfNeeded() }
+        let task = Task { await feature.refresh() }
         await waitFor([started])
         let launch = RocketLaunch(id: 123, name: "Not saved", missions: [],
             estimatedDate: .init(month: nil, day: nil, year: nil))

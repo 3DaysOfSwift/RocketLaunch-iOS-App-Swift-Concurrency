@@ -2,6 +2,20 @@ import XCTest
 import Observation
 @testable import RocketLaunch
 
+private actor GatedThemeFixture: ThemePersisting {
+    private let onLoad: @Sendable () -> Void
+    private var pending: CheckedContinuation<Void, Never>?
+    private(set) var reads = 0
+    init(onLoad: @escaping @Sendable () -> Void) { self.onLoad = onLoad }
+    func load() async -> AppColourTheme {
+        reads += 1
+        await withCheckedContinuation { continuation in pending = continuation; onLoad() }
+        return .midnight
+    }
+    func save(_ value: AppColourTheme) {}
+    func finish() { pending?.resume(); pending = nil }
+}
+
 private actor ThemeFixture: ThemePersisting {
     var theme: AppColourTheme = .system
     var fail = false
@@ -29,6 +43,21 @@ private actor ThemeFixture: ThemePersisting {
 }
 
 final class SettingsFeatureTests: XCTestCase {
+    @MainActor func testStartupReturnsBeforeThemeLoadsAndSharesTheRead() async {
+        let began = expectation(description: "Theme load starts")
+        let store = GatedThemeFixture { began.fulfill() }
+        let feature = SettingsFeature(persistence: store)
+        feature.startLoading()
+        feature.startLoading()
+        XCTAssertEqual(feature.selected, .system)
+        await fulfillment(of: [began], timeout: 2)
+        let joining = Task { await feature.loadIfNeeded() }
+        await store.finish()
+        await joining.value
+        let reads = await store.reads
+        XCTAssertEqual(reads, 1)
+        XCTAssertEqual(feature.selected, .midnight)
+    }
     @MainActor func testDefaultThemeFollowsSystemPalette() {
         XCTAssertEqual(SettingsFeature().selected, .system)
     }

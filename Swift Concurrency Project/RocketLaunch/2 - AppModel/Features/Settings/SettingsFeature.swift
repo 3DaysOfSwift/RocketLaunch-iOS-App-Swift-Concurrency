@@ -89,6 +89,7 @@ final class SettingsFeature {
     @ObservationIgnored private var policyTask: Task<String, any Error>?
     @ObservationIgnored private var policyTaskID: UUID?
     @ObservationIgnored private var loadTask: Task<AppColourTheme, any Error>?
+    @ObservationIgnored private var startupTask: Task<Void, Never>?
     @ObservationIgnored private var loadID: UUID?
     @ObservationIgnored private var loaded = false
     @ObservationIgnored private var writeTask: Task<Void, Never>?
@@ -123,6 +124,14 @@ final class SettingsFeature {
             }
         }
         return try await task.value
+    }
+
+    func startLoading() {
+        guard !loaded, startupTask == nil else { return }
+        startupTask = Task { [weak self] in
+            await self?.loadIfNeeded()
+            self?.startupTask = nil
+        }
     }
 
     func loadIfNeeded() async {

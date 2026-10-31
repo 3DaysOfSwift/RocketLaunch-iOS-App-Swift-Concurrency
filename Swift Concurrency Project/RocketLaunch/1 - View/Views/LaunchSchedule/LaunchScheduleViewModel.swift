@@ -80,8 +80,6 @@ final class LaunchScheduleViewModel {
         return description
     }
 
-    @discardableResult
-    func loadIfNeeded() -> Task<Void, Never> { startRefresh(onlyIfNeeded: true) }
     var operators: [LaunchOperator] { snapshot.operators }
     var currentLaunch: RocketLaunch? { snapshot.displayedLaunch }
     var updates: [LaunchUpdate] { snapshot.updates }
@@ -140,17 +138,16 @@ final class LaunchScheduleViewModel {
             sourceTasks[source] = task
             return task
         }
-        return startRefresh(onlyIfNeeded: false)
+        return startRefresh()
     }
 
-    private func startRefresh(onlyIfNeeded: Bool) -> Task<Void, Never> {
+    private func startRefresh() -> Task<Void, Never> {
         if let active = refreshTask { return active }
         let id = UUID()
         refreshID = id
         let launchScheduleFeature = launchScheduleFeature
         let task = Task { [weak self] in
-            if onlyIfNeeded { await launchScheduleFeature.loadIfNeeded() }
-            else { await launchScheduleFeature.refresh() }
+            await launchScheduleFeature.refresh()
             guard self?.refreshID == id else { return }
             self?.refreshTask = nil
             self?.refreshID = nil

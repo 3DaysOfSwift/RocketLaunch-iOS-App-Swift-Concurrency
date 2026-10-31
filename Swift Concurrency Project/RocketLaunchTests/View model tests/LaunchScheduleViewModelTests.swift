@@ -10,7 +10,6 @@ final class LaunchScheduleViewModelTests: XCTestCase {
         let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
         defer { viewModel.cancelRefresh() }
         XCTAssertTrue(viewModel.hasLaunch)
-        await viewModel.loadIfNeeded().value
         let requests = await scenario.repository.requestCount
         XCTAssertEqual(requests, 1)
         XCTAssertTrue(viewModel.hasLaunch)
