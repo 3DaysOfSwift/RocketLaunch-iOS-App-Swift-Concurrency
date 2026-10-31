@@ -218,7 +218,7 @@ final class LaunchScheduleFeature {
                 try Task.checkCancellation()
                 result = .success(launches)
             } catch { result = .failure(error) }
-            await self?.completeRefresh(source: source, id: id, result: result)
+            self?.completeRefresh(source: source, id: id, result: result)
         }
         requests[source] = Request(id: id, task: task, previous: previous, waiters: [waiterID: continuation])
     }
@@ -235,7 +235,7 @@ final class LaunchScheduleFeature {
         waiter.resume()
     }
 
-    private func completeRefresh(source: LaunchSourceID, id: UUID, result: Result<[RocketLaunch], any Error>) async {
+    private func completeRefresh(source: LaunchSourceID, id: UUID, result: Result<[RocketLaunch], any Error>) {
         guard requests[source]?.id == id else { return }
         let fetchedAt = now()
         guard let request = requests[source], request.id == id,
@@ -287,7 +287,6 @@ final class LaunchScheduleFeature {
                 self?.cacheWriteIDs[source] = nil
             }
             cacheWriteTasks[source] = write
-            await write.value
         }
         for waiter in request.waiters.values { waiter.resume() }
     }

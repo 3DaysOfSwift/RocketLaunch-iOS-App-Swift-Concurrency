@@ -480,6 +480,18 @@ private actor ActiveReminderPersistence: ReminderPersisting {
 }
 
 final class LaunchScheduleCacheTests: XCTestCase {
+    @MainActor private func waitUntil(_ description: String, condition: () async -> Bool,
+                                      file: StaticString = #filePath, line: UInt = #line) async {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !(await condition()) {
+            guard ContinuousClock.now < deadline else {
+                XCTFail("Timed out waiting for \(description)", file: file, line: line)
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
     @MainActor func testStartLoadingStartsEverySourceWithoutWaitingAndDoesNotDuplicateRequests() async {
         let firstStarted = expectation(description: "First source starts")
         let secondStarted = expectation(description: "Second source starts")
@@ -540,6 +552,9 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await online.complete(0, with: .success([launch]))
         await download.value
         XCTAssertEqual(first.displayedLaunch, launch)
+        await waitUntil("the downloaded schedule to be saved") {
+            (try? await LaunchScheduleCache(fileURL: url).load().first?.launches) == [launch]
+        }
 
         let offlineStarted = expectation(description: "Offline refresh")
         let offline = ControlledLaunchRepository { _ in offlineStarted.fulfill() }
@@ -666,6 +681,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
             estimatedDate: .init(month: nil, day: nil, year: nil))
         await repository.complete(0, with: .success([launch]))
         await task.value
+        await waitUntil("the downloaded schedule to be saved") { (try? await cache.load().first?.launches) == [launch] }
         let restored = try await LaunchScheduleCache(fileURL: url).load()
         XCTAssertEqual(restored.first?.launches, [launch])
         XCTAssertEqual(feature.sources[0].launches, [launch])
@@ -714,6 +730,9 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await repository.complete(1, with: .success([launches[1]]))
         await new.value
         await repository.complete(0, with: .success([launches[0]]))
+        await waitUntil("the newer schedule to be saved") {
+            (try? await LaunchScheduleCache(fileURL: url).load().first?.launches) == [launches[1]]
+        }
         let restored = try await LaunchScheduleCache(fileURL: url).load()
         XCTAssertEqual(feature.sources[0].launches, [launches[1]])
         XCTAssertEqual(restored.first?.launches, [launches[1]])
@@ -791,6 +810,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await waitFor([started])
         await repository.complete(0, with: .success([]))
         await task.value
+        await waitUntil("the cache error") { viewModel.savedScheduleError != nil }
         XCTAssertEqual(viewModel.savedScheduleError, "The current schedule is available, but could not be saved for offline use.")
         XCTAssertNil(viewModel.errorMessage)
     }
@@ -814,6 +834,9 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await task.value
         XCTAssertEqual(feature.sources[0].launches, [launch])
         XCTAssertNil(feature.savedScheduleWriteError)
+        await waitUntil("the replacement schedule to be saved") {
+            (try? await LaunchScheduleCache(fileURL: url).load().first?.launches) == [launch]
+        }
         let restored = try await LaunchScheduleCache(fileURL: url).load()
         XCTAssertEqual(restored.first?.launches, [launch])
         let backups = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
@@ -824,14 +847,16 @@ final class LaunchScheduleCacheTests: XCTestCase {
     @MainActor func testFreshScheduleAppearsWhileCacheWriteIsPending() async throws {
         let downloadStarted = expectation(description: "Download starts")
         let writeStarted = expectation(description: "Cache write starts")
+        let refreshFinished = expectation(description: "Refresh finishes while cache write is pending")
         let repository = ControlledLaunchRepository { _ in downloadStarted.fulfill() }
         let cache = SuspendedLaunchCache { writeStarted.fulfill() }
         let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
-        let task = Task { await feature.refresh() }
+        let task = Task { await feature.refresh(); refreshFinished.fulfill() }
         await waitFor([downloadStarted])
         let launch = RocketLaunch(id: 123, name: "Fresh launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil))
         await repository.complete(0, with: .success([launch]))
         await waitFor([writeStarted])
+        await fulfillment(of: [refreshFinished], timeout: 2)
         XCTAssertEqual(feature.sources[0].launches, [launch])
         XCTAssertEqual(feature.sources[0].phase, .loaded)
         await cache.finish()
@@ -867,6 +892,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await cache.finishFirst()
         await first.value
         await second.value
+        await waitUntil("both ordered cache writes") { await cache.saved.count == 2 }
         let saved = await cache.saved
         XCTAssertEqual(saved.map(\.launches), [[launches[0]], [launches[1]]])
     }
@@ -884,6 +910,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await task.value
         XCTAssertEqual(feature.sources[0].launches, [launch])
         XCTAssertNil(feature.loadFailure)
+        await waitUntil("the cache error") { feature.savedScheduleWriteError != nil }
         XCTAssertNotNil(feature.savedScheduleWriteError)
         let attempts = await cache.attempts
         XCTAssertEqual(attempts, 2)
@@ -900,6 +927,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await repository.complete(0, with: .success([launch]))
         await task.value
         XCTAssertEqual(feature.sources[0].launches, [launch])
+        await waitUntil("the cache retry") { await cache.saved != nil }
         XCTAssertNil(feature.savedScheduleWriteError)
         let attempts = await cache.attempts
         let saved = await cache.saved
@@ -920,6 +948,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await repository.complete(0, with: .success([launches[1]]))
         await task.value
         XCTAssertEqual(feature.sources[0].launches, [launches[1]])
+        await waitUntil("the cache error") { feature.savedScheduleWriteError != nil }
         let saved = await cache.load()
         XCTAssertEqual(saved, [old])
         XCTAssertNotNil(feature.savedScheduleWriteError)
