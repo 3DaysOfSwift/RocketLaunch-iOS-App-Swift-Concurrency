@@ -14,6 +14,7 @@ final class UpdatedLaunchDetailViewModel {
     }
     let launch: RocketLaunch?
     var presentation: LaunchPresentation { .init(launch: launch) }
+    var hasReminderTime: Bool { launch.map { launchScheduleFeature.hasReminderTime(for: $0) } ?? false }
     var reminderSaved: Bool { launch.map { launchScheduleFeature.hasActiveReminder(for: $0.id) } ?? false }
 
     @discardableResult

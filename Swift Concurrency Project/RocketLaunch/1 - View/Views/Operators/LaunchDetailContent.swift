@@ -4,6 +4,7 @@ struct LaunchDetailContent: View {
     let launch: RocketLaunch
     let presentation: LaunchPresentation
     @Environment(\.appColourTheme) private var theme
+    let hasReminderTime: Bool
     let reminderSaved: Bool
     let isBusy: Bool
     @Binding var minutesBefore: Int
@@ -37,7 +38,7 @@ struct LaunchDetailContent: View {
                 AppCard {
                     VStack(alignment: .leading, spacing: 12) {
                         Label("Reminder", systemImage: "bell").font(.headline)
-                        if launch.details.plannedTime != nil {
+                        if hasReminderTime {
                             Picker("Alert before launch", selection: $minutesBefore) {
                                 Text("5 minutes").tag(5)
                                 Text("15 minutes").tag(15)

@@ -3,6 +3,27 @@ import XCTest
 
 @MainActor
 final class LaunchDetailViewModelTests: XCTestCase {
+    func testDetailScreensUseFeatureDecisionForReminderTime() {
+        let feature = LaunchScheduleFeature(sources: [])
+        let estimated = EstimatedLaunchDate(month: nil, day: nil, year: nil)
+        let known = RocketLaunch(id: "known", source: .rocketLaunchLive, name: "Known", missions: [],
+            estimatedDate: estimated, details: .init(plannedTime: Date(timeIntervalSince1970: 2_000_000_000)))
+        let unknown = RocketLaunch(id: "unknown", source: .rocketLaunchLive, name: "Unknown", missions: [],
+            estimatedDate: estimated, details: .init())
+
+        func decisions(_ launch: RocketLaunch) -> [Bool] {
+            [LaunchDetailViewModel(launch: launch, launchScheduleFeature: feature).hasReminderTime,
+             UpcomingLaunchDetailViewModel(launch: launch, launchScheduleFeature: feature).hasReminderTime,
+             OperatorLaunchDetailViewModel(launch: launch, launchScheduleFeature: feature).hasReminderTime,
+             UpdatedLaunchDetailViewModel(launch: launch, launchScheduleFeature: feature).hasReminderTime,
+             ReminderLaunchDetailViewModel(launch: launch, launchScheduleFeature: feature).hasReminderTime]
+        }
+        XCTAssertTrue(feature.hasReminderTime(for: known))
+        XCTAssertFalse(feature.hasReminderTime(for: unknown))
+        XCTAssertEqual(decisions(known), Array(repeating: true, count: 5))
+        XCTAssertEqual(decisions(unknown), Array(repeating: false, count: 5))
+    }
+
     func testFailureIsOwnedByTheScreenThatRequestedIt() async throws {
         let feature = LaunchScheduleFeature(sources: [])
         let first = LaunchDetailViewModel(launch: try XCTUnwrap(LaunchFixtures.launches().first), launchScheduleFeature: feature)

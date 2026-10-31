@@ -384,6 +384,10 @@ final class LaunchScheduleFeature {
     @ObservationIgnored private var confirmedDeletions: [String: String] = [:]
     @ObservationIgnored private var deletionCleanupRecords: [String: LaunchReminder] = [:]
 
+    func hasReminderTime(for launch: RocketLaunch) -> Bool {
+        launch.details.plannedTime != nil
+    }
+
     func hasActiveReminder(for launchID: String) -> Bool {
         reminders.contains {
             $0.id == launchID && $0.status == .scheduled && $0.issue == nil && !$0.hasPassed(at: now())
