@@ -1025,9 +1025,21 @@ final class UnifiedReminderTests: XCTestCase {
         let id = launch().id
         let save = Task { try await feature.setReminder(for: id, minutesBefore: 5) }
         await fulfillment(of: [started], timeout: 2)
+        let reconciled = expectation(description: "Unknown launch time is persisted")
+        let observer = Task {
+            for await value in await feature.reminderSnapshots() {
+                if let reminder = value.reminders.first,
+                   reminder.launch.details.plannedTime == nil, reminder.status == .failed {
+                    reconciled.fulfill()
+                    return
+                }
+            }
+        }
+        defer { observer.cancel() }
         await repository.set([launch(nil)]); await feature.refresh(); await client.finish()
         let outcome = try await save.value
         XCTAssertEqual(outcome, .superseded)
+        await fulfillment(of: [reconciled], timeout: 2)
         let value = await feature.reminderSnapshot
         XCTAssertNil(value.reminders.first?.launch.details.plannedTime)
         XCTAssertEqual(value.reminders.first?.status, .failed)
