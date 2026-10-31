@@ -7,6 +7,18 @@ enum SourceStatusPresentation {
     static func retryTime(_ date: Date) -> String {
         "Refresh available after \(date.formatted(date: .omitted, time: .shortened))"
     }
+    static func cooldown(_ deadline: Date, at date: Date) -> String {
+        let seconds = max(0, Int(ceil(deadline.timeIntervalSince(date))))
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+    static func refreshInterval(_ interval: TimeInterval) -> String {
+        guard interval > 0 else { return String(localized: "No refresh cooldown") }
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.unitsStyle = .full
+        guard let duration = formatter.string(from: interval) else { return String(localized: "Refresh cooldown applies") }
+        return "Refresh cooldown: \(duration)"
+    }
     static func message(_ source: LaunchSourceSnapshot, at date: Date = .now) -> String {
         switch source.phase {
         case .idle: return String(localized: "Waiting for data")

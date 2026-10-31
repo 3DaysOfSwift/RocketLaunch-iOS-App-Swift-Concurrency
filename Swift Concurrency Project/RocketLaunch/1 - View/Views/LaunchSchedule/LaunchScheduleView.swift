@@ -133,7 +133,7 @@ struct LaunchScheduleView: View {
             Text("NEXT SCHEDULED LAUNCH")
                 .font(.caption2.weight(.semibold)).tracking(1.5)
             if let days = presentation.days {
-                Text(days).font(.subheadline.weight(.medium))
+                Text(days).font(.subheadline.weight(.medium)).monospacedDigit()
             }
             if let clock = presentation.clock {
                 Text(clock)

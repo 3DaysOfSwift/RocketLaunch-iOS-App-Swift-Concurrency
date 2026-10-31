@@ -423,12 +423,14 @@ final class ProgressiveLaunchTests: XCTestCase {
         await refresh.value
         let before = try XCTUnwrap(feature.sources.first)
         XCTAssertEqual(before.phase, .failed)
+        XCTAssertEqual(before.minimumRefreshInterval, 300)
         XCTAssertEqual(before.failure, .offline)
         XCTAssertNotNil(before.nextRefreshAt)
         clock.advance(301)
         feature.updateNextLaunch()
         let after = try XCTUnwrap(feature.sources.first)
         XCTAssertEqual(after.phase, .failed)
+        XCTAssertEqual(after.minimumRefreshInterval, 300)
         XCTAssertEqual(after.failure, .offline)
         XCTAssertNil(after.nextRefreshAt)
         XCTAssertEqual(feature.loadFailure, .offline)
@@ -636,7 +638,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         XCTAssertEqual(Set(restored.map(\.source)), [.rocketLaunchLive, .spaceX])
     }
 
-    @MainActor func testUnreadableCacheIsReportedWhenNetworkIsOffline() async throws {
+    @MainActor func testInvalidCacheIsDiscardedSilentlyWhenNetworkIsOffline() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -652,11 +654,11 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
         await task.value
         XCTAssertEqual(feature.loadFailure, .offline)
-        XCTAssertNotNil(viewModel.savedScheduleError)
-        XCTAssertEqual(try Data(contentsOf: url), Data("invalid cache".utf8))
+        XCTAssertNil(viewModel.savedScheduleError)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
 
-    @MainActor func testRefreshRetriesFailedCacheReadWhileOffline() async throws {
+    @MainActor func testFailedCacheReadDoesNotStartAnExtraRefresh() async throws {
         let date = Date(timeIntervalSince1970: 2_000_000_000)
         let launch = RocketLaunch(id: 123, name: "Saved launch", missions: [],
             estimatedDate: .init(month: nil, day: nil, year: nil),
@@ -671,17 +673,17 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await waitFor([first])
         await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
         await initial.value
-        XCTAssertNotNil(feature.savedScheduleReadError)
+        let initialRequestCount = await repository.requestCount
+        XCTAssertEqual(initialRequestCount, 1)
         let retry = Task { await feature.refresh() }
         await waitFor([second])
-        XCTAssertNil(feature.savedScheduleReadError)
-        XCTAssertEqual(feature.displayedLaunch, launch)
+        XCTAssertNil(feature.displayedLaunch)
         await repository.complete(1, with: .failure(URLError(.notConnectedToInternet)))
         await retry.value
-        XCTAssertEqual(feature.displayedLaunch, launch)
+        XCTAssertNil(feature.displayedLaunch)
         XCTAssertEqual(feature.loadFailure, .offline)
         let reads = await cache.readCount
-        XCTAssertEqual(reads, 2)
+        XCTAssertEqual(reads, 1)
     }
 
     @MainActor func testReadAndWriteFailureShowOneStorageMessage() async throws {
@@ -694,8 +696,8 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await waitFor([started])
         await repository.complete(0, with: .success([]))
         await task.value
-        XCTAssertNil(viewModel.savedScheduleError)
-        XCTAssertEqual(viewModel.errorMessage, "Saved schedules could not be loaded or updated. Please try again.")
+        XCTAssertEqual(viewModel.savedScheduleError, "The current schedule is available, but could not be saved for offline use.")
+        XCTAssertNil(viewModel.errorMessage)
     }
 
     @MainActor func testUnreadableCacheRecoversWhenDownloadSucceeds() async throws {
@@ -716,27 +718,116 @@ final class LaunchScheduleCacheTests: XCTestCase {
         await repository.complete(0, with: .success([launch]))
         await task.value
         XCTAssertEqual(feature.sources[0].launches, [launch])
-        XCTAssertNil(feature.savedScheduleReadError)
+        XCTAssertNil(feature.savedScheduleWriteError)
         let restored = try await LaunchScheduleCache(fileURL: url).load()
         XCTAssertEqual(restored.first?.launches, [launch])
         let backups = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.lastPathComponent.hasPrefix("schedule.dat.unreadable-") }
-        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(backups.first)), original)
+        XCTAssertTrue(backups.isEmpty)
     }
 
-    @MainActor func testFailedCacheWriteDoesNotPublishDownloadedSchedule() async throws {
+    @MainActor func testFreshScheduleAppearsWhileCacheWriteIsPending() async throws {
+        let downloadStarted = expectation(description: "Download starts")
+        let writeStarted = expectation(description: "Cache write starts")
+        let repository = ControlledLaunchRepository { _ in downloadStarted.fulfill() }
+        let cache = SuspendedLaunchCache { writeStarted.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
+        let task = Task { await feature.loadIfNeeded() }
+        await waitFor([downloadStarted])
+        let launch = RocketLaunch(id: 123, name: "Fresh launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil))
+        await repository.complete(0, with: .success([launch]))
+        await waitFor([writeStarted])
+        XCTAssertEqual(feature.sources[0].launches, [launch])
+        XCTAssertEqual(feature.sources[0].phase, .loaded)
+        await cache.finish()
+        await task.value
+    }
+
+    @MainActor func testNewerRefreshAppearsAndIsCachedAfterPendingOlderWrite() async throws {
+        let firstDownload = expectation(description: "First download starts")
+        let secondDownload = expectation(description: "Second download starts")
+        let writeStarted = expectation(description: "First cache write starts")
+        let repository = ControlledLaunchRepository { index in (index == 0 ? firstDownload : secondDownload).fulfill() }
+        let cache = OrderedLaunchCache { writeStarted.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
+        let launches = try LaunchFixtures.launches()
+        let first = Task { await feature.refresh() }
+        await waitFor([firstDownload])
+        await repository.complete(0, with: .success([launches[0]]))
+        await waitFor([writeStarted])
+        let newerDisplayed = expectation(description: "Newer schedule is displayed")
+        let snapshots = feature.snapshots()
+        let observer = Task {
+            for await snapshot in snapshots where snapshot.sources.first?.launches == [launches[1]] {
+                newerDisplayed.fulfill()
+                return
+            }
+        }
+        defer { observer.cancel() }
+        let second = Task { await feature.refresh() }
+        await waitFor([secondDownload])
+        await repository.complete(1, with: .success([launches[1]]))
+        await waitFor([newerDisplayed])
+        XCTAssertEqual(feature.sources[0].launches, [launches[1]])
+        await cache.finishFirst()
+        await first.value
+        await second.value
+        let saved = await cache.saved
+        XCTAssertEqual(saved.map(\.launches), [[launches[0]], [launches[1]]])
+    }
+
+    @MainActor func testFailedCacheWriteStillPublishesDownloadedSchedule() async throws {
         let started = expectation(description: "Network request starts")
         let repository = ControlledLaunchRepository { _ in started.fulfill() }
-        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
-            cache: FailingLaunchCache())
+        let cache = FailingLaunchCache()
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
         let task = Task { await feature.loadIfNeeded() }
         await waitFor([started])
         let launch = RocketLaunch(id: 123, name: "Not saved", missions: [],
             estimatedDate: .init(month: nil, day: nil, year: nil))
         await repository.complete(0, with: .success([launch]))
         await task.value
-        XCTAssertTrue(feature.sources[0].launches.isEmpty)
-        XCTAssertEqual(feature.loadFailure, .storage)
+        XCTAssertEqual(feature.sources[0].launches, [launch])
+        XCTAssertNil(feature.loadFailure)
+        XCTAssertNotNil(feature.savedScheduleWriteError)
+        let attempts = await cache.attempts
+        XCTAssertEqual(attempts, 2)
+    }
+
+    @MainActor func testCacheWriteRetriesOnceAndClearsWarningOnSuccess() async throws {
+        let started = expectation(description: "Download starts")
+        let repository = ControlledLaunchRepository { _ in started.fulfill() }
+        let cache = TransientLaunchCache()
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
+        let task = Task { await feature.refresh() }
+        await waitFor([started])
+        let launch = RocketLaunch(id: 123, name: "Fresh launch", missions: [], estimatedDate: .init(month: nil, day: nil, year: nil))
+        await repository.complete(0, with: .success([launch]))
+        await task.value
+        XCTAssertEqual(feature.sources[0].launches, [launch])
+        XCTAssertNil(feature.savedScheduleWriteError)
+        let attempts = await cache.attempts
+        let saved = await cache.saved
+        XCTAssertEqual(attempts, 2)
+        XCTAssertEqual(saved?.launches, [launch])
+    }
+
+    @MainActor func testFailedCacheReplacementKeepsPreviousOfflineSchedule() async throws {
+        let date = Date(timeIntervalSince1970: 2_000_000_000)
+        let launches = try LaunchFixtures.launches()
+        let old = SavedLaunchSchedule(source: .rocketLaunchLive, launches: [launches[0]], fetchedAt: date)
+        let cache = FailingLaunchCache(existing: [old])
+        let started = expectation(description: "Download starts")
+        let repository = ControlledLaunchRepository { _ in started.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)], cache: cache)
+        let task = Task { await feature.refresh() }
+        await waitFor([started])
+        await repository.complete(0, with: .success([launches[1]]))
+        await task.value
+        XCTAssertEqual(feature.sources[0].launches, [launches[1]])
+        let saved = await cache.load()
+        XCTAssertEqual(saved, [old])
+        XCTAssertNotNil(feature.savedScheduleWriteError)
     }
 
     func testSchedulesSurviveReopeningAndUpdateIndependently() async throws {
@@ -756,7 +847,7 @@ final class LaunchScheduleCacheTests: XCTestCase {
         XCTAssertEqual(restored.first(where: { $0.source == .spaceX }), second)
     }
 
-    func testCorruptFileIsPreservedAndFreshDownloadsCanBeSaved() async throws {
+    func testCorruptFileIsDiscardedAndFreshDownloadsCanBeSaved() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -768,16 +859,61 @@ final class LaunchScheduleCacheTests: XCTestCase {
         try await cache.save(replacement)
         let backups = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
             .filter { $0.lastPathComponent.hasPrefix("schedule.dat.unreadable-") }
-        XCTAssertEqual(backups.count, 1)
-        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(backups.first)), original)
+        XCTAssertTrue(backups.isEmpty)
         let restored = try await LaunchScheduleCache(fileURL: url).load()
         XCTAssertEqual(restored, [replacement])
     }
 }
 
 private actor FailingLaunchCache: LaunchScheduleCaching {
+    private(set) var attempts = 0
+    private let existing: [SavedLaunchSchedule]
+    init(existing: [SavedLaunchSchedule] = []) { self.existing = existing }
+    func load() -> [SavedLaunchSchedule] { existing }
+    func save(_ schedule: SavedLaunchSchedule) throws { attempts += 1; throw CocoaError(.fileWriteNoPermission) }
+}
+
+private actor TransientLaunchCache: LaunchScheduleCaching {
+    private(set) var attempts = 0
+    private(set) var saved: SavedLaunchSchedule?
     func load() -> [SavedLaunchSchedule] { [] }
-    func save(_ schedule: SavedLaunchSchedule) throws { throw CocoaError(.fileWriteNoPermission) }
+    func save(_ schedule: SavedLaunchSchedule) throws {
+        attempts += 1
+        if attempts == 1 { throw CocoaError(.fileWriteNoPermission) }
+        saved = schedule
+    }
+}
+
+private actor SuspendedLaunchCache: LaunchScheduleCaching {
+    private let onSave: @Sendable () -> Void
+    private var pending: CheckedContinuation<Void, Never>?
+    init(onSave: @escaping @Sendable () -> Void) { self.onSave = onSave }
+    func load() -> [SavedLaunchSchedule] { [] }
+    func save(_ schedule: SavedLaunchSchedule) async throws {
+        await withCheckedContinuation { continuation in
+            pending = continuation
+            onSave()
+        }
+    }
+    func finish() { pending?.resume(); pending = nil }
+}
+
+private actor OrderedLaunchCache: LaunchScheduleCaching {
+    private let onFirstSave: @Sendable () -> Void
+    private var pending: CheckedContinuation<Void, Never>?
+    private(set) var saved: [SavedLaunchSchedule] = []
+    init(onFirstSave: @escaping @Sendable () -> Void) { self.onFirstSave = onFirstSave }
+    func load() -> [SavedLaunchSchedule] { [] }
+    func save(_ schedule: SavedLaunchSchedule) async throws {
+        if saved.isEmpty {
+            await withCheckedContinuation { continuation in
+                pending = continuation
+                onFirstSave()
+            }
+        }
+        saved.append(schedule)
+    }
+    func finishFirst() { pending?.resume(); pending = nil }
 }
 
 private actor UnavailableLaunchCache: LaunchScheduleCaching {

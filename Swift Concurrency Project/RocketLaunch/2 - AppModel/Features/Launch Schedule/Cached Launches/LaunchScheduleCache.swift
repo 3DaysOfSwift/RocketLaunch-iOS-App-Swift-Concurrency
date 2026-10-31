@@ -19,19 +19,26 @@ actor LaunchScheduleCache: LaunchScheduleCaching {
     init(fileURL: URL?) { self.fileURL = fileURL }
 
     static func standard() -> LaunchScheduleCache {
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
         return LaunchScheduleCache(fileURL: directory?.appendingPathComponent("LaunchSchedule.dat"))
     }
 
     func load() throws -> [SavedLaunchSchedule] {
         guard let fileURL else { throw CocoaError(.fileNoSuchFile) }
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
-        let schedules = try BinaryLaunchSchedules.decode(Data(contentsOf: fileURL))
-        guard Set(schedules.map(\.source)).count == schedules.count,
-              schedules.allSatisfy({ schedule in schedule.launches.allSatisfy { $0.source == schedule.source } }) else {
-            throw LaunchRepositoryError.invalidData
+        do {
+            let schedules = try BinaryLaunchSchedules.decode(Data(contentsOf: fileURL))
+            guard Set(schedules.map(\.source)).count == schedules.count,
+                  schedules.allSatisfy({ schedule in schedule.launches.allSatisfy { $0.source == schedule.source } }) else {
+                throw LaunchRepositoryError.invalidData
+            }
+            return schedules
+        } catch LaunchRepositoryError.invalidData {
+            // Downloaded schedules are replaceable. A later successful write can
+            // also replace the file if removing this invalid cache is not possible.
+            try? FileManager.default.removeItem(at: fileURL)
+            return []
         }
-        return schedules
     }
 
     func save(_ schedule: SavedLaunchSchedule) throws {
@@ -40,13 +47,7 @@ actor LaunchScheduleCache: LaunchScheduleCaching {
         guard schedule.launches.allSatisfy({ $0.source == schedule.source }) else {
             throw LaunchRepositoryError.invalidData
         }
-        let existing: [SavedLaunchSchedule]
-        do {
-            existing = try load()
-        } catch LaunchRepositoryError.invalidData {
-            try preserveUnreadableCache(at: fileURL)
-            existing = []
-        }
+        let existing = try load()
         var schedules = existing
         schedules.removeAll { $0.source == schedule.source }
         schedules.append(schedule)
@@ -55,11 +56,5 @@ actor LaunchScheduleCache: LaunchScheduleCaching {
         try data.write(to: fileURL, options: .atomic)
     }
 
-    /// A downloaded schedule is replaceable, but retain a damaged file for recovery.
-    private func preserveUnreadableCache(at fileURL: URL) throws {
-        let backup = fileURL.deletingLastPathComponent()
-            .appendingPathComponent("\(fileURL.lastPathComponent).unreadable-\(UUID().uuidString)")
-        try FileManager.default.copyItem(at: fileURL, to: backup)
-    }
 }
 

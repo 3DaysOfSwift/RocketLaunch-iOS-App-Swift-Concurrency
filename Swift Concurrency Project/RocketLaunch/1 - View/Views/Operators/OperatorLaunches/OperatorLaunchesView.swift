@@ -51,7 +51,7 @@ struct SourceStatusView: View {
     let sources: [LaunchSourceSnapshot]
     let refresh: (LaunchSourceID) -> Void
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { context in
+        TimelineView(.periodic(from: .now, by: 1)) { context in
             statusContent(at: context.date)
         }
     }
@@ -62,11 +62,15 @@ struct SourceStatusView: View {
                     HStack {
                         Text(source.id.name).font(.subheadline.bold())
                         Spacer()
-                        if source.phase == .loading { ProgressView() }
-                        else {
+                        if source.phase == .loading {
+                            ProgressView().accessibilityLabel("Refreshing \(source.id.name)")
+                        } else if let deadline = source.nextRefreshAt, !SourceStatusPresentation.canRetry(source, at: date) {
+                            Label("Wait \(SourceStatusPresentation.cooldown(deadline, at: date))", systemImage: "clock")
+                                .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                                .accessibilityLabel("\(source.id.name): \(SourceStatusPresentation.retryTime(deadline))")
+                        } else {
                             Button("Refresh") { refresh(source.id) }
                                 .font(.caption).buttonStyle(.borderless)
-                                .disabled(!SourceStatusPresentation.canRetry(source, at: date))
                                 .accessibilityLabel("Refresh \(source.id.name)")
                         }
                     }
@@ -76,10 +80,8 @@ struct SourceStatusView: View {
                     } else {
                         Text(SourceStatusPresentation.message(source, at: date)).font(.caption).foregroundStyle(.secondary)
                     }
-                    if let retryDate = source.nextRefreshAt, !source.canRefresh(at: date), source.phase != .loading {
-                        Text(SourceStatusPresentation.retryTime(retryDate))
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                    Text(SourceStatusPresentation.refreshInterval(source.minimumRefreshInterval))
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
         }

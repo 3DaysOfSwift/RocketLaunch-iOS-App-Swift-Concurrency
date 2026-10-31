@@ -7,7 +7,10 @@ final class LaunchScheduleFeature {
     private(set) var state: LaunchScheduleState = .idle
     private(set) var displayedLaunch: RocketLaunch?
     private(set) var loadFailure: LaunchLoadFailure?
-    private(set) var savedScheduleReadError: String?
+    private(set) var failedCacheSources: Set<LaunchSourceID> = []
+    var savedScheduleWriteError: String? {
+        failedCacheSources.isEmpty ? nil : "The current schedule is available, but could not be saved for offline use."
+    }
     private(set) var sources: [LaunchSourceSnapshot]
     private(set) var operators: [LaunchOperator] = []
     private(set) var nextLaunch: RocketLaunch?
@@ -15,6 +18,8 @@ final class LaunchScheduleFeature {
     private let configurations: [LaunchSourceConfiguration]
     private let cache: (any LaunchScheduleCaching)?
     @ObservationIgnored private var cacheLoadTask: Task<Result<[SavedLaunchSchedule], any Error>, Never>?
+    @ObservationIgnored private var cacheWriteTasks: [LaunchSourceID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var cacheWriteIDs: [LaunchSourceID: UUID] = [:]
     @ObservationIgnored private var cacheRestored = false
     @ObservationIgnored private var restoredCacheSources: Set<LaunchSourceID> = []
     private let now: @Sendable () -> Date
@@ -42,7 +47,7 @@ final class LaunchScheduleFeature {
         self.configurations = sources; self.cache = cache; self.now = now
         self.waitForScheduleTick = waitForScheduleTick
         self.notificationClient = notificationClient; self.reminderPersistence = reminderPersistence ?? ReminderPersistence(storage: reminderStorage)
-        self.sources = sources.map { LaunchSourceSnapshot(id: $0.id) }
+        self.sources = sources.map { LaunchSourceSnapshot(id: $0.id, minimumRefreshInterval: $0.minimumRefreshInterval) }
         self.lastPublished = .init(revision: 0, state: .idle, displayedLaunch: nil, loadFailure: nil, nextLaunch: nil, sources: self.sources, operators: [], upcomingLaunches: [], updates: [])
     }
 
@@ -134,10 +139,8 @@ final class LaunchScheduleFeature {
         let saved: [SavedLaunchSchedule]
         switch result {
         case .success(let schedules):
-            savedScheduleReadError = nil
             saved = schedules
         case .failure:
-            savedScheduleReadError = "Saved schedules could not be loaded. Try refreshing."
             return
         }
         for schedule in saved {
@@ -145,7 +148,7 @@ final class LaunchScheduleFeature {
                   (sources[index].phase == .idle || sources[index].phase == .failed),
                   sources[index].fetchedAt == nil else { continue }
             let retryAt = sources[index].nextRefreshAt
-            sources[index] = LaunchSourceSnapshot(id: schedule.source, launches: schedule.launches,
+            sources[index] = LaunchSourceSnapshot(id: schedule.source, minimumRefreshInterval: sources[index].minimumRefreshInterval, launches: schedule.launches,
                 fetchedAt: schedule.fetchedAt, nextRefreshAt: retryAt, phase: .idle)
             restoredCacheSources.insert(schedule.source)
         }
@@ -155,7 +158,6 @@ final class LaunchScheduleFeature {
 
     /// Child callers share each provider's active request and publish independently.
     func refresh() async {
-        if savedScheduleReadError != nil { cacheRestored = false }
         await withTaskGroup(of: Void.self) { group in
             for configuration in configurations {
                 group.addTask { await self.refresh(source: configuration.id) }
@@ -164,7 +166,6 @@ final class LaunchScheduleFeature {
     }
 
     func refresh(source: LaunchSourceID) async {
-        if savedScheduleReadError != nil { cacheRestored = false }
         await refresh(source: source, onlyIfNeeded: false)
     }
 
@@ -200,7 +201,7 @@ final class LaunchScheduleFeature {
         let previous = sources[index]
         let id = UUID()
         let current = sources[index]
-        sources[index] = LaunchSourceSnapshot(id: current.id, launches: current.launches, fetchedAt: current.fetchedAt,
+        sources[index] = LaunchSourceSnapshot(id: current.id, minimumRefreshInterval: current.minimumRefreshInterval, launches: current.launches, fetchedAt: current.fetchedAt,
             nextRefreshAt: now().addingTimeInterval(configuration.minimumRefreshInterval), phase: .loading)
         updateNextLaunch()
         let repository = configuration.repository
@@ -230,19 +231,7 @@ final class LaunchScheduleFeature {
 
     private func completeRefresh(source: LaunchSourceID, id: UUID, result: Result<[RocketLaunch], any Error>) async {
         guard requests[source]?.id == id else { return }
-        var result = result
         let fetchedAt = now()
-        if case .success(let launches) = result, let cache {
-            do {
-                try Task.checkCancellation()
-                try await cache.save(.init(source: source, launches: launches, fetchedAt: fetchedAt))
-                savedScheduleReadError = nil
-            } catch is CancellationError {
-                result = .failure(CancellationError())
-            } catch {
-                result = .failure(LaunchCacheWriteError())
-            }
-        }
         guard let request = requests[source], request.id == id,
               let index = sources.firstIndex(where: { $0.id == source }) else { return }
         var effects: [ReminderEffect] = []
@@ -253,7 +242,7 @@ final class LaunchScheduleFeature {
             }
             restoredCacheSources.remove(source)
             let current = sources[index]
-            sources[index] = LaunchSourceSnapshot(id: current.id, launches: launches, fetchedAt: fetchedAt,
+            sources[index] = LaunchSourceSnapshot(id: current.id, minimumRefreshInterval: current.minimumRefreshInterval, launches: launches, fetchedAt: fetchedAt,
                 nextRefreshAt: current.nextRefreshAt, phase: .loaded)
             rebuildOperators()
             // Cache and desired reminders change in one uninterrupted actor operation.
@@ -263,7 +252,7 @@ final class LaunchScheduleFeature {
                 sources[index] = request.previous
             } else {
                 let current = sources[index]
-                sources[index] = LaunchSourceSnapshot(id: current.id, launches: current.launches, fetchedAt: current.fetchedAt,
+                sources[index] = LaunchSourceSnapshot(id: current.id, minimumRefreshInterval: current.minimumRefreshInterval, launches: current.launches, fetchedAt: current.fetchedAt,
                     nextRefreshAt: current.nextRefreshAt, phase: .failed, failure: Self.failure(for: error))
             }
         }
@@ -272,6 +261,28 @@ final class LaunchScheduleFeature {
         // has its own lifetime and cannot keep subsequent refreshes joined to old data.
         requests[source] = nil
         startReminderEffects(effects)
+        if case .success(let launches) = result, let cache {
+            let schedule = SavedLaunchSchedule(source: source, launches: launches, fetchedAt: fetchedAt)
+            let previous = cacheWriteTasks[source]
+            let writeID = UUID()
+            cacheWriteIDs[source] = writeID
+            let write = Task { [weak self] in
+                await previous?.value
+                do {
+                    do { try await cache.save(schedule) }
+                    catch { try await cache.save(schedule) }
+                    guard self?.cacheWriteIDs[source] == writeID else { return }
+                    self?.failedCacheSources.remove(source)
+                } catch {
+                    guard self?.cacheWriteIDs[source] == writeID else { return }
+                    self?.failedCacheSources.insert(source)
+                }
+                self?.cacheWriteTasks[source] = nil
+                self?.cacheWriteIDs[source] = nil
+            }
+            cacheWriteTasks[source] = write
+            await write.value
+        }
         for waiter in request.waiters.values { waiter.resume() }
     }
 
@@ -360,7 +371,7 @@ final class LaunchScheduleFeature {
         for index in sources.indices {
             if let deadline = sources[index].nextRefreshAt, deadline <= currentTime {
                 let current = sources[index]
-                sources[index] = LaunchSourceSnapshot(id: current.id, launches: current.launches, fetchedAt: current.fetchedAt,
+                sources[index] = LaunchSourceSnapshot(id: current.id, minimumRefreshInterval: current.minimumRefreshInterval, launches: current.launches, fetchedAt: current.fetchedAt,
                     nextRefreshAt: nil, phase: current.phase, failure: current.failure)
             }
         }
@@ -852,7 +863,6 @@ final class LaunchScheduleFeature {
     }
 
     private static func failure(for error: any Error) -> LaunchLoadFailure {
-        if error is LaunchCacheWriteError { return .storage }
         if let error = error as? LaunchRepositoryError {
             switch error {
             case .invalidResponse: return .invalidResponse
@@ -868,7 +878,6 @@ final class LaunchScheduleFeature {
     }
 }
 
-private struct LaunchCacheWriteError: Error {}
 
 enum LaunchLoadFailure: Equatable, Sendable {
     case offline, timedOut, invalidResponse, invalidData, network, storage
@@ -899,15 +908,16 @@ struct LaunchSourceConfiguration: Sendable {
 
 struct LaunchSourceSnapshot: Equatable, Sendable, Identifiable {
     let id: LaunchSourceID
+    let minimumRefreshInterval: TimeInterval
     let launches: [RocketLaunch]
     let fetchedAt: Date?
     let nextRefreshAt: Date?
     let phase: Phase
     let failure: LaunchLoadFailure?
 
-    init(id: LaunchSourceID, launches: [RocketLaunch] = [], fetchedAt: Date? = nil,
+    init(id: LaunchSourceID, minimumRefreshInterval: TimeInterval = 0, launches: [RocketLaunch] = [], fetchedAt: Date? = nil,
          nextRefreshAt: Date? = nil, phase: Phase = .idle, failure: LaunchLoadFailure? = nil) {
-        self.id = id; self.launches = launches; self.fetchedAt = fetchedAt
+        self.id = id; self.minimumRefreshInterval = minimumRefreshInterval; self.launches = launches; self.fetchedAt = fetchedAt
         self.nextRefreshAt = nextRefreshAt; self.phase = phase; self.failure = failure
     }
     enum Phase: Equatable, Sendable { case idle, loading, loaded, failed }

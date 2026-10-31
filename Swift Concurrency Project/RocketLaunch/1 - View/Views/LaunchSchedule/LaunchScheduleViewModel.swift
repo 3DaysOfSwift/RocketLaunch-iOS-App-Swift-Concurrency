@@ -27,7 +27,7 @@ final class LaunchScheduleViewModel {
 
     var themeError: String? { settingsFeature.storageError }
     var savedScheduleError: String? {
-        snapshot.loadFailure == .storage ? nil : launchScheduleFeature.savedScheduleReadError
+        launchScheduleFeature.savedScheduleWriteError
     }
     func selectNextTheme() { settingsFeature.selectNextTheme() }
 
@@ -116,9 +116,7 @@ final class LaunchScheduleViewModel {
         case .invalidData, .invalidResponse: return String(localized: "The launch service returned an unexpected response. Please try again later.")
         case .network: return String(localized: "Couldn’t load launches. Please try again.")
         case .storage:
-            return launchScheduleFeature.savedScheduleReadError == nil
-                ? String(localized: "Couldn’t save the launch schedule. Please try again.")
-                : String(localized: "Saved schedules could not be loaded or updated. Please try again.")
+            return String(localized: "Couldn’t load the launch schedule. Please try again.")
         }
     }
 
