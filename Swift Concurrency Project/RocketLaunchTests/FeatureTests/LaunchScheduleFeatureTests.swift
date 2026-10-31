@@ -477,11 +477,14 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let task = Task { await feature.loadIfNeeded() }
         await waitFor([started])
         XCTAssertEqual(feature.displayedLaunch, launch)
+        let viewModel = LaunchScheduleViewModel(launchScheduleFeature: feature)
+        XCTAssertNotNil(viewModel.savedScheduleMessage)
         await repository.complete(0, with: .failure(URLError(.notConnectedToInternet)))
         await task.value
         XCTAssertEqual(feature.displayedLaunch, launch)
         XCTAssertEqual(feature.sources.first?.fetchedAt, date)
         XCTAssertEqual(feature.loadFailure, .offline)
+        XCTAssertNotNil(viewModel.savedScheduleMessage)
     }
 
     @MainActor func testSuccessfulRefreshIsPersistedForNextLaunch() async throws {
@@ -501,6 +504,30 @@ final class LaunchScheduleCacheTests: XCTestCase {
         let restored = try await LaunchScheduleCache(fileURL: url).load()
         XCTAssertEqual(restored.first?.launches, [launch])
         XCTAssertEqual(feature.sources[0].launches, [launch])
+    }
+
+    @MainActor func testFirstRefreshAfterRestoringCacheDoesNotCreateSessionUpdates() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = LaunchScheduleCache(fileURL: directory.appendingPathComponent("schedule.json"))
+        let date = Date(timeIntervalSince1970: 2_000_000_000)
+        func launch(_ offset: TimeInterval) -> RocketLaunch {
+            RocketLaunch(id: 123, name: "Launch", missions: [],
+                estimatedDate: .init(month: nil, day: nil, year: nil),
+                details: .init(plannedTime: date.addingTimeInterval(offset)))
+        }
+        try await cache.save(.init(source: .rocketLaunchLive, launches: [launch(3600)], fetchedAt: date))
+        let started = expectation(description: "Network request starts")
+        let repository = ControlledLaunchRepository { _ in started.fulfill() }
+        let feature = LaunchScheduleFeature(sources: [.init(id: .rocketLaunchLive, repository: repository)],
+            cache: cache, now: { date })
+        let task = Task { await feature.loadIfNeeded() }
+        await waitFor([started])
+        await repository.complete(0, with: .success([launch(7200)]))
+        await task.value
+        XCTAssertTrue(feature.updates.isEmpty, "Changes made before this session must not appear as session updates")
+        XCTAssertEqual(feature.displayedLaunch?.details.plannedTime, date.addingTimeInterval(7200))
+        XCTAssertNil(LaunchScheduleViewModel(launchScheduleFeature: feature).savedScheduleMessage)
     }
 
     @MainActor func testFailedCacheWriteDoesNotPublishDownloadedSchedule() async throws {

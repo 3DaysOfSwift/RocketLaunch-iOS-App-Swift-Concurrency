@@ -15,6 +15,7 @@ final class LaunchScheduleFeature {
     private let cache: (any LaunchScheduleCaching)?
     @ObservationIgnored private var cacheLoadTask: Task<[SavedLaunchSchedule], Never>?
     @ObservationIgnored private var cacheRestored = false
+    @ObservationIgnored private var restoredCacheSources: Set<LaunchSourceID> = []
     private let now: @Sendable () -> Date
     private let waitForScheduleTick: @Sendable () async throws -> Void
     @ObservationIgnored private var scheduleMonitorTask: Task<Void, Never>?
@@ -131,6 +132,7 @@ final class LaunchScheduleFeature {
                   sources[index].phase == .idle, sources[index].fetchedAt == nil else { continue }
             sources[index] = LaunchSourceSnapshot(id: schedule.source, launches: schedule.launches,
                 fetchedAt: schedule.fetchedAt, phase: .idle)
+            restoredCacheSources.insert(schedule.source)
         }
         rebuildOperators()
         updateNextLaunch()
@@ -228,7 +230,10 @@ final class LaunchScheduleFeature {
         var effects: [ReminderEffect] = []
         switch result {
         case .success(let launches):
-            recordChanges(from: sources[index].launches, to: launches)
+            if !restoredCacheSources.contains(source) {
+                recordChanges(from: sources[index].launches, to: launches)
+            }
+            restoredCacheSources.remove(source)
             let current = sources[index]
             sources[index] = LaunchSourceSnapshot(id: current.id, launches: launches, fetchedAt: fetchedAt,
                 nextRefreshAt: current.nextRefreshAt, phase: .loaded)

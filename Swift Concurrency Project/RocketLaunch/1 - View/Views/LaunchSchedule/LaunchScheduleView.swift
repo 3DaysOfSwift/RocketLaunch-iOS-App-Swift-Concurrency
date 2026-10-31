@@ -14,6 +14,10 @@ struct LaunchScheduleView: View {
             VStack(alignment: .leading, spacing: 28) {
                 if viewModel.hasLaunch {
                     timing
+                    if let savedScheduleMessage = viewModel.savedScheduleMessage {
+                        Label(savedScheduleMessage, systemImage: "clock.arrow.circlepath")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                     missionCard
                     if let launch = viewModel.currentLaunch {
                         ViewThatFits(in: .horizontal) {

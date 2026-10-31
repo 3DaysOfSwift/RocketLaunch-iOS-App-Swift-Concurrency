@@ -93,6 +93,12 @@ final class LaunchScheduleViewModel {
     func canRetry(_ source: LaunchSourceSnapshot) -> Bool { SourceStatusPresentation.canRetry(source) }
     func sourceMessage(_ source: LaunchSourceSnapshot) -> String { SourceStatusPresentation.message(source) }
     var hasLaunch: Bool { snapshot.displayedLaunch != nil }
+    var savedScheduleMessage: String? {
+        guard let launch = currentLaunch,
+              let source = sources.first(where: { $0.id == launch.source }),
+              source.phase != .loaded, let savedAt = source.fetchedAt else { return nil }
+        return "Showing schedule saved \(savedAt.formatted(date: .abbreviated, time: .shortened))"
+    }
     var isLoading: Bool {
         if case .loading = snapshot.state { return true }
         return false
