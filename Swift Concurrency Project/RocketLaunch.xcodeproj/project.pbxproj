@@ -54,6 +54,8 @@
 		A77192A88CC668C7B385A0D7 /* LaunchScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E8129612F8172D7763F3D5 /* LaunchScheduleView.swift */; };
 		AD314A2629F09C3736C3D237 /* StubURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39B014467475ABA93C9A0FB8 /* StubURLProtocol.swift */; };
 		BFCB555EF76613F20AC19FED /* LaunchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66876FA3E22A3B2FFDE6B00A /* LaunchRepository.swift */; };
+		AA9900000000000000000001 /* LaunchScheduleCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9900000000000000000002 /* LaunchScheduleCache.swift */; };
+		AA9900000000000000000003 /* BinaryLaunchSchedules.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9900000000000000000004 /* BinaryLaunchSchedules.swift */; };
 		C5AC034AAAE9C2E0236B94CA /* AppColourTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0708E9DA54F15EB2B22F4235 /* AppColourTheme.swift */; };
 		C71295EF9F333CF055E11A17 /* AppPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C931B54B8C8C0797125440 /* AppPresentation.swift */; };
 		CA9200000000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CA9200000000000000000001 /* PrivacyInfo.xcprivacy */; };
@@ -127,6 +129,8 @@
 		58A5C8BFB9265FBDFB7ED40B /* LaunchScheduleViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleViewModel.swift; sourceTree = "<group>"; };
 		5AA6D9F0BE450505C16EB3FC /* RemindersViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersViewModel.swift; sourceTree = "<group>"; };
 		66876FA3E22A3B2FFDE6B00A /* LaunchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchRepository.swift; sourceTree = "<group>"; };
+		AA9900000000000000000002 /* LaunchScheduleCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleCache.swift; sourceTree = "<group>"; };
+		AA9900000000000000000004 /* BinaryLaunchSchedules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BinaryLaunchSchedules.swift; sourceTree = "<group>"; };
 		6B9AA865F333AFF8BBCF1CB7 /* LaunchLibraryAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchLibraryAPI.swift; sourceTree = "<group>"; };
 		6CEFBA188D76B1BB677E11F8 /* RocketLaunchDataTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RocketLaunchDataTypes.swift; sourceTree = "<group>"; };
 		71DCC2F5E5B68050A7A30C8A /* LaunchScheduleFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScheduleFeature.swift; sourceTree = "<group>"; };
@@ -400,6 +404,8 @@
 			isa = PBXGroup;
 			children = (
 				66876FA3E22A3B2FFDE6B00A /* LaunchRepository.swift */,
+				AA9900000000000000000002 /* LaunchScheduleCache.swift */,
+				AA9900000000000000000004 /* BinaryLaunchSchedules.swift */,
 			);
 			path = "Cached Launches";
 			sourceTree = "<group>";
@@ -749,6 +755,8 @@
 				B9291F07BAC8477F9CFDCFD5 /* PrivacyPolicyViewModel.swift in Sources */,
 				C71295EF9F333CF055E11A17 /* AppPresentation.swift in Sources */,
 				BFCB555EF76613F20AC19FED /* LaunchRepository.swift in Sources */,
+				AA9900000000000000000001 /* LaunchScheduleCache.swift in Sources */,
+				AA9900000000000000000003 /* BinaryLaunchSchedules.swift in Sources */,
 				4F4ED4B5F2B6530219B555D6 /* RocketLaunchAPI.swift in Sources */,
 				351A6003F48EF35CC5ABBB85 /* RocketLaunchDataTypes.swift in Sources */,
 			);

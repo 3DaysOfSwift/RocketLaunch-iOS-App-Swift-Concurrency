@@ -461,6 +461,47 @@ private actor ActiveReminderPersistence: ReminderPersisting {
 }
 
 final class LaunchScheduleCacheTests: XCTestCase {
+    func testBinarySnapshotRoundTripsAllLaunchFieldsAndRejectsTruncation() throws {
+        let launch = RocketLaunch(id: "id:123", source: .spaceX, name: "Español 🚀", missions: [
+            .init(name: "Mission", description: "Description"), .init(name: "Second", description: nil)
+        ], estimatedDate: .init(month: 12, day: nil, year: 2030), details: .init(
+            provider: "SpaceX", vehicle: "Falcon", country: "US", site: "Site",
+            plannedTime: Date(timeIntervalSinceReferenceDate: -100), sortTime: Date(timeIntervalSinceReferenceDate: 400),
+            estimatedDateLabel: "Soon", missionDescription: "Payload",
+            watchURL: URL(string: "https://example.org/watch"), detailsURL: URL(string: "https://example.org/details")))
+        let input = [SavedLaunchSchedule(source: .spaceX, launches: [launch], fetchedAt: Date(timeIntervalSinceReferenceDate: 500))]
+        let data = try BinaryLaunchSchedules.encode(input)
+        XCTAssertEqual(try BinaryLaunchSchedules.decode(data), input)
+        for length in 0..<data.count {
+            XCTAssertThrowsError(try BinaryLaunchSchedules.decode(Data(data.prefix(length))), "Accepted truncated snapshot at \(length)")
+        }
+        var unknownVersion = data
+        unknownVersion[unknownVersion.startIndex] ^= 1
+        XCTAssertThrowsError(try BinaryLaunchSchedules.decode(unknownVersion))
+        XCTAssertThrowsError(try BinaryLaunchSchedules.decode(data + Data([0])))
+    }
+
+    func testExistingJSONCacheMigratesAfterSuccessfulBinarySave() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let json = directory.appendingPathComponent("LaunchSchedule.json")
+        let binary = directory.appendingPathComponent("LaunchSchedule.dat")
+        let old = SavedLaunchSchedule(source: .rocketLaunchLive, launches: try LaunchFixtures.launches(), fetchedAt: .now)
+        let original = try JSONEncoder().encode([old])
+        try original.write(to: json)
+        let cache = LaunchScheduleCache(fileURL: binary, legacyURL: json)
+        let loaded = try await cache.load()
+        XCTAssertEqual(loaded, [old])
+        let other = SavedLaunchSchedule(source: .spaceX, launches: [], fetchedAt: .now)
+        try await cache.save(other)
+        let restored = try await LaunchScheduleCache(fileURL: binary, legacyURL: json).load()
+        XCTAssertEqual(Set(restored.map(\.source)), [.rocketLaunchLive, .spaceX])
+        XCTAssertEqual(restored.first(where: { $0.source == .rocketLaunchLive }), old)
+        XCTAssertEqual(try Data(contentsOf: json), original, "Migration must retain the existing cache")
+        XCTAssertTrue(try Data(contentsOf: binary).starts(with: Data("RKTSCHE1".utf8)))
+    }
+
     @MainActor func testSavedScheduleAppearsWhenOfflineRefreshFails() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
