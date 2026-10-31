@@ -48,11 +48,28 @@ actor LaunchScheduleCache: LaunchScheduleCaching {
         guard schedule.launches.allSatisfy({ $0.source == schedule.source }) else {
             throw LaunchRepositoryError.invalidData
         }
-        var schedules = try load()
+        let existing: [SavedLaunchSchedule]
+        do {
+            existing = try load()
+        } catch is DecodingError {
+            try preserveUnreadableCache()
+            existing = []
+        } catch LaunchRepositoryError.invalidData {
+            try preserveUnreadableCache()
+            existing = []
+        }
+        var schedules = existing
         schedules.removeAll { $0.source == schedule.source }
         schedules.append(schedule)
         let data = try JSONEncoder().encode(schedules)
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: fileURL, options: .atomic)
+    }
+
+    /// A downloaded schedule is replaceable, but retain a damaged file for recovery.
+    private func preserveUnreadableCache() throws {
+        let backup = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("\(fileURL.lastPathComponent).unreadable-\(UUID().uuidString)")
+        try FileManager.default.copyItem(at: fileURL, to: backup)
     }
 }
